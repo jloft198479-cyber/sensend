@@ -1,0 +1,91 @@
+/* ═══ TipTap 编辑器样式 ═══ */
+/* 从 App.vue :deep() 抽取，改为直接选择器（非 scoped） */
+/* 选择器作用域：.editor-wrapper 内的 .tiptap */
+
+.editor-wrapper .tiptap {
+  outline: none;
+  min-height: 100%;
+  font-family: var(--font-editor);
+  font-size: 15px;
+  line-height: 1.9;
+  color: var(--fg);
+  caret-color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.editor-wrapper .tiptap > * + * { margin-top: 0.6em; }
+.editor-wrapper .tiptap > *:first-child { margin-top: 0; }
+
+/* 占位符 */
+.editor-wrapper .tiptap p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: var(--muted);
+  pointer-events: none;
+  height: 0;
+  font-style: italic;
+}
+.editor-wrapper .tiptap p { margin: 0; line-height: 1.9; }
+
+/* 标题 */
+.editor-wrapper .tiptap h1,
+.editor-wrapper .tiptap h2,
+.editor-wrapper .tiptap h3 {
+  line-height: 1.35;
+  font-weight: 700;
+  margin-top: 1em;
+  margin-bottom: 0.35em;
+}
+.editor-wrapper .tiptap h1 {
+  font-size: 1.6em; color: var(--fg);
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+}
+.editor-wrapper .tiptap h2 { font-size: 1.3em; color: var(--fg); }
+.editor-wrapper .tiptap h3 { font-size: 1.1em; color: var(--fg-secondary); }
+
+/* 列表 */
+.editor-wrapper .tiptap ul,
+.editor-wrapper .tiptap ol {
+  padding: 0 0 0 1.5em;
+  margin: 0.5em 0;
+}
+.editor-wrapper .tiptap ul { list-style-type: disc; }
+.editor-wrapper .tiptap ol { list-style-type: decimal; }
+.editor-wrapper .tiptap li { margin: 0.3em 0; line-height: 1.7; }
+.editor-wrapper .tiptap li > p { margin: 0; }
+
+/* 格式 */
+.editor-wrapper .tiptap strong { font-weight: 700; color: var(--fg); }
+.editor-wrapper .tiptap em { font-style: italic; color: var(--fg); }
+.editor-wrapper .tiptap code {
+  background: var(--code-bg); color: var(--fg);
+  font-family: var(--font-mono); padding: 0.15em 0.4em;
+  border-radius: 0.25rem; font-size: 0.88em; font-weight: 500;
+  border: 1px solid var(--border-color);
+}
+.editor-wrapper .tiptap pre {
+  background: var(--bg-page); border: 1px solid var(--border-color);
+  padding: 0.875rem 1rem; border-radius: 0.5rem; overflow-x: auto; margin: 0.75em 0;
+}
+.editor-wrapper .tiptap pre code {
+  background: transparent; color: inherit;
+  padding: 0; border: none; font-size: 0.85em; line-height: 1.6;
+}
+.editor-wrapper .tiptap s, .editor-wrapper .tiptap del {
+  text-decoration: line-through; color: var(--muted);
+  text-decoration-color: var(--muted); text-decoration-thickness: 1.5px;
+}
+.editor-wrapper .tiptap blockquote {
+  border-left: 3px solid var(--border-color);
+  padding: 0.5rem 0 0.5rem 1rem; margin: 0.75em 0;
+  color: var(--fg-secondary); font-style: italic;
+}
+.editor-wrapper .tiptap a {
+  color: var(--accent); text-decoration: underline;
+  text-decoration-thickness: 1px; text-underline-offset: 2px;
+}
+.editor-wrapper .tiptap a:hover { color: var(--accent-hover); text-decoration-thickness: 2px; }
+.editor-wrapper .tiptap hr {
+  border: none; border-top: 1.5px solid var(--border-color); margin: 1.5em 0;
+}
