@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+src-tauri/target/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Tauri
+src-tauri/WixTools/
+src-tauri/Cargo.lock
+
+# Temporary
+*.tmp
+*.temp
+
+# Backup files (all variations)
+.backup/
+backup/
+backup-*/
+*.bak
+
+# Build logs and temp files
+*.txt
+icon-source.png
+test-icon.ico
+
+# Development notes
+HANDOFF.md
+sensend-principles.md
