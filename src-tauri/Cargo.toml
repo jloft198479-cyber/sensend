@@ -1,6 +1,6 @@
 [package]
 name = "sensend"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sensend - 超轻量级桌面悬浮记事本"
 authors = ["简乐 <jloft198479@gmail.com>"]
 license = "MIT"
