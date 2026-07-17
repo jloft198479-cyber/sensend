@@ -335,10 +335,15 @@ impl NotionAdapter {
         token: &str,
         target_id: &str,
     ) -> Result<TargetType, String> {
-        // 第一步：直接测是不是纯 Database
-        let result = self.request("GET", &format!("/databases/{}", target_id), token, None).await;
+        // 两个独立探测并行发起：database 直查 + 页面 children 拆查
+        // 用 join! 而非 try_join! —— 一个 404 是预期内，我们要的是两个结果都看
+        let (db_res, children_res) = tokio::join!(
+            self.request("GET", &format!("/databases/{}", target_id), token, None),
+            self.request("GET", &format!("/blocks/{}/children?page_size=100", target_id), token, None),
+        );
 
-        if let Ok(body) = result {
+        // 优先判：目标是纯 Database
+        if let Ok(body) = db_res {
             if body.get("object").and_then(|o| o.as_str()) == Some("database") {
                 if let Some(props) = body.get("properties").and_then(|p| p.as_object()) {
                     let schema = Self::extract_schema_from_properties(props)?;
@@ -351,15 +356,8 @@ impl NotionAdapter {
             }
         }
 
-        // 第二步：拆开页面看有没有 child_database
-        let children = self.request(
-            "GET",
-            &format!("/blocks/{}/children?page_size=100", target_id),
-            token,
-            None,
-        ).await;
-
-        if let Ok(body) = children {
+        // 再判：页面内嵌 child_database（依赖 children 结果，无法并行，保持串行）
+        if let Ok(body) = children_res {
             if let Some(arr) = body.get("results").and_then(|r| r.as_array()) {
                 for block in arr {
                     if block.get("type").and_then(|t| t.as_str()) == Some("child_database") {
@@ -380,7 +378,7 @@ impl NotionAdapter {
             }
         }
 
-        // 第三步：兜底为普通页面
+        // 兜底为普通页面
         Ok(TargetType::Page)
     }
 

@@ -4,6 +4,9 @@
 use super::{PlatformAdapter, PlatformInstance, PublishResult};
 use async_trait::async_trait;
 use serde_json::{json, Value};
+use std::collections::HashMap;
+use std::sync::{Mutex, OnceLock};
+use std::time::{Duration, Instant};
 
 const FEISHU_BASE: &str = "https://open.feishu.cn/open-apis";
 
@@ -15,6 +18,14 @@ const BLOCK_ORDERED: i64 = 13;
 const BLOCK_CODE: i64 = 14;
 const BLOCK_QUOTE: i64 = 15;
 const BLOCK_DIVIDER: i64 = 22;
+
+/// 飞书 tenant_access_token 进程内缓存：key=app_id，有效期 2h（提前 5min 刷新）
+struct CachedToken {
+    token: String,
+    expire_at: Instant,
+}
+
+static TOKEN_CACHE: OnceLock<Mutex<HashMap<String, CachedToken>>> = OnceLock::new();
 
 pub struct LarkAdapter;
 
@@ -35,6 +46,19 @@ impl LarkAdapter {
     }
 
     async fn get_tenant_token(client: &reqwest::Client, app_id: &String, app_secret: &String) -> Result<String, String> {
+        // 1. 查缓存（临界区不含 .await，不会阻塞 async 线程池）
+        {
+            let cache = TOKEN_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+            if let Ok(g) = cache.lock() {
+                if let Some(c) = g.get(app_id) {
+                    if c.expire_at > Instant::now() {
+                        return Ok(c.token.clone());
+                    }
+                }
+            }
+        }
+
+        // 2. 缓存未命中或已过期 → 重新获取
         let res = client
             .post(format!("{}/auth/v3/tenant_access_token/internal", FEISHU_BASE))
             .header("Content-Type", "application/json; charset=utf-8")
@@ -60,10 +84,23 @@ impl LarkAdapter {
             return Err(format!("飞书认证 HTTP 错误 ({})", status));
         }
 
-        body.get("tenant_access_token")
+        let token = body.get("tenant_access_token")
             .and_then(|t| t.as_str())
             .map(|t| t.to_string())
-            .ok_or_else(|| "飞书认证响应中缺少 tenant_access_token".into())
+            .ok_or_else(|| "飞书认证响应中缺少 tenant_access_token".into())?;
+
+        // 3. 写入缓存（提前 5 分钟刷新，避免边界失效；失败不写缓存）
+        {
+            let cache = TOKEN_CACHE.get_or_init(|| Mutex::new(HashMap::new()));
+            if let Ok(mut g) = cache.lock() {
+                g.insert(app_id.clone(), CachedToken {
+                    token: token.clone(),
+                    expire_at: Instant::now() + Duration::from_secs(2 * 3600 - 300),
+                });
+            }
+        }
+
+        Ok(token)
     }
 
     async fn request(
