@@ -1,7 +1,7 @@
 # Sensend Code Wiki
 
 > 超轻量级桌面悬浮记事本 — 代码百科文档
-> 版本：v0.1.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
+> 版本：v0.2.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
 > 生成时间：2026-07-17
 
 ---
