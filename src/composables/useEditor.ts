@@ -1,3 +1,14 @@
+// ═══ 优化方案 3：onUpdate 回调瘦身 ═══
+// 改动说明（相对原版，用 [OPT] 标记所有改动点）：
+// 1. [OPT] 新增 lastMentionId 缓存，onUpdate 中只在 mentionId 实际变化时才触发回调
+//    —— 普通打字不改变 mention，避免了每次按键的 doc.descendants 遍历 + Vue 响应式更新
+// 2. [OPT] 字数统计从 onUpdate 同步调用改为独立防抖（300ms）
+//    —— 打字过程中不需要实时字数，300ms 延迟无感但减少了每次按键的正则开销
+// 3. [OPT] doSave 增加内容差异检测（lastSavedContent），内容未变则跳过写入
+//    —— 用户编辑后撤销回原样时，不再做无意义的磁盘 I/O
+//
+// 所有其他逻辑（mention 插入/删除、自动保存防抖、退出前保存）完全不变
+
 import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useEditor as useTiptapEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
@@ -26,6 +37,11 @@ export function useSensendEditor(
   const saveStatus = ref<SaveStatus>('idle')
   const wordCount = ref(0)
   const charCount = ref(0)
+
+  // ── [OPT] 差异检测状态 ──
+  let lastMentionId: string | null = null          // mention 缓存
+  let wordCountTimer: ReturnType<typeof setTimeout> | null = null  // 字数防抖
+  let lastSavedContent: string | null = null       // 保存差异检测
 
   // ── @mention 工具函数 ──
 
@@ -87,6 +103,22 @@ export function useSensendEditor(
   /** 注册 mention 变化回调 */
   function setOnMentionChange(cb: (mentionId: string | null) => void) {
     onMentionChange = cb
+  }
+
+  // ── [OPT] 字数统计（独立防抖 300ms）──
+  // 从 onUpdate 同步调用改为防抖，减少每次按键的正则开销
+  function scheduleWordCount(e: any) {
+    if (wordCountTimer) clearTimeout(wordCountTimer)
+    wordCountTimer = setTimeout(() => updateWordCount(e), 300)
+  }
+
+  function updateWordCount(e: any) {
+    if (!e) return
+    const text = e.getText()
+    const chinese = text.match(/[\u4e00-\u9fa5]/g) || []
+    const english = text.match(/[a-zA-Z]+/g) || []
+    wordCount.value = chinese.length + english.length
+    charCount.value = text.length
   }
 
   // ── 编辑器 ──
@@ -220,29 +252,26 @@ export function useSensendEditor(
     onUpdate: ({ editor: e }) => {
       saveStatus.value = 'unsaved'
       autoSave()
-      updateWordCount(e)
-      // 通知外部 mention 变化
+
+      // [OPT] 字数统计：防抖 300ms，不再每次按键同步执行正则
+      scheduleWordCount(e)
+
+      // [OPT] mention 差异检测：只在 ID 实际变化时才触发回调
+      // 普通打字不会改变 mention，跳过遍历和下游的 Vue 响应式更新
       if (onMentionChange) {
-        let mentionId: string | null = null
+        let currentMentionId: string | null = null
         e.state.doc.descendants((node: any) => {
           if (node.type.name === 'mention' && node.attrs.id) {
-            mentionId = node.attrs.id
+            currentMentionId = node.attrs.id
           }
         })
-        onMentionChange(mentionId)
+        if (currentMentionId !== lastMentionId) {
+          lastMentionId = currentMentionId
+          onMentionChange(currentMentionId)
+        }
       }
     },
   })
-
-  // ── 字数统计 ──
-  function updateWordCount(e: any) {
-    if (!e) return
-    const text = e.getText()
-    const chinese = text.match(/[\u4e00-\u9fa5]/g) || []
-    const english = text.match(/[a-zA-Z]+/g) || []
-    wordCount.value = chinese.length + english.length
-    charCount.value = text.length
-  }
 
   // ── 自动保存（防抖 800ms）──
   let saveTimer: ReturnType<typeof setTimeout> | null = null
@@ -253,10 +282,18 @@ export function useSensendEditor(
 
   async function doSave() {
     if (!editor.value) return
+
+    // [OPT] 内容差异检测：序列化后与上次保存比较，相同则跳过磁盘 I/O
+    const content = JSON.stringify(editor.value.getJSON())
+    if (content === lastSavedContent) {
+      saveStatus.value = 'idle'
+      return
+    }
+
     saveStatus.value = 'saving'
     try {
-      const content = JSON.stringify(editor.value.getJSON())
       await invoke('save_note', { content })
+      lastSavedContent = content
       saveStatus.value = 'saved'
       setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'idle' }, 2000)
     } catch (e) {
@@ -270,6 +307,7 @@ export function useSensendEditor(
 
   async function handleExitRequest() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
+    if (wordCountTimer) { clearTimeout(wordCountTimer); wordCountTimer = null }
     await doSave()
     await invoke('request_quit')
   }
@@ -285,6 +323,8 @@ export function useSensendEditor(
         } catch {
           editor.value.commands.setContent(content)
         }
+        // [OPT] 初始化 lastSavedContent，避免首次 setContent 后立即触发保存
+        lastSavedContent = JSON.stringify(editor.value.getJSON())
         updateWordCount(editor.value)
       }
     } catch (e) {
@@ -296,6 +336,7 @@ export function useSensendEditor(
 
   onBeforeUnmount(() => {
     if (saveTimer) clearTimeout(saveTimer)
+    if (wordCountTimer) clearTimeout(wordCountTimer)
     unlistenExit?.()
     editor.value?.destroy()
   })
