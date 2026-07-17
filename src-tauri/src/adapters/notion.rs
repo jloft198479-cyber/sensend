@@ -337,9 +337,11 @@ impl NotionAdapter {
     ) -> Result<TargetType, String> {
         // 两个独立探测并行发起：database 直查 + 页面 children 拆查
         // 用 join! 而非 try_join! —— 一个 404 是预期内，我们要的是两个结果都看
+        let db_url = format!("/databases/{}", target_id);
+        let children_url = format!("/blocks/{}/children?page_size=100", target_id);
         let (db_res, children_res) = tokio::join!(
-            self.request("GET", &format!("/databases/{}", target_id), token, None),
-            self.request("GET", &format!("/blocks/{}/children?page_size=100", target_id), token, None),
+            self.request("GET", &db_url, token, None),
+            self.request("GET", &children_url, token, None),
         );
 
         // 优先判：目标是纯 Database

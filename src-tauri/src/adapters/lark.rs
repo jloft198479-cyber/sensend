@@ -87,7 +87,7 @@ impl LarkAdapter {
         let token = body.get("tenant_access_token")
             .and_then(|t| t.as_str())
             .map(|t| t.to_string())
-            .ok_or_else(|| "飞书认证响应中缺少 tenant_access_token".into())?;
+            .ok_or_else(|| "飞书认证响应中缺少 tenant_access_token".to_string())?;
 
         // 3. 写入缓存（提前 5 分钟刷新，避免边界失效；失败不写缓存）
         {
