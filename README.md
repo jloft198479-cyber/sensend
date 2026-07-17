@@ -12,7 +12,7 @@
 
 ## 安装
 
-前往 [Releases](https://github.com/jloft/sensend/releases) 下载最新版本。
+前往 [Releases](https://github.com/jloft198479-cyber/sensend/releases) 下载最新版本。
 
 ## 快速开始
 
