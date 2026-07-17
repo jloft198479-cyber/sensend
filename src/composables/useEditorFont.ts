@@ -34,11 +34,14 @@ export function useEditorFont() {
     const oldStyle = document.getElementById('dynamic-font-faces')
     if (oldStyle) oldStyle.remove()
 
+    // 转义单引号，防止字体名/路径含 ' 导致 CSS 注入或语法错误
+    const escapeCss = (s: string) => s.replace(/'/g, "\\'")
+
     if (userFonts.length > 0) {
       const style = document.createElement('style')
       style.id = 'dynamic-font-faces'
       style.textContent = userFonts.map(f =>
-        `@font-face { font-family: '${f.name}'; src: url('${f.path}'); }`
+        `@font-face { font-family: '${escapeCss(f.name)}'; src: url('${escapeCss(f.path)}'); }`
       ).join('\n')
       document.head.appendChild(style)
     }
@@ -46,7 +49,7 @@ export function useEditorFont() {
     fontOptions.value = [
       { value: "'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif", label: '系统默认' },
       ...userFonts.map(f => ({
-        value: `'${f.name}', 'Microsoft YaHei UI', Georgia, serif`,
+        value: `'${escapeCss(f.name)}', 'Microsoft YaHei UI', Georgia, serif`,
         label: f.name,
       })),
     ]

@@ -38,7 +38,11 @@ export function useHotkey(publishNote: () => void, editorRef: () => any, isSendi
     if (!parsed.key) return
 
     const keyMatch = e.key.toLowerCase() === parsed.key || e.code.toLowerCase() === `key${parsed.key}`
-    if (keyMatch && e.ctrlKey === parsed.ctrl && e.altKey === parsed.alt && e.shiftKey === parsed.shift) {
+    // Mac 上 Cmd 键对应 metaKey，Windows/Linux 上 Ctrl 键对应 ctrlKey
+    // 配置里存的是 Control，但 Mac 用户录制时按 Cmd 实际存成 Control
+    // 所以这里 ctrl 或 meta 任一按下都算匹配
+    const ctrlMatch = parsed.ctrl ? (e.ctrlKey || e.metaKey) : (!e.ctrlKey && !e.metaKey)
+    if (keyMatch && ctrlMatch && e.altKey === parsed.alt && e.shiftKey === parsed.shift) {
       e.preventDefault()
       publishNote()
     }

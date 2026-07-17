@@ -263,6 +263,7 @@ fn marks_to_text_elements(node: &Value) -> Vec<Value> {
                             "bold" => { style.insert("bold".into(), json!(true)); }
                             "italic" => { style.insert("italic".into(), json!(true)); }
                             "strike" => { style.insert("strikethrough".into(), json!(true)); }
+                            "underline" => { style.insert("underline".into(), json!(true)); }
                             "code" => { style.insert("inline_code".into(), json!(true)); }
                             "link" => {
                                 let href = mark.get("attrs")
@@ -412,6 +413,57 @@ fn tiptap_to_lark_blocks(content: &Value) -> Vec<Value> {
                                     "ordered": { "elements": elements, "style": {} }
                                 }));
                             }
+                        }
+                    }
+                }
+                "taskList" => {
+                    if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
+                        for item in items {
+                            if item.get("type").and_then(|t| t.as_str()) == Some("taskItem") {
+                                let checked = item.get("attrs")
+                                    .and_then(|a| a.get("checked"))
+                                    .and_then(|c| c.as_bool())
+                                    .unwrap_or(false);
+                                let elements = extract_list_item_elements(item);
+                                if elements.is_empty() { continue; }
+                                let prefix = if checked { "[x] " } else { "[ ] " };
+                                let prefixed: Vec<Value> = elements.into_iter().map(|mut e| {
+                                    if let Some(tr) = e.get_mut("text_run").and_then(|tr| tr.as_object_mut()) {
+                                        if let Some(content) = tr.get("content").and_then(|c| c.as_str()).map(|s| s.to_string()) {
+                                            tr.insert("content".into(), json!(format!("{}{}", prefix, content)));
+                                        }
+                                    }
+                                    e
+                                }).collect();
+                                blocks.push(json!({
+                                    "block_type": BLOCK_BULLET,
+                                    "bullet": { "elements": prefixed, "style": {} }
+                                }));
+                            }
+                        }
+                    }
+                }
+                "table" => {
+                    // 飞书无原生表格，降级为逐行文本
+                    if let Some(rows) = node.get("content").and_then(|c| c.as_array()) {
+                        for row in rows {
+                            if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
+                                continue;
+                            }
+                            let mut cells: Vec<String> = Vec::new();
+                            if let Some(cells_arr) = row.get("content").and_then(|c| c.as_array()) {
+                                for cell in cells_arr {
+                                    cells.push(extract_text_from_node(cell));
+                                }
+                            }
+                            let line = cells.join(" | ");
+                            blocks.push(json!({
+                                "block_type": BLOCK_TEXT,
+                                "text": {
+                                    "elements": [{ "text_run": { "content": line } }],
+                                    "style": {}
+                                }
+                            }));
                         }
                     }
                 }

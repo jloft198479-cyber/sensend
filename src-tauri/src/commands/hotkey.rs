@@ -55,8 +55,20 @@ pub async fn save_hotkeys(app: AppHandle, show: String, send: String) -> Result<
         format!("唤醒快捷键格式无效: {}", e)
     })?;
 
+    // 保存旧快捷键，注册新键失败时恢复
+    let (old_show, _old_send) = get_hotkey_config(&app);
+
     unregister_all_hotkeys(&app)?;
-    register_show_hotkey(&app, &show)?;
+    if let Err(e) = register_show_hotkey(&app, &show) {
+        // 注册新键失败，尝试恢复旧键
+        if let Err(recover_err) = register_show_hotkey(&app, &old_show) {
+            return Err(format!(
+                "注册新快捷键失败: {}; 恢复旧快捷键也失败: {}。请重启应用或在配置中重置快捷键。",
+                e, recover_err
+            ));
+        }
+        return Err(format!("注册新快捷键失败: {}，已恢复旧快捷键", e));
+    }
 
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     store.set("hotkey_show", serde_json::Value::String(show));

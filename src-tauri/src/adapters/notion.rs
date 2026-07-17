@@ -167,6 +167,64 @@ impl NotionAdapter {
                     }
                 }));
             }
+            "taskList" => {
+                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
+                    for item in items {
+                        let checked = item.get("attrs")
+                            .and_then(|a| a.get("checked"))
+                            .and_then(|c| c.as_bool())
+                            .unwrap_or(false);
+                        out.push(json!({
+                            "object": "block",
+                            "type": "to_do",
+                            "to_do": {
+                                "rich_text": self.convert_text(item),
+                                "checked": checked
+                            }
+                        }));
+                    }
+                }
+            }
+            "table" => {
+                let col_count = node.get("attrs")
+                    .and_then(|a| a.get("col_count"))
+                    .and_then(|c| c.as_u64())
+                    .unwrap_or(0) as usize;
+                let rows = node.get("content").and_then(|c| c.as_array());
+                let mut table_cells: Vec<Value> = Vec::new();
+                if let Some(rows) = rows {
+                    for row in rows {
+                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
+                            continue;
+                        }
+                        let mut row_cells: Vec<Value> = Vec::new();
+                        let cells = row.get("content").and_then(|c| c.as_array());
+                        if let Some(cells) = cells {
+                            for cell in cells {
+                                row_cells.push(json!({
+                                    "type": "text",
+                                    "text": { "content": markdown::extract_plain_text(cell).unwrap_or_default() }
+                                }));
+                            }
+                        }
+                        // 不足 col_count 补空
+                        while row_cells.len() < col_count {
+                            row_cells.push(json!({ "type": "text", "text": { "content": "" } }));
+                        }
+                        table_cells.push(json!(row_cells));
+                    }
+                }
+                out.push(json!({
+                    "object": "block",
+                    "type": "table",
+                    "table": {
+                        "table_width": col_count,
+                        "has_column_header": false,
+                        "has_row_header": false,
+                        "children": table_cells
+                    }
+                }));
+            }
             "horizontalRule" => {
                 out.push(json!({
                     "object": "block",
@@ -218,6 +276,7 @@ impl NotionAdapter {
                     "bold" => { anno.insert("bold".into(), json!(true)); }
                     "italic" => { anno.insert("italic".into(), json!(true)); }
                     "strike" => { anno.insert("strikethrough".into(), json!(true)); }
+                    "underline" => { anno.insert("underline".into(), json!(true)); }
                     "code" => { anno.insert("code".into(), json!(true)); }
                     "link" => {
                         if let Some(href) = mark.get("attrs").and_then(|a| a.get("href")).and_then(|h| h.as_str()) {
@@ -363,10 +422,18 @@ impl NotionAdapter {
             json!({ "page_id": parent_id })
         };
 
+        // Notion 创建页面时 children 最多 100 个，超出部分需要后续追加
+        let (initial_blocks, rest_blocks) = if blocks.len() > 100 {
+            let rest = blocks[100..].to_vec();
+            (blocks[..100].to_vec(), Some(rest))
+        } else {
+            (blocks, None)
+        };
+
         let body = json!({
             "parent": parent,
             "properties": properties,
-            "children": blocks
+            "children": initial_blocks
         });
 
         let result = self.request("POST", "/pages", token, Some(body)).await?;
@@ -374,6 +441,11 @@ impl NotionAdapter {
         let page_id = result.get("id").and_then(|id| id.as_str())
             .ok_or("创建页面失败：未返回页面 ID")?
             .to_string();
+
+        // 追加剩余的 blocks
+        if let Some(rest) = rest_blocks {
+            self.append_children(token, &page_id, rest).await?;
+        }
 
         let page_url = result.get("url")
             .and_then(|u| u.as_str())

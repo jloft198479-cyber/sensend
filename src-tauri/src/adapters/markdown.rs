@@ -113,6 +113,38 @@ fn render_node(node: &Value, out: &mut String, list_depth: usize) {
         "horizontalRule" => {
             out.push_str("---\n\n");
         }
+        "taskList" => {
+            if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
+                for item in items {
+                    let checked = item.get("attrs")
+                        .and_then(|a| a.get("checked"))
+                        .and_then(|c| c.as_bool())
+                        .unwrap_or(false);
+                    let marker = if checked { "- [x] " } else { "- [ ] " };
+                    out.push_str(marker);
+                    // 列表项内段落
+                    if let Some(children) = item.get("content").and_then(|c| c.as_array()) {
+                        for (ci, child) in children.iter().enumerate() {
+                            if ci == 0 {
+                                render_inline(child, out);
+                                out.push('\n');
+                            } else {
+                                out.push_str("  ");
+                                render_inline(child, out);
+                                out.push('\n');
+                            }
+                        }
+                    } else {
+                        render_inline(item, out);
+                        out.push('\n');
+                    }
+                }
+            }
+            out.push('\n');
+        }
+        "table" => {
+            render_table(node, out);
+        }
         "hardBreak" => {
             out.push_str("  \n");
         }
@@ -180,6 +212,75 @@ fn render_list(node: &Value, out: &mut String, list_depth: usize, kind: ListKind
     if list_depth == 0 {
         out.push('\n');
     }
+}
+
+/// 渲染表格（GFM table 语法），表头按 col_count 补齐空单元格
+fn render_table(node: &Value, out: &mut String) {
+    let col_count = node.get("attrs")
+        .and_then(|a| a.get("col_count"))
+        .and_then(|c| c.as_u64())
+        .unwrap_or(0) as usize;
+
+    let rows = match node.get("content").and_then(|c| c.as_array()) {
+        Some(r) => r,
+        None => return,
+    };
+
+    // 提取所有行的单元格文本
+    let mut table_rows: Vec<Vec<String>> = Vec::new();
+    let mut max_cols = col_count;
+
+    for row in rows {
+        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
+            continue;
+        }
+        let mut cells: Vec<String> = Vec::new();
+        if let Some(cells_arr) = row.get("content").and_then(|c| c.as_array()) {
+            for cell in cells_arr {
+                let mut cell_text = String::new();
+                render_inline(cell, &mut cell_text);
+                cells.push(cell_text.trim().to_string());
+            }
+        }
+        if cells.len() > max_cols { max_cols = cells.len(); }
+        table_rows.push(cells);
+    }
+
+    if table_rows.is_empty() || max_cols == 0 {
+        return;
+    }
+
+    // 补齐每行到 max_cols 列
+    for cells in &mut table_rows {
+        while cells.len() < max_cols {
+            cells.push(String::new());
+        }
+    }
+
+    // 第一行作为表头
+    let header = &table_rows[0];
+    out.push('|');
+    for cell in header {
+        out.push_str(&format!(" {} |", cell));
+    }
+    out.push('\n');
+
+    // 分隔行
+    out.push('|');
+    for _ in 0..max_cols {
+        out.push_str(" --- |");
+    }
+    out.push('\n');
+
+    // 数据行
+    for cells in table_rows.iter().skip(1) {
+        out.push('|');
+        for cell in cells {
+            out.push_str(&format!(" {} |", cell));
+        }
+        out.push('\n');
+    }
+    out.push('\n');
 }
 
 /// 提取内联文本（含 mark 格式：粗体、斜体、删除线、代码、链接）

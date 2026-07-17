@@ -202,6 +202,55 @@ impl FlowUsAdapter {
                     }
                 }));
             }
+            "taskList" => {
+                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
+                    for item in items {
+                        let checked = item.get("attrs")
+                            .and_then(|a| a.get("checked"))
+                            .and_then(|c| c.as_bool())
+                            .unwrap_or(false);
+                        out.push(json!({
+                            "type": "todo",
+                            "data": {
+                                "rich_text": self.convert_text(item),
+                                "checked": checked,
+                                "text_color": "default",
+                                "background_color": "default"
+                            }
+                        }));
+                    }
+                }
+            }
+            "table" => {
+                let col_count = node.get("attrs")
+                    .and_then(|a| a.get("col_count"))
+                    .and_then(|c| c.as_u64())
+                    .unwrap_or(0) as usize;
+                if let Some(rows) = node.get("content").and_then(|c| c.as_array()) {
+                    for row in rows {
+                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
+                            continue;
+                        }
+                        let mut row_cells: Vec<Value> = Vec::new();
+                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
+                            for cell in cells {
+                                let cell_text = markdown::extract_plain_text(cell).unwrap_or_default();
+                                row_cells.push(json!({
+                                    "type": "text",
+                                    "text": { "content": cell_text, "link": null }
+                                }));
+                            }
+                        }
+                        while row_cells.len() < col_count {
+                            row_cells.push(json!({ "type": "text", "text": { "content": "", "link": null } }));
+                        }
+                        out.push(json!({
+                            "type": "table_row",
+                            "data": { "cells": row_cells }
+                        }));
+                    }
+                }
+            }
             "horizontalRule" => {
                 out.push(json!({
                     "type": "divider",
@@ -254,6 +303,7 @@ impl FlowUsAdapter {
                     "bold" => { anno.insert("bold".into(), json!(true)); }
                     "italic" => { anno.insert("italic".into(), json!(true)); }
                     "strike" => { anno.insert("strikethrough".into(), json!(true)); }
+                    "underline" => { anno.insert("underline".into(), json!(true)); }
                     "code" => { anno.insert("code".into(), json!(true)); }
                     "link" => {
                         if let Some(href) = mark.get("attrs").and_then(|a| a.get("href")).and_then(|h| h.as_str()) {
@@ -279,7 +329,7 @@ impl FlowUsAdapter {
         full_anno.insert("bold".into(), json!(anno.contains_key("bold")));
         full_anno.insert("italic".into(), json!(anno.contains_key("italic")));
         full_anno.insert("strikethrough".into(), json!(anno.contains_key("strikethrough")));
-        full_anno.insert("underline".into(), json!(false));
+        full_anno.insert("underline".into(), json!(anno.contains_key("underline")));
         full_anno.insert("code".into(), json!(anno.contains_key("code")));
         full_anno.insert("color".into(), json!("default"));
 
@@ -296,6 +346,7 @@ impl FlowUsAdapter {
     // ── 目标类型判断 ──
 
     /// 判断目标 ID 是数据库还是页面
+    /// 仅当目标不存在（404）时降级为 Page，其他错误（401/403/网络等）向上传递
     async fn resolve_target(
         &self,
         token: &str,
@@ -308,7 +359,7 @@ impl FlowUsAdapter {
             token,
             None,
         ).await;
-        
+
         match result {
             Ok(children) => {
                 // 检查是否有 child_database
@@ -324,9 +375,14 @@ impl FlowUsAdapter {
                 }
                 Ok(TargetType::Page)
             }
-            Err(_) => {
-                // 如果获取子块失败，假设是普通页面
-                Ok(TargetType::Page)
+            Err(e) => {
+                // 仅当 404（目标不存在）时降级为 Page
+                // 其他错误（401 认证失败、403 无权限、网络错误等）必须向上传递
+                if e.contains("404") || e.to_lowercase().contains("not found") {
+                    Ok(TargetType::Page)
+                } else {
+                    Err(e)
+                }
             }
         }
     }

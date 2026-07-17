@@ -19,6 +19,7 @@ export function useConfig() {
     publish_mode: 'page',
   })
   const isTesting = ref(false)
+  const isSaving = ref(false)
   const testResult = ref<'idle' | 'ok' | 'fail'>('idle')
   const testErrorMsg = ref('')
   const showDeleteConfirm = ref<string | null>(null)
@@ -133,6 +134,9 @@ export function useConfig() {
 
   async function saveInstance() {
     if (!canSave.value) return
+    // 防重入：保存过程中禁止再次点击
+    if (isSaving.value) return
+    isSaving.value = true
     try {
       const instance: PlatformInstance = {
         id: editingInstanceId.value || crypto.randomUUID(),
@@ -154,6 +158,8 @@ export function useConfig() {
       showForm.value = false
     } catch (e: any) {
       console.error('保存失败:', e)
+    } finally {
+      isSaving.value = false
     }
   }
 
@@ -174,6 +180,7 @@ export function useConfig() {
     editingInstanceId,
     configForm,
     isTesting,
+    isSaving,
     testResult,
     testErrorMsg,
     showDeleteConfirm,
