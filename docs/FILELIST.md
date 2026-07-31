@@ -1,18 +1,19 @@
-# Sensend v0.1.0 源码目录
+# Sensend v0.3.0 源码目录
 
-> 生成时间：2026-04-29  
-> 文件总数：100
+> 生成时间：2026-07-31（对齐 v0.3.0 发布状态）
+> 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
 
 ---
 
 ## 目录结构
 
 ```
-sensend-release/
+sensend/
 │
 ├── .gitignore
 ├── index.html
 ├── LICENSE
+├── logo.png
 ├── package.json
 ├── package-lock.json
 ├── README.md
@@ -21,7 +22,14 @@ sensend-release/
 ├── vite.config.ts
 │
 ├── docs/
-│   └── FILELIST.md
+│   ├── BUILD-GUIDE.md          # 打包发布手册
+│   ├── CODE-WIKI.md            # 代码百科文档
+│   ├── EXPERIENCE.md           # 开发经验手册
+│   ├── FILELIST.md             # 本文档
+│   └── TODO.md                 # 待办事项（v0.3.0 新增）
+│
+├── scripts/                    # 辅助脚本（v0.3.0 新增）
+│   └── build-release.ps1       # Windows 打包脚本（自动加载 MSVC + Rust 环境）
 │
 ├── src/
 │   ├── App.vue
@@ -68,55 +76,19 @@ sensend-release/
     │   ├── 128x128@2x.png
     │   ├── 32x32.png
     │   ├── 64x64.png
+    │   ├── Square107x107Logo.png
+    │   ├── Square142x142Logo.png
+    │   ├── Square150x150Logo.png
+    │   ├── Square284x284Logo.png
+    │   ├── Square30x30Logo.png
+    │   ├── Square310x310Logo.png
+    │   ├── Square44x44Logo.png
+    │   ├── Square71x71Logo.png
+    │   ├── Square89x89Logo.png
+    │   ├── StoreLogo.png
     │   ├── icon.icns
     │   ├── icon.ico
-    │   ├── icon.png
-    │   │
-    │   ├── android/
-    │   │   ├── mipmap-anydpi-v26/
-    │   │   │   └── ic_launcher.xml
-    │   │   ├── mipmap-hdpi/
-    │   │   │   ├── ic_launcher.png
-    │   │   │   ├── ic_launcher_foreground.png
-    │   │   │   └── ic_launcher_round.png
-    │   │   ├── mipmap-mdpi/
-    │   │   │   ├── ic_launcher.png
-    │   │   │   ├── ic_launcher_foreground.png
-    │   │   │   └── ic_launcher_round.png
-    │   │   ├── mipmap-xhdpi/
-    │   │   │   ├── ic_launcher.png
-    │   │   │   ├── ic_launcher_foreground.png
-    │   │   │   └── ic_launcher_round.png
-    │   │   ├── mipmap-xxhdpi/
-    │   │   │   ├── ic_launcher.png
-    │   │   │   ├── ic_launcher_foreground.png
-    │   │   │   └── ic_launcher_round.png
-    │   │   ├── mipmap-xxxhdpi/
-    │   │   │   ├── ic_launcher.png
-    │   │   │   ├── ic_launcher_foreground.png
-    │   │   │   └── ic_launcher_round.png
-    │   │   └── values/
-    │   │       └── ic_launcher_background.xml
-    │   │
-    │   └── ios/
-    │       ├── AppIcon-20x20@1x.png
-    │       ├── AppIcon-20x20@2x.png
-    │       ├── AppIcon-20x20@2x-1.png
-    │       ├── AppIcon-20x20@3x.png
-    │       ├── AppIcon-29x29@1x.png
-    │       ├── AppIcon-29x29@2x.png
-    │       ├── AppIcon-29x29@2x-1.png
-    │       ├── AppIcon-29x29@3x.png
-    │       ├── AppIcon-40x40@1x.png
-    │       ├── AppIcon-40x40@2x.png
-    │       ├── AppIcon-40x40@2x-1.png
-    │       ├── AppIcon-40x40@3x.png
-    │       ├── AppIcon-512@2x.png
-    │       ├── AppIcon-60x60@2x.png
-    │       ├── AppIcon-60x60@3x.png
-    │       ├── AppIcon-76x76@1x.png
-    │       ├── AppIcon-76x76@2x.png
-    │       └── AppIcon-83.5x83.5@2x.png
+    │   └── icon.png
     │
     └── src/
         ├── lib.rs
@@ -144,13 +116,16 @@ sensend-release/
 
 | 目录 | 文件数 | 说明 |
 |------|--------|------|
-| 根目录 | 9 | 配置文件 |
+| 根目录 | 11 | 配置文件 + README + LICENSE |
+| docs/ | 5 | 文档（v0.3.0 新增 TODO.md）|
+| scripts/ | 1 | 打包脚本（v0.3.0 新增）|
 | src/ | 20 | 前端源码 |
 | src-tauri/src/ | 13 | 后端源码 |
-| src-tauri/icons/ | 57 | 图标资源 |
+| src-tauri/icons/ | 17 | 图标资源 |
 | src-tauri/capabilities/ | 1 | Tauri 权限配置 |
-| docs/ | 1 | 文档 |
-| **合计** | **101** | |
+| **合计** | **68** | |
+
+> 历史版本（v0.1.0）曾包含 android/ios 图标目录，v0.3.0 已移除移动端图标，仅保留桌面端。
 
 ---
 
@@ -168,9 +143,9 @@ sensend-release/
 
 1. 安装依赖：`npm install`
 2. 开发运行：`npm run tauri dev`
-3. 构建发布：`npm run tauri build`
+3. 构建发布：`npm run tauri build`（或 Windows 自定义环境用 `scripts\build-release.ps1`）
 
 ---
 
-> 作者：简乐  
+> 作者：简乐
 > 致谢：送给儿子小柏

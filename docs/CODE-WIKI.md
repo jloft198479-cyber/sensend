@@ -1,8 +1,8 @@
 # Sensend Code Wiki
 
 > 超轻量级桌面悬浮记事本 — 代码百科文档
-> 版本：v0.2.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
-> 生成时间：2026-07-17
+> 版本：v0.3.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
+> 最近更新：2026-07-31（对齐 v0.3.0 发布状态）
 
 ---
 
@@ -33,18 +33,19 @@
 | 特性 | 说明 |
 |------|------|
 | 极速启动 | 悬浮窗口 + 全局快捷键唤醒，随时记录 |
-| 富文本编辑 | 基于 TipTap，支持标题、列表、引用、代码块、行内样式 |
+| 富文本编辑 | 基于 TipTap，支持标题、列表、引用、代码块、行内样式、待办清单、下划线 |
 | 多平台分发 | Notion / FlowUs / 飞书 / 本地文件夹，统一适配器接口 |
 | 自定义字体 | 用户可将 `.ttf/.otf/.woff2` 字体文件放入字体目录加载 |
 | 极简设计 | 无边框窗口、自定义标题栏、托盘常驻 |
 | 自动保存 | 编辑内容防抖 800ms 自动落盘到 `note.md` |
+| 默认目标记忆 | 上次发送/选择的平台实例 ID 存后端 `config.json`（v0.3.0 起，不再用 localStorage） |
 
 ### 1.3 技术栈
 
 | 层 | 技术 |
 |----|------|
 | 前端 | Vue 3.5 + TypeScript 5.6 + Vite 6 |
-| 富文本 | TipTap 3（StarterKit + Mention + Placeholder）|
+| 富文本 | TipTap 3（StarterKit + Mention + Placeholder + TableKit + Markdown 扩展）|
 | 弹层 | tippy.js（Mention 下拉）|
 | 桌面框架 | Tauri 2 |
 | 后端 | Rust 2021 edition |
@@ -137,6 +138,7 @@ if (page === 'config') {
 sensend/
 ├── index.html                  # HTML 入口
 ├── package.json                # 前端依赖与脚本
+├── package-lock.json           # 前端依赖锁定
 ├── vite.config.ts              # Vite 配置（端口 1420）
 ├── tsconfig.json               # TypeScript 配置（strict）
 ├── tsconfig.node.json
@@ -148,7 +150,11 @@ sensend/
 │   ├── BUILD-GUIDE.md          # 打包发布手册
 │   ├── EXPERIENCE.md           # 开发经验手册
 │   ├── FILELIST.md             # 源码清单
-│   └── CODE-WIKI.md            # 本文档
+│   ├── CODE-WIKI.md            # 本文档
+│   └── TODO.md                 # 待办事项（v0.3.0 新增）
+│
+├── scripts/                    # 辅助脚本（v0.3.0 新增）
+│   └── build-release.ps1       # Windows 打包脚本（自动加载 MSVC + Rust 环境）
 │
 ├── src/                        # ── 前端源码 ──
 │   ├── main.ts                 # 入口：按 URL 参数路由 main/config
@@ -231,7 +237,7 @@ sensend/
 
 **mention ↔ 底栏双向同步**（核心设计）：
 
-- 编辑区 mention 变化 → `setOnMentionChange` 回调 → 同步 `activeInstanceId` 并写入 `localStorage`。
+- 编辑区 mention 变化 → `setOnMentionChange` 回调 → 同步 `activeInstanceId` 并写入后端 `config.json`（通过 `set_default_target`，v0.3.0 起）。
 - 底栏选择目标 → `handleFooterSelect` → 调用 `selectTarget` + `setMention`（清除旧 mention、在文档开头插入新 mention）。
 - `resolvedTarget` 计算属性：mention 优先于底栏默认目标，作为最终发送目标。
 
@@ -283,7 +289,7 @@ sensend/
 - `main.rs`：二进制入口，仅调用 `sensend_lib::run()`；release 模式下隐藏控制台窗口。
 - `lib.rs`：应用主体，`pub fn run()` 中完成：
   - 插件注册：`opener` / `dialog` / `store` / `global-shortcut` / `single-instance`。
-  - 命令注册：`invoke_handler!` 注册全部 18 个命令。
+  - 命令注册：`invoke_handler!` 注册全部 20 个命令（v0.3.0 新增 `get_default_target` / `set_default_target`）。
   - `setup` 钩子：创建应用数据目录、初始化全局快捷键、构建系统托盘（显示/退出菜单 + 左键点击显示窗口）。
   - 窗口事件处理：主窗口关闭请求被拦截为 `hide()`（最小化到托盘）。
   - `single-instance` 回调：二次启动时显示并聚焦主窗口。
@@ -314,6 +320,8 @@ sensend/
 | `test_platform_connection` | 调用适配器 `test_connection` |
 | `probe_target` | 探测目标类型（page/database/bitable）|
 | `publish_note` | 核心：按 `publish_mode` 分发到 `publish` 或 `append_blocks` |
+| `get_default_target` | 读取后端 config.json 中记忆的默认发送目标 ID（v0.3.0 新增）|
+| `set_default_target` | 写入默认发送目标 ID 到后端 config.json（v0.3.0 新增）|
 
 **适配器工厂** `get_adapter(platform_type)` 根据 `platform_type` 字符串返回 `Box<dyn PlatformAdapter>`。
 
@@ -359,7 +367,7 @@ sensend/
 
 TipTap JSON ↔ Markdown 转换，供 `local.rs` 与 `flowus.rs` 复用：
 
-- `tiptap_to_markdown(tree)`：递归渲染 paragraph/heading/list/codeBlock/blockquote/horizontalRule/hardBreak，处理嵌套列表与 marks（粗体/斜体/删除线/代码/链接），mention 输出为 `@名称`。
+- `tiptap_to_markdown(tree)`：递归渲染 paragraph/heading/list/codeBlock/blockquote/horizontalRule/hardBreak/table，处理嵌套列表与 marks（粗体/斜体/删除线/代码/链接），mention 输出为 `@名称`。表格输出标准 GFM 语法（`| cell |` + `| --- |` 分隔行）。
 - `extract_title(content)`：优先取首个 heading 文本，兜底取首个非空段落，截取前 18 字。
 - `extract_plain_text(node)`：忽略格式的纯文本提取。
 
@@ -404,7 +412,7 @@ pub trait PlatformAdapter: Send + Sync {
 编辑器核心。返回 `editor/saveStatus/wordCount/charCount/getMentionId/setMention/setOnMentionChange`。
 
 关键内部逻辑：
-- **TipTap 初始化**：`StarterKit` + `Placeholder` + `Mention`（自定义 `renderHTML`、`suggestion` 配置）。
+- **TipTap 初始化**：`StarterKit` + `Placeholder` + `Mention`（自定义 `renderHTML`、`suggestion` 配置）+ `TableKit`（表格扩展，v0.2.0 起，目前仅支持粘贴富文本 HTML 进表，前端尚无插入入口，见 `docs/TODO.md`）。
 - **mention 唯一性**：`suggestion.command` 在插入新 mention 前先删除所有旧 mention，并修正 range 偏移。
 - **mention 渲染**：基于 `tippy.js` + `VueRenderer(MentionList)`，根据剩余空间自动判断向上/向下弹出。
 - **自动保存**：`onUpdate` 触发防抖 800ms → `doSave` → `invoke('save_note')`。
@@ -416,7 +424,7 @@ pub trait PlatformAdapter: Send + Sync {
 平台实例管理与发送。返回 `instances/activeInstanceId/platformTypes/isSending/selectTarget/openConfigWindow/publishNote/reloadInstances`。
 
 关键逻辑：
-- `publishNote(editorValue, overrideTargetId)`：剔除 mention 节点 → `invoke('publish_note')` → 成功 Toast 带「查看 ↗」按钮 → 记忆目标到 localStorage。
+- `publishNote(editorValue, overrideTargetId)`：剔除 mention 节点 → `invoke('publish_note')` → 成功 Toast 带「查看 ↗」按钮 → 记忆目标到后端 `config.json`（v0.3.0 起，通过 `set_default_target` 命令，不再用 localStorage）。
 - `friendlyError(raw)`：将 401/403/429/network 等错误转为人话。
 - 监听 `instances-updated` 事件自动刷新。
 
@@ -559,6 +567,8 @@ publishNote(editor, resolvedTargetId)
 | `vue` ^3.5.13 | 响应式 UI 框架 |
 | `@tiptap/vue-3` / `@tiptap/starter-kit` / `@tiptap/pm` | 富文本编辑器 |
 | `@tiptap/extension-mention` | `@提及` 扩展 |
+| `@tiptap/extension-table` | 表格扩展（TableKit，v0.2.0 起）|
+| `@tiptap/markdown` | Markdown 解析/序列化扩展 |
 | `@tiptap/extension-placeholder` | 空内容占位 |
 | `tippy.js` | Mention 下拉弹层 |
 | `@tauri-apps/api` | Tauri IPC（invoke/listen）|
@@ -646,7 +656,7 @@ npm run tauri build
 
 **产物**：
 - 便携版：`src-tauri/target/release/sensend.exe`
-- NSIS 安装包：`src-tauri/target/release/bundle/nsis/Sensend_0.1.0_x64-setup.exe`
+- NSIS 安装包：`src-tauri/target/release/bundle/nsis/Sensend_<版本号>_x64-setup.exe`
 
 ### 9.4 前端脚本
 
@@ -698,10 +708,11 @@ npm run tauri build
 - `platform_instances`：`PlatformInstance[]`。
 - `hotkey_show`：唤醒快捷键字符串。
 - `hotkey_send`：发送快捷键字符串。
+- `default_target`：上次发送/选择的平台实例 ID，用于启动时恢复默认目标（v0.3.0 起从 localStorage 迁移至此）。
 
 ### 10.3 前端 localStorage
 
-- `sensend-default-target`：上次发送/选择的平台实例 ID，用于启动时恢复默认目标。
+> v0.3.0 起，默认发送目标已迁移到后端 `config.json`，前端不再使用 localStorage 存储业务数据。
 
 ---
 

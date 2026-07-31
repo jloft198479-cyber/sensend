@@ -1,8 +1,9 @@
 # Sensend 开发经验手册
 
-> 作者：简乐  
-> 更新时间：2026-04-29  
-> 项目：Sensend v0.1.0
+> 作者：简乐
+> 最近更新：2026-07-31（对齐 v0.3.0 发布状态）
+> 项目：Sensend v0.3.0
+> 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
 
 ---
 
@@ -32,29 +33,16 @@ Sensend 的核心设计理念：
 - 讨论方案时不甩代码，需要时再写
 - 错误解释用大白话
 
-### 1.2 工作流程：双目录开发模式
+### 1.2 工作流程：单目录直接开发（v0.3.0 起）
 
-由于沙箱环境无法直接访问主项目目录，采用双目录模式：
+> 历史：v0.1.0 时期因沙箱限制采用"双目录开发模式"（sensend-du → F:\sensend）。
+> v0.3.0 起沙箱可直接访问项目目录，双目录模式已弃用，统一在 `F:\fzz-Project\sensend\sensend` 开发。
 
-```
-C:\Users\fzz198479\sensend-du\    ← 沙箱可访问的开发目录
-         ↓ copy-to-sensend.bat
-F:\sensend\                        ← 实际运行测试目录
-```
-
-**工作流程**：
-1. 在 `sensend-du` 目录修改代码
-2. 运行 `copy-to-sensend.bat` 复制到 `F:\sensend`
-3. 在 `F:\sensend` 运行测试
-4. 测试通过后提交发布
-
-**复制脚本示例** (`copy-to-sensend.bat`)：
-```batch
-@echo off
-xcopy /E /Y "C:\Users\fzz198479\sensend-du\src" "F:\sensend\src\"
-xcopy /E /Y "C:\Users\fzz198479\sensend-du\src-tauri\src" "F:\sensend\src-tauri\src\"
-echo Done
-```
+**当前工作流程**：
+1. 在 `F:\fzz-Project\sensend\sensend` 直接修改代码
+2. `npm run tauri dev` 运行测试
+3. 测试通过后用 `scripts/build-release.ps1` 打包
+4. 提交并推送到 GitHub，打 tag，创建 Release
 
 ### 1.3 需求理解：修改前先确认
 
@@ -292,64 +280,42 @@ failed to bundle project `io: Connection refused`
 
 ## 四、发布与分发
 
-### 4.1 Gitee 发布流程
+### 4.1 GitHub 发布流程（v0.3.0 起）
 
-**步骤一：推送源码**
+> 历史：v0.1.0 时期使用 Gitee，因 Gitee API 上传附件受限（见 4.2 历史记录），v0.2.0 起迁移到 GitHub。
+> 当前仓库：https://github.com/jloft198479-cyber/sensend
+
+**步骤一：提交并推送源码**
 
 ```bash
-# 初始化仓库
-git init
-
-# 添加文件
+cd F:\fzz-Project\sensend\sensend
 git add .
-
-# 提交
-git commit -m "v0.1.0 release"
-
-# 添加远程仓库
-git remote add origin https://gitee.com/用户名/项目名.git
-
-# 推送
-git push -u origin master
+git commit -m "feat(v0.x.0): 更新说明"
+git push origin main
 ```
 
-**步骤二：创建 Release**
+**步骤二：打 tag 并推送**
 
-方式一：网页创建
-1. 打开仓库页面
-2. 点击"发行版" → "+ 创建发行版"
-3. 填写版本号、标题、描述
-4. 上传安装包附件
-5. 点击"创建发行版"
-
-方式二：API 创建
 ```bash
-curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases" \
-  -d "access_token=你的令牌" \
-  -d "tag_name=v0.1.0" \
-  -d "name=Sensend v0.1.0" \
-  -d "target_commitish=master" \
-  -d "body=首个正式发布版本"
+git tag v0.x.0
+git push origin v0.x.0
 ```
 
-**步骤三：上传附件**
+**步骤三：创建 Release 并上传安装包（使用 gh CLI）**
 
-方式一：命令行工具
 ```bash
-npm install -g gitee-release-cli
-gitee-release config accessToken 你的令牌
-gitee-release assets upload /path/to/file.exe --target 0.1.0
+gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64-setup.exe" `
+  --title "Sensend v0.x.0" `
+  --notes "更新内容说明"
 ```
 
-方式二：手动上传
-1. 打开 Release 页面
-2. 点击"编辑"
-3. 拖入安装包文件
-4. 点击"更新发行版"
+也可在网页 https://github.com/jloft198479-cyber/sensend/releases/new 手动创建并拖入安装包。
 
-### 4.2 API 上传限制与替代方案
+### 4.2 Gitee API 上传附件失败（历史记录）
 
-**问题**：使用 API 上传附件返回 404。
+> 此节保留作为历史经验。v0.2.0 起已迁移到 GitHub，不再使用 Gitee。
+
+**问题**：使用 Gitee API 上传附件返回 404。
 
 ```bash
 curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases/xxx/assets" \
@@ -358,18 +324,9 @@ curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases/xxx/as
 # 返回：你所访问的页面不存在 (404)
 ```
 
-**可能原因**：
-1. Token 权限不足
-2. API 接口限制
-3. 文件大小限制
+**可能原因**：Token 权限不足 / API 接口限制 / 文件大小限制。
 
-**替代方案**：
-
-| 方案 | 优点 | 缺点 |
-|------|------|------|
-| gitee-release-cli | 官方工具，功能完整 | 需要额外安装 |
-| 手动上传 | 简单可靠 | 需要人工操作 |
-| GitHub Release | API 完善 | 国内访问慢 |
+**当时的替代方案**：gitee-release-cli、手动上传、或迁移到 GitHub Release（最终选择）。
 
 ### 4.3 代码签名问题
 
@@ -461,7 +418,10 @@ git status
 - 将 Git 安装路径记录在项目文档中
 - 避免每次都要重新查找
 
-### 5.2 干净源码包制作
+### 5.2 干净源码包制作（历史方法）
+
+> v0.2.0 起项目直接用 git 管理在 `F:\fzz-Project\sensend\sensend`，不再需要手动制作干净源码包。
+> 此节保留作为 robocopy 用法参考。
 
 **目标**：创建一个不包含构建产物、依赖、临时文件的干净源码包。
 
@@ -471,7 +431,7 @@ git status
 # 删除旧目录
 Remove-Item "C:\Users\fzz198479\sensend-release" -Recurse -Force
 
-# 复制文件
+# 复制文件（路径为 v0.1.0 时期的示例，现已弃用）
 robocopy "F:\sensend" "C:\Users\fzz198479\sensend-release" /E `
     /XD node_modules target dist .git .backup backup gen `
     /XF *.txt *.log *.bak HANDOFF.md icon-source.png test-icon.ico `
@@ -690,11 +650,14 @@ Error: WebView2 not found
 
 | 路径 | 用途 |
 |------|------|
-| `F:\sensend` | 主项目目录 |
-| `C:\Users\fzz198479\sensend-du` | 沙箱开发目录 |
-| `C:\Users\fzz198479\sensend-release` | 干净发布目录 |
-| `D:\Git\bin\git.exe` | Git 安装路径 |
+| `F:\fzz-Project\sensend\sensend` | 主项目目录（v0.3.0 起） |
+| `M:\rust\.cargo` | Rust CARGO_HOME（自定义位置）|
+| `M:\rust\.rustup` | Rust RUSTUP_HOME（自定义位置）|
+| `M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat` | MSVC 环境加载脚本 |
 | `%LOCALAPPDATA%\tauri\NSIS\` | Tauri NSIS 缓存 |
+| `gh` CLI | GitHub Release 上传工具（已登录 jloft198479-cyber）|
+
+> 历史：v0.1.0 时期主目录为 `F:\sensend`，沙箱目录为 `C:\Users\fzz198479\sensend-du`，已弃用。
 
 ### 8.2 下载链接汇总
 
@@ -740,6 +703,6 @@ cargo clean                    # 清理 cargo 缓存
 
 ---
 
-> 本手册基于 Sensend v0.1.0 开发经验整理  
-> 记录人：简乐  
+> 本手册基于 Sensend 开发经验整理，最近一次更新对齐 v0.3.0（2026-07-31）
+> 记录人：简乐
 > 致谢：送给儿子小柏

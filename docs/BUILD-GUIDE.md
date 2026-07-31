@@ -171,7 +171,9 @@ D:\Git\bin\git.exe --version
 $env:PATH += ";D:\Git\bin"
 ```
 
-### 3.5 Gitee API 上传附件失败
+### 3.5 Gitee API 上传附件失败（历史记录）
+
+> v0.2.0 起已迁移到 GitHub，使用 `gh` CLI 上传 Release 附件，此节保留作为历史经验。
 
 **现象**：
 ```
@@ -212,58 +214,47 @@ gitee-release assets upload /path/to/file.exe --target 0.1.0
 
 ## 四、发布流程
 
-### 4.1 创建干净源码包
-
-```powershell
-# 创建目录
-mkdir C:\Users\fzz198479\sensend-release
-
-# 复制文件（排除构建产物）
-robocopy F:\sensend C:\Users\fzz198479\sensend-release /E `
-    /XD node_modules target dist .git .backup backup gen `
-    /XF *.txt *.log *.bak HANDOFF.md sensend-principles.md `
-    /NFL /NDL /NJH /NJS
-```
-
-### 4.2 推送源码到 Gitee
+### 4.1 提交并推送源码到 GitHub
 
 ```bash
-cd F:\sensend
-D:\Git\bin\git.exe init
-D:\Git\bin\git.exe add .
-D:\Git\bin\git.exe commit -m "v0.1.0 release"
-D:\Git\bin\git.exe remote add origin https://gitee.com/用户名/项目名.git
-D:\Git\bin\git.exe push -u origin master
+cd F:\fzz-Project\sensend\sensend
+git add .
+git commit -m "feat(v0.x.0): 更新说明"
+git push origin main
 ```
 
-### 4.3 创建 Release
+### 4.2 打 tag 并推送
 
-**方式一：网页创建**
-1. 打开仓库页面 → "发行版" → "+ 创建发行版"
-2. 填写版本号、标题、描述
-3. 上传安装包附件
-4. 点击"创建发行版"
-
-**方式二：API 创建**
 ```bash
-curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases" \
-  -d "access_token=你的令牌" \
-  -d "tag_name=v0.1.0" \
-  -d "name=Sensend v0.1.0" \
-  -d "target_commitish=master"
+git tag v0.x.0
+git push origin v0.x.0
 ```
+
+### 4.3 创建 Release 并上传安装包
+
+**方式一：gh CLI（推荐）**
+
+```bash
+gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64-setup.exe" `
+  --title "Sensend v0.x.0" `
+  --notes "更新内容说明"
+```
+
+**方式二：网页创建**
+1. 打开 https://github.com/jloft198479-cyber/sensend/releases/new
+2. 选择刚推送的 tag
+3. 填写标题和描述
+4. 拖入安装包附件
+5. 点击"Publish release"
 
 ### 4.4 Release 描述模板
 
 ```markdown
-**Sensend v0.1.0**
+**Sensend v0.x.0**
 
-首个正式发布版本
-
-**功能特性**
-- 悬浮记事本，一键发送到 Notion / FlowUs / 飞书 / 本地
-- 全局快捷键快速唤起
-- 极简、轻盈、优雅
+**更新内容**
+- 更新点 1
+- 更新点 2
 
 **平台支持**
 - Notion：支持数据库和页面
@@ -275,7 +266,7 @@ curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases" \
 - Windows 10/11 x64
 
 **安装说明**
-- 下载 `Sensend_0.1.0_x64-setup.exe` 双击安装
+- 下载 `Sensend_0.x.0_x64-setup.exe` 双击安装
 - Windows 可能提示"无法识别的应用"，点击"更多信息" → "仍要运行"
 
 **致谢**
@@ -329,7 +320,7 @@ curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases" \
 # 开发
 npm run tauri dev
 
-# 构建
+# 构建（需已加载 MSVC 环境，或用 scripts/build-release.ps1）
 npm run tauri build
 
 # 仅构建前端
@@ -342,11 +333,14 @@ cd src-tauri && cargo build --release
 git status
 
 # 推送到远程
-git push origin master
+git push origin main
 
-# 创建标签
-git tag v0.1.0
-git push origin v0.1.0
+# 创建标签并推送
+git tag v0.x.0
+git push origin v0.x.0
+
+# 创建 Release 并上传安装包（gh CLI）
+gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64-setup.exe" --title "Sensend v0.x.0" --notes "更新说明"
 ```
 
 ---

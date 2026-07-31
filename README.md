@@ -1,20 +1,27 @@
 # Sensend
 
-> 当前版本：**v0.2.0**
+> 当前版本：**v0.3.0**
 
 超轻量级桌面悬浮记事本，一键发送到 Notion / FlowUs / 飞书 / 本地文件夹。
 
 ## 特性
 
 - **极速启动** — 悬浮窗口，全局快捷键唤醒，随时记录灵感
-- **富文本编辑** — 支持标题、列表、引用、代码块，以及 **待办清单、表格、下划线**
+- **富文本编辑** — 支持标题、列表、引用、代码块，以及待办清单、下划线
 - **多平台支持** — Notion、FlowUs、飞书、本地文件夹
 - **自定义字体** — 选择你喜欢的编辑器字体
 - **极简设计** — 无冗余，专注写作本身
 
+## v0.3.0 更新
+
+- **默认发送目标迁移**：从 localStorage 改为后端 config.json 存储，更可靠
+- **适配器增强**：flowus / notion / local 适配器健壮性与能力提升
+- **打包脚本**：新增 `scripts/build-release.ps1`，自动加载 MSVC 与 Rust 自定义环境
+- **文档**：BUILD-GUIDE 打包说明更新
+
 ## v0.2.0 更新
 
-- **新增格式**：待办清单（task list）、表格、下划线，四大平台适配器同步支持
+- **新增格式**：待办清单（task list）、下划线，四大平台适配器同步支持
 - **健壮性提升**：修复适配器多处边界问题，发送更稳定
 - **性能优化**：飞书访问令牌进程内缓存（减少重复鉴权请求）、Notion 目标解析并行化（发送更快）
 
@@ -41,8 +48,8 @@
 
 | 快捷键 | 功能 |
 |--------|------|
-| `Ctrl+Shift+N` | 全局唤醒窗口 |
-| `Ctrl+Enter` | 发送内容 |
+| `Alt+Shift+F` | 全局唤醒窗口（可自定义） |
+| `Ctrl+Enter` | 发送内容（可自定义） |
 | `Esc` | 隐藏窗口 |
 
 ## 开发
@@ -57,6 +64,10 @@ npm run tauri dev
 # 构建发布版本
 npm run tauri build
 ```
+
+> Windows 打包若 Rust / VS Build Tools 装在自定义路径，推荐使用打包脚本：
+> `powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"`
+> 详见 [docs/BUILD-GUIDE.md](docs/BUILD-GUIDE.md)。
 
 ### 技术栈
 
