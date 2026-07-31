@@ -186,13 +186,23 @@ impl NotionAdapter {
                 }
             }
             "table" => {
-                let col_count = node.get("attrs")
-                    .and_then(|a| a.get("col_count"))
-                    .and_then(|c| c.as_u64())
-                    .unwrap_or(0) as usize;
+                // TableKit 的 table 节点没有 col_count attrs，从实际行内容推断列数
                 let rows = node.get("content").and_then(|c| c.as_array());
                 let mut table_cells: Vec<Value> = Vec::new();
+                let mut col_count: usize = 0;
                 if let Some(rows) = rows {
+                    // 先扫一遍找出最大列数
+                    for row in rows {
+                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
+                            continue;
+                        }
+                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
+                            if cells.len() > col_count {
+                                col_count = cells.len();
+                            }
+                        }
+                    }
+                    // 再构建每行的 cells
                     for row in rows {
                         if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
                             continue;
@@ -213,6 +223,9 @@ impl NotionAdapter {
                         }
                         table_cells.push(json!(row_cells));
                     }
+                }
+                if col_count == 0 {
+                    col_count = 1;
                 }
                 out.push(json!({
                     "object": "block",
@@ -442,9 +455,19 @@ impl NotionAdapter {
             .ok_or("创建页面失败：未返回页面 ID")?
             .to_string();
 
-        // 追加剩余的 blocks
+        // 追加剩余的 blocks（页面已创建，追加失败时不能丢失这一信息）
         if let Some(rest) = rest_blocks {
-            self.append_children(token, &page_id, rest).await?;
+            let rest_count = rest.len();
+            if let Err(e) = self.append_children(token, &page_id, rest).await {
+                let page_url = result.get("url")
+                    .and_then(|u| u.as_str())
+                    .map(|u| u.to_string())
+                    .unwrap_or_else(|| format!("https://notion.so/{}", page_id));
+                return Err(format!(
+                    "页面已创建（{}），但部分内容（{} 个块）追加失败：{}\n请手动打开页面检查。",
+                    page_url, rest_count, e
+                ));
+            }
         }
 
         let page_url = result.get("url")

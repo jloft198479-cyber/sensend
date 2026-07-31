@@ -28,10 +28,13 @@ export function usePlatform() {
     return instances.value.find(i => i.id === activeInstanceId.value) || null
   })
 
-  /// 从底部栏选择平台 → 更新默认目标
+  /// 从底部栏选择平台 → 更新默认目标（存后端 config.json，比 localStorage 可靠）
   function selectTarget(instanceId: string) {
     activeInstanceId.value = instanceId
-    localStorage.setItem('sensend-default-target', instanceId)
+    // fire-and-forget：保持同步签名，不阻塞调用方
+    invoke('set_default_target', { targetId: instanceId }).catch(e => {
+      console.error('保存默认目标失败:', e)
+    })
   }
 
   async function reloadInstances() {
@@ -114,7 +117,9 @@ export function usePlatform() {
 
       // 记忆本次发送目标
       activeInstanceId.value = targetId
-      localStorage.setItem('sensend-default-target', targetId)
+      invoke('set_default_target', { targetId }).catch(e => {
+        console.error('保存默认目标失败:', e)
+      })
     } catch (e: any) {
       const raw = e?.message || String(e)
       toastError(friendlyError(raw))
@@ -135,7 +140,13 @@ export function usePlatform() {
       .then(async (list) => {
         instances.value = list
         if (list.length > 0) {
-          const savedId = localStorage.getItem('sensend-default-target')
+          // 从后端 config.json 读取默认目标，localStorage 作为旧版迁移兜底
+          let savedId: string | null = null
+          try {
+            savedId = await invoke<string | null>('get_default_target')
+          } catch {
+            savedId = localStorage.getItem('sensend-default-target')
+          }
           const savedExists = savedId && list.find(i => i.id === savedId)
           if (savedExists) {
             activeInstanceId.value = savedId

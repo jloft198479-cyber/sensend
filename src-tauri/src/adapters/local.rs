@@ -1,7 +1,7 @@
 use super::{markdown, PlatformAdapter, PlatformInstance, PublishResult};
 use async_trait::async_trait;
 use serde_json::Value;
-use std::fs;
+use tokio::fs;
 use std::path::PathBuf;
 
 pub struct LocalAdapter;
@@ -31,9 +31,9 @@ impl PlatformAdapter for LocalAdapter {
         }
         // 尝试写入测试文件
         let test_file = folder.join(".sensend_test");
-        match fs::write(&test_file, "ok") {
+        match fs::write(&test_file, "ok").await {
             Ok(()) => {
-                let _ = fs::remove_file(&test_file);
+                let _ = fs::remove_file(&test_file).await;
                 Ok(())
             }
             Err(e) => Err(format!("文件夹无写入权限: {}", e)),
@@ -58,7 +58,7 @@ impl PlatformAdapter for LocalAdapter {
         let mut data = vec![0xEF, 0xBB, 0xBF];
         data.extend(md_text.as_bytes());
 
-        fs::write(&filepath, &data).map_err(|e| format!("写入失败: {}", e))?;
+        fs::write(&filepath, &data).await.map_err(|e| format!("写入失败: {}", e))?;
 
         Ok(PublishResult {
             success: true,

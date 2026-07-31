@@ -14,6 +14,8 @@ import { useEditor as useTiptapEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
+import { TableKit } from '@tiptap/extension-table'
+import { Markdown } from '@tiptap/markdown'
 import { VueRenderer } from '@tiptap/vue-3'
 import tippy from 'tippy.js'
 import { invoke } from '@tauri-apps/api/core'
@@ -126,6 +128,10 @@ export function useSensendEditor(
     content: '',
     extensions: [
       StarterKit,
+      // 表格支持：从网页/其他编辑器复制含表格的 HTML 时能正确解析
+      TableKit,
+      // Markdown 支持：提供 parse/serialize 能力，配合 handlePaste 处理纯文本 Markdown 粘贴
+      Markdown,
       Placeholder.configure({
         placeholder: '开始记录，默认发送到上次位置，@可随时切换',
         emptyEditorClass: 'is-editor-empty',
@@ -248,7 +254,39 @@ export function useSensendEditor(
         },
       }),
     ],
-    editorProps: { attributes: { class: 'editor-content' } },
+    editorProps: {
+      attributes: { class: 'editor-content' },
+      handlePaste: (_view, event: ClipboardEvent) => {
+        // 有 HTML 时让默认处理（TableKit 已注册，能解析表格）
+        const html = event.clipboardData?.getData('text/html')
+        if (html && html.trim()) return false
+
+        // 纯文本：检测 Markdown 标记，用 Markdown 扩展解析
+        const text = event.clipboardData?.getData('text/plain') || ''
+        if (!text) return false
+
+        const manager = (editor.value?.storage as any)?.markdown?.manager
+        if (!manager) return false
+
+        // 粗判是否含 Markdown 语法（标题/列表/引用/代码块/分隔线/粗体/行内代码/链接）
+        const looksLikeMarkdown = /(^|\n)(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|---)|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\([^)]+\)/.test(text)
+        if (!looksLikeMarkdown) return false
+
+        try {
+          const json = manager.parse(text)
+          if (!json?.content || json.content.length === 0) return false
+          // 解析后仍是单段纯文本 → 当普通文本处理
+          if (json.content.length === 1 && json.content[0].type === 'paragraph') {
+            const inner = json.content[0].content
+            if (!inner || inner.length <= 1) return false
+          }
+          editor.value?.commands.insertContent(json)
+          return true
+        } catch {
+          return false
+        }
+      },
+    },
     onUpdate: ({ editor: e }) => {
       saveStatus.value = 'unsaved'
       autoSave()

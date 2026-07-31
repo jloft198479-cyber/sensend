@@ -84,7 +84,10 @@ async function hideWindow() { await invoke('hide_window') }
 setOnMentionChange((mentionId) => {
   if (mentionId) {
     activeInstanceId.value = mentionId
-    localStorage.setItem('sensend-default-target', mentionId)
+    // 存后端 config.json，fire-and-forget 不阻塞 UI
+    invoke('set_default_target', { targetId: mentionId }).catch(e => {
+      console.error('保存默认目标失败:', e)
+    })
   }
 })
 

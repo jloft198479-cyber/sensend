@@ -222,11 +222,24 @@ impl FlowUsAdapter {
                 }
             }
             "table" => {
-                let col_count = node.get("attrs")
-                    .and_then(|a| a.get("col_count"))
-                    .and_then(|c| c.as_u64())
-                    .unwrap_or(0) as usize;
+                // TableKit 的 table 节点没有 col_count attrs，从实际行内容推断列数
                 if let Some(rows) = node.get("content").and_then(|c| c.as_array()) {
+                    // 先扫一遍找出最大列数
+                    let mut col_count: usize = 0;
+                    for row in rows {
+                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
+                            continue;
+                        }
+                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
+                            if cells.len() > col_count {
+                                col_count = cells.len();
+                            }
+                        }
+                    }
+                    if col_count == 0 {
+                        col_count = 1;
+                    }
+                    // 再构建每行的 cells
                     for row in rows {
                         if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
                             continue;

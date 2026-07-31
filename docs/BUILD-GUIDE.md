@@ -1,7 +1,7 @@
 # Sensend 打包与发布手册
 
 > 作者：简乐  
-> 更新时间：2026-04-29
+> 更新时间：2026-07-31
 
 ---
 
@@ -32,7 +32,7 @@ Windows 平台打包 NSIS 安装包需要额外下载：
 ### 2.1 安装依赖
 
 ```bash
-cd F:\sensend
+cd F:\fzz-Project\sensend\sensend
 npm install
 ```
 
@@ -44,13 +44,34 @@ npm run tauri dev
 
 ### 2.3 构建发布
 
+#### 方式一：打包脚本（推荐）
+
+本机的 Rust 和 VS Build Tools 都装在 M 盘自定义位置，普通终端的 PATH 里找不到 `cargo` 和 `cl.exe`，直接跑 `npm run tauri build` 会失败。项目内置了打包脚本，会自动加载环境：
+
+```bash
+cd F:\fzz-Project\sensend\sensend
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
+```
+
+脚本做三件事：
+1. 设置 `CARGO_HOME` / `RUSTUP_HOME` 指向 `M:\rust\.cargo` / `M:\rust\.rustup`
+2. 调用 `M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat` 加载 MSVC 环境（`cl.exe` / `link.exe` / INCLUDE / LIB 等）
+3. 执行 `npm run tauri build`
+
+**为什么需要加载 MSVC 环境？** Rust 默认用 `stable-x86_64-pc-windows-msvc` toolchain，依赖 `ring`、`reqwest` 等 crate 需要 C 编译器（`cl.exe`）。VS Build Tools 装好后，`cl.exe` 在 `M:\VS\BuildTools\VC\Tools\MSVC\<版本>\bin\HostX64\x64\` 下，但它的 INCLUDE/LIB 环境变量必须通过 `vcvars64.bat` 加载，裸跑 cargo 找不到。
+
+#### 方式二：手动构建（需已加载 MSVC 环境）
+
+如果已经在「x64 Native Tools Command Prompt」或开发者版 PowerShell 里（环境已加载），可以直接：
+
 ```bash
 npm run tauri build
 ```
 
-构建产物位置：
+#### 构建产物位置
+
 - 便携版：`src-tauri\target\release\sensend.exe`
-- 安装包：`src-tauri\target\release\bundle\nsis\Sensend_0.1.0_x64-setup.exe`
+- 安装包：`src-tauri\target\release\bundle\nsis\Sensend_<版本号>_x64-setup.exe`
 
 ---
 
@@ -343,4 +364,4 @@ git push origin v0.1.0
 
 ---
 
-> 本手册基于 Sensend v0.1.0 打包发布经验整理
+> 本手册基于 Sensend 打包发布经验整理，最近一次验证：v0.3.0（2026-07-31）

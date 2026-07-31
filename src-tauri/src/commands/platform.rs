@@ -131,3 +131,18 @@ pub async fn publish_note(
         adapter.publish(&content, instance).await
     }
 }
+
+// ── 默认发送目标（存 config.json，比 localStorage 可靠）──
+
+#[tauri::command]
+pub async fn get_default_target(app: AppHandle) -> Result<Option<String>, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    Ok(store.get("default_target").and_then(|v| v.as_str().map(|s| s.to_string())))
+}
+
+#[tauri::command]
+pub async fn set_default_target(app: AppHandle, target_id: String) -> Result<(), String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    store.set("default_target", serde_json::to_value(&target_id).map_err(|e| e.to_string())?);
+    store.save().map_err(|e| e.to_string())
+}

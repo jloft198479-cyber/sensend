@@ -33,6 +33,8 @@ pub fn run() {
             commands::platform::test_platform_connection,
             commands::platform::probe_target,
             commands::platform::publish_note,
+            commands::platform::get_default_target,
+            commands::platform::set_default_target,
             commands::hotkey::get_hotkeys,
             commands::hotkey::save_hotkeys,
             commands::font::scan_user_fonts,
