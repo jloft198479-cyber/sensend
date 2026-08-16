@@ -1,0 +1,130 @@
+[
+  {
+    "data": {
+      "background_color": "default",
+      "rich_text": [
+        {
+          "annotations": {
+            "bold": true,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": "粗体",
+          "text": {
+            "content": "粗体",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": " ",
+          "text": {
+            "content": " ",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": true,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": "斜体",
+          "text": {
+            "content": "斜体",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": " ",
+          "text": {
+            "content": " ",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": true,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": "删除线",
+          "text": {
+            "content": "删除线",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": " ",
+          "text": {
+            "content": " ",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": true,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": "行内码",
+          "text": {
+            "content": "行内码",
+            "link": null
+          },
+          "type": "text"
+        }
+      ],
+      "text_color": "default"
+    },
+    "type": "paragraph"
+  }
+]

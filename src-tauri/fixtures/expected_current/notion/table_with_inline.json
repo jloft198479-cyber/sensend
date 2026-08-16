@@ -1,0 +1,41 @@
+[
+  {
+    "object": "block",
+    "table": {
+      "children": [
+        [
+          {
+            "text": {
+              "content": "列名"
+            },
+            "type": "text"
+          },
+          {
+            "text": {
+              "content": "说明"
+            },
+            "type": "text"
+          }
+        ],
+        [
+          {
+            "text": {
+              "content": "值 1"
+            },
+            "type": "text"
+          },
+          {
+            "text": {
+              "content": "值 2"
+            },
+            "type": "text"
+          }
+        ]
+      ],
+      "has_column_header": false,
+      "has_row_header": false,
+      "table_width": 2
+    },
+    "type": "table"
+  }
+]

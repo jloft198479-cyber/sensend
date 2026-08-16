@@ -353,3 +353,86 @@ fn node_to_inline_text(node: &Value) -> String {
     render_inline(node, &mut s);
     s
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::test_helpers;
+
+    #[test]
+    fn golden_markdown_simple_paragraph() {
+        let fixture = test_helpers::load_fixture("simple_paragraph");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "simple_paragraph", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_headings() {
+        let fixture = test_helpers::load_fixture("headings");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "headings", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_nested_list() {
+        let fixture = test_helpers::load_fixture("nested_list");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "nested_list", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_table_with_inline() {
+        let fixture = test_helpers::load_fixture("table_with_inline");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "table_with_inline", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_hardbreak() {
+        let fixture = test_helpers::load_fixture("hardbreak");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "hardbreak", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_tasklist() {
+        let fixture = test_helpers::load_fixture("tasklist");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "tasklist", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_codeblock() {
+        let fixture = test_helpers::load_fixture("codeblock");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "codeblock", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_blockquote() {
+        let fixture = test_helpers::load_fixture("blockquote");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "blockquote", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_long_title() {
+        let fixture = test_helpers::load_fixture("long_title");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "long_title", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_underline_link() {
+        let fixture = test_helpers::load_fixture("underline_link");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "underline_link", "md", &output);
+    }
+
+    #[test]
+    fn golden_markdown_combined() {
+        let fixture = test_helpers::load_fixture("combined");
+        let output = tiptap_to_markdown(&fixture);
+        test_helpers::assert_or_update_golden("markdown", "combined", "md", &output);
+    }
+}

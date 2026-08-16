@@ -1,0 +1,57 @@
+[
+  {
+    "block_type": 2,
+    "text": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "粗体",
+            "text_element_style": {
+              "bold": true
+            }
+          }
+        },
+        {
+          "text_run": {
+            "content": " "
+          }
+        },
+        {
+          "text_run": {
+            "content": "斜体",
+            "text_element_style": {
+              "italic": true
+            }
+          }
+        },
+        {
+          "text_run": {
+            "content": " "
+          }
+        },
+        {
+          "text_run": {
+            "content": "删除线",
+            "text_element_style": {
+              "strikethrough": true
+            }
+          }
+        },
+        {
+          "text_run": {
+            "content": " "
+          }
+        },
+        {
+          "text_run": {
+            "content": "行内码",
+            "text_element_style": {
+              "inline_code": true
+            }
+          }
+        }
+      ],
+      "style": {}
+    }
+  }
+]

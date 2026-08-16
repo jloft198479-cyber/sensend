@@ -1,0 +1,98 @@
+[
+  {
+    "data": {
+      "background_color": "default",
+      "rich_text": [
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": true
+          },
+          "href": null,
+          "plain_text": "下划线",
+          "text": {
+            "content": "下划线",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": " ",
+          "text": {
+            "content": " ",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": "https://example.com",
+          "plain_text": "链接",
+          "text": {
+            "content": "链接",
+            "link": {
+              "url": "https://example.com"
+            }
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": " ",
+          "text": {
+            "content": " ",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": true,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": true
+          },
+          "href": null,
+          "plain_text": "粗体下划线",
+          "text": {
+            "content": "粗体下划线",
+            "link": null
+          },
+          "type": "text"
+        }
+      ],
+      "text_color": "default"
+    },
+    "type": "paragraph"
+  }
+]

@@ -134,6 +134,9 @@ pub mod local;
 pub mod flowus;
 pub mod lark;
 
+#[cfg(test)]
+mod test_helpers;
+
 /// 从 URL 或纯文本中提取平台 ID
 /// 各适配器调用此函数解析，前端不做任何解析
 pub fn resolve_target_id(platform_type: &str, raw: &str) -> String {

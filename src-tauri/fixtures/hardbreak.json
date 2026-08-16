@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "第一行" },
+        { "type": "hardBreak" },
+        { "type": "text", "text": "第二行" },
+        { "type": "hardBreak" },
+        { "type": "text", "text": "第三行" }
+      ]
+    }
+  ]
+}

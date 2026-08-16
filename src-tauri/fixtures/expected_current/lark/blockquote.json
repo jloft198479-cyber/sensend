@@ -1,0 +1,20 @@
+[
+  {
+    "block_type": 15,
+    "quote": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "引用段落"
+          }
+        },
+        {
+          "text_run": {
+            "content": "第二段引用"
+          }
+        }
+      ],
+      "style": {}
+    }
+  }
+]

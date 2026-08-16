@@ -1,0 +1,17 @@
+[
+  {
+    "code": {
+      "language": "rust",
+      "rich_text": [
+        {
+          "text": {
+            "content": "fn main() {\n    println!(\"hello\");\n}"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "object": "block",
+    "type": "code"
+  }
+]

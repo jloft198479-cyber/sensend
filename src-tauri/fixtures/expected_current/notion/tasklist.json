@@ -1,0 +1,32 @@
+[
+  {
+    "object": "block",
+    "to_do": {
+      "checked": true,
+      "rich_text": [
+        {
+          "text": {
+            "content": "已完成"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "to_do"
+  },
+  {
+    "object": "block",
+    "to_do": {
+      "checked": false,
+      "rich_text": [
+        {
+          "text": {
+            "content": "未完成"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "to_do"
+  }
+]

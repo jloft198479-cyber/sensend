@@ -1,0 +1,10 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "codeBlock",
+      "attrs": { "language": "rust" },
+      "content": [{ "type": "text", "text": "fn main() {\n    println!(\"hello\");\n}" }]
+    }
+  ]
+}

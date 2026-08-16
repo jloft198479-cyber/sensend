@@ -1,0 +1,41 @@
+[
+  {
+    "block_type": 3,
+    "heading1": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "一级标题"
+          }
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 4,
+    "heading2": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "二级标题"
+          }
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 5,
+    "heading3": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "三级标题"
+          }
+        }
+      ],
+      "style": {}
+    }
+  }
+]

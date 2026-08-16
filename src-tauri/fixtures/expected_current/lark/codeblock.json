@@ -1,0 +1,17 @@
+[
+  {
+    "block_type": 14,
+    "code": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "fn main() {\n    println!(\"hello\");\n}"
+          }
+        }
+      ],
+      "style": {
+        "language": 1
+      }
+    }
+  }
+]

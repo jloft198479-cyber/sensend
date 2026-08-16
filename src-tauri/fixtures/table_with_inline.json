@@ -1,0 +1,24 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "table",
+      "content": [
+        {
+          "type": "tableRow",
+          "content": [
+            { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "列名", "marks": [{ "type": "bold" }] }] }] },
+            { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "说明" }] }] }
+          ]
+        },
+        {
+          "type": "tableRow",
+          "content": [
+            { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "值 1" }] }] },
+            { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "值 2", "marks": [{ "type": "italic" }] }] }] }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+[
+  {
+    "block_type": 12,
+    "bullet": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "顶层项 1"
+          }
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 12,
+    "bullet": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "顶层项 2"
+          }
+        }
+      ],
+      "style": {}
+    }
+  }
+]

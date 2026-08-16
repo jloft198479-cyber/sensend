@@ -1,0 +1,28 @@
+[
+  {
+    "block_type": 12,
+    "bullet": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "[x] 已完成"
+          }
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 12,
+    "bullet": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "[ ] 未完成"
+          }
+        }
+      ],
+      "style": {}
+    }
+  }
+]

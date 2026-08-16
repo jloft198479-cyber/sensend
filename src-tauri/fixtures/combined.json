@@ -1,0 +1,23 @@
+{
+  "type": "doc",
+  "content": [
+    { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": "综合测试" }] },
+    { "type": "paragraph", "content": [{ "type": "text", "text": "这是一个包含多种格式的段落。" }] },
+    {
+      "type": "bulletList",
+      "content": [
+        { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "无序列表项" }] }] }
+      ]
+    },
+    { "type": "horizontalRule" },
+    {
+      "type": "codeBlock",
+      "attrs": { "language": "json" },
+      "content": [{ "type": "text", "text": "{\"key\": \"value\"}" }]
+    },
+    {
+      "type": "blockquote",
+      "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "引用结尾" }] }]
+    }
+  ]
+}

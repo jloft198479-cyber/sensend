@@ -1,0 +1,64 @@
+[
+  {
+    "object": "block",
+    "paragraph": {
+      "rich_text": [
+        {
+          "annotations": {
+            "bold": true
+          },
+          "text": {
+            "content": "粗体"
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": " "
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "italic": true
+          },
+          "text": {
+            "content": "斜体"
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": " "
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "strikethrough": true
+          },
+          "text": {
+            "content": "删除线"
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": " "
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "code": true
+          },
+          "text": {
+            "content": "行内码"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "paragraph"
+  }
+]

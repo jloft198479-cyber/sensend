@@ -609,3 +609,40 @@ impl PlatformAdapter for NotionAdapter {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::test_helpers;
+
+    fn convert(tree: &Value) -> Vec<Value> {
+        NotionAdapter::new().tiptap_to_blocks(tree)
+    }
+
+    macro_rules! golden_tests {
+        ($($name:ident),* $(,)?) => {
+            $(
+                #[test]
+                fn $name() {
+                    let fixture = test_helpers::load_fixture(stringify!($name));
+                    let output = convert(&fixture);
+                    test_helpers::assert_or_update_golden("notion", stringify!($name), "json", &test_helpers::format_json(&serde_json::Value::Array(output)));
+                }
+            )*
+        };
+    }
+
+    golden_tests!(
+        simple_paragraph,
+        headings,
+        nested_list,
+        table_with_inline,
+        hardbreak,
+        tasklist,
+        codeblock,
+        blockquote,
+        long_title,
+        underline_link,
+        combined
+    );
+}

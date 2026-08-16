@@ -1,0 +1,54 @@
+[
+  {
+    "data": {
+      "background_color": "default",
+      "rich_text": [
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": "引用段落",
+          "text": {
+            "content": "引用段落",
+            "link": null
+          },
+          "type": "text"
+        }
+      ],
+      "text_color": "default"
+    },
+    "type": "quote"
+  },
+  {
+    "data": {
+      "background_color": "default",
+      "rich_text": [
+        {
+          "annotations": {
+            "bold": false,
+            "code": false,
+            "color": "default",
+            "italic": false,
+            "strikethrough": false,
+            "underline": false
+          },
+          "href": null,
+          "plain_text": "第二段引用",
+          "text": {
+            "content": "第二段引用",
+            "link": null
+          },
+          "type": "text"
+        }
+      ],
+      "text_color": "default"
+    },
+    "type": "quote"
+  }
+]

@@ -1,0 +1,44 @@
+[
+  {
+    "data": {
+      "cells": [
+        {
+          "text": {
+            "content": "列名",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": "说明",
+            "link": null
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "table_row"
+  },
+  {
+    "data": {
+      "cells": [
+        {
+          "text": {
+            "content": "值 1",
+            "link": null
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": "值 2",
+            "link": null
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "table_row"
+  }
+]

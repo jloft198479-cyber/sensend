@@ -1,0 +1,15 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "下划线", "marks": [{ "type": "underline" }] },
+        { "type": "text", "text": " " },
+        { "type": "text", "text": "链接", "marks": [{ "type": "link", "attrs": { "href": "https://example.com" } }] },
+        { "type": "text", "text": " " },
+        { "type": "text", "text": "粗体下划线", "marks": [{ "type": "bold" }, { "type": "underline" }] }
+      ]
+    }
+  ]
+}

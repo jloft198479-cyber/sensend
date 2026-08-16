@@ -1,0 +1,17 @@
+{
+  "type": "doc",
+  "content": [
+    {
+      "type": "paragraph",
+      "content": [
+        { "type": "text", "text": "粗体", "marks": [{ "type": "bold" }] },
+        { "type": "text", "text": " " },
+        { "type": "text", "text": "斜体", "marks": [{ "type": "italic" }] },
+        { "type": "text", "text": " " },
+        { "type": "text", "text": "删除线", "marks": [{ "type": "strike" }] },
+        { "type": "text", "text": " " },
+        { "type": "text", "text": "行内码", "marks": [{ "type": "code" }] }
+      ]
+    }
+  ]
+}

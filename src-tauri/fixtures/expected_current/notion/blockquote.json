@@ -1,0 +1,30 @@
+[
+  {
+    "object": "block",
+    "quote": {
+      "rich_text": [
+        {
+          "text": {
+            "content": "引用段落"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "quote"
+  },
+  {
+    "object": "block",
+    "quote": {
+      "rich_text": [
+        {
+          "text": {
+            "content": "第二段引用"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "quote"
+  }
+]

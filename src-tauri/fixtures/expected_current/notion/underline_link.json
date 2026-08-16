@@ -1,0 +1,50 @@
+[
+  {
+    "object": "block",
+    "paragraph": {
+      "rich_text": [
+        {
+          "annotations": {
+            "underline": true
+          },
+          "text": {
+            "content": "下划线"
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": " "
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": "链接",
+            "link": {
+              "url": "https://example.com"
+            }
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": " "
+          },
+          "type": "text"
+        },
+        {
+          "annotations": {
+            "bold": true,
+            "underline": true
+          },
+          "text": {
+            "content": "粗体下划线"
+          },
+          "type": "text"
+        }
+      ]
+    },
+    "type": "paragraph"
+  }
+]

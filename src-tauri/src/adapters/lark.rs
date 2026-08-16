@@ -417,7 +417,7 @@ fn extract_list_item_elements(item: &Value) -> Vec<Value> {
 }
 
 /// TipTap JSON → 飞书 block 数组
-fn tiptap_to_lark_blocks(content: &Value) -> Vec<Value> {
+pub(crate) fn tiptap_to_lark_blocks(content: &Value) -> Vec<Value> {
     let mut blocks = Vec::new();
 
     if let Some(doc) = content.get("content") {
@@ -572,4 +572,41 @@ impl PlatformAdapter for LarkAdapter {
         // 飞书只有追加模式，publish 和 append_blocks 行为一致
         self.publish(content, instance).await
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::adapters::test_helpers;
+
+    fn convert(tree: &Value) -> Vec<Value> {
+        tiptap_to_lark_blocks(tree)
+    }
+
+    macro_rules! golden_tests {
+        ($($name:ident),* $(,)?) => {
+            $(
+                #[test]
+                fn $name() {
+                    let fixture = test_helpers::load_fixture(stringify!($name));
+                    let output = convert(&fixture);
+                    test_helpers::assert_or_update_golden("lark", stringify!($name), "json", &test_helpers::format_json(&serde_json::Value::Array(output)));
+                }
+            )*
+        };
+    }
+
+    golden_tests!(
+        simple_paragraph,
+        headings,
+        nested_list,
+        table_with_inline,
+        hardbreak,
+        tasklist,
+        codeblock,
+        blockquote,
+        long_title,
+        underline_link,
+        combined
+    );
 }

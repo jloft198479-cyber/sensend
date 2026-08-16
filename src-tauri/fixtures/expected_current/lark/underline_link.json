@@ -1,0 +1,47 @@
+[
+  {
+    "block_type": 2,
+    "text": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "下划线",
+            "text_element_style": {
+              "underline": true
+            }
+          }
+        },
+        {
+          "text_run": {
+            "content": " "
+          }
+        },
+        {
+          "text_run": {
+            "content": "链接",
+            "text_element_style": {
+              "link": {
+                "url": "https://example.com"
+              }
+            }
+          }
+        },
+        {
+          "text_run": {
+            "content": " "
+          }
+        },
+        {
+          "text_run": {
+            "content": "粗体下划线",
+            "text_element_style": {
+              "bold": true,
+              "underline": true
+            }
+          }
+        }
+      ],
+      "style": {}
+    }
+  }
+]
