@@ -24,12 +24,12 @@ pub fn register_show_hotkey(app: &AppHandle, hotkey_str: &str) -> Result<(), Str
         .map_err(|e| e.to_string())?;
     app.global_shortcut().on_shortcuts(vec![shortcut], |app_handle, _shortcut, event| {
         if event.state() == ShortcutState::Pressed {
+            // toggle 语义：可见则隐藏，不可见走统一唤起入口
             if let Some(window) = app_handle.get_webview_window("main") {
                 if window.is_visible().unwrap_or(false) {
                     let _ = window.hide();
                 } else {
-                    let _ = window.show();
-                    let _ = window.set_focus();
+                    crate::show_main(app_handle);
                 }
             }
         }

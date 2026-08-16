@@ -6,6 +6,15 @@ use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent}
 mod adapters;
 mod commands;
 
+/// 唤起主窗的统一入口（单实例 / 托盘菜单 / 托盘点击 / 快捷键共用）
+/// S5 悬浮球上线后，在此追加隐藏悬浮球的逻辑，四处调用点无需再改
+pub fn show_main(app: &tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -14,10 +23,7 @@ pub fn run() {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
+            show_main(app);
         }))
         .invoke_handler(tauri::generate_handler![
             commands::note::read_note,
@@ -65,10 +71,7 @@ pub fn run() {
                     .on_menu_event(|app, event| {
                         match event.id().as_ref() {
                             "show" => {
-                                if let Some(window) = app.get_webview_window("main") {
-                                    let _ = window.show();
-                                    let _ = window.set_focus();
-                                }
+                                show_main(app);
                             }
                             "quit" => {
                                 let _ = app.emit("app-exit-request", ());
@@ -78,11 +81,7 @@ pub fn run() {
                     })
                     .on_tray_icon_event(|tray, event| {
                         if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = event {
-                            let app = tray.app_handle();
-                            if let Some(window) = app.get_webview_window("main") {
-                                let _ = window.show();
-                                let _ = window.set_focus();
-                            }
+                            show_main(tray.app_handle());
                         }
                     })
                     .build(app)?;

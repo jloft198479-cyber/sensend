@@ -12,6 +12,7 @@ export function useEditorFormat(editor: Ref<any>) {
   function toggleH2() { editor.value?.chain().focus().toggleHeading({ level: 2 }).run() }
   function toggleBulletList() { editor.value?.chain().focus().toggleBulletList().run() }
   function toggleOrderedList() { editor.value?.chain().focus().toggleOrderedList().run() }
+  function toggleTaskList() { editor.value?.chain().focus().toggleTaskList().run() }
   function toggleBlockquote() { editor.value?.chain().focus().toggleBlockquote().run() }
   function toggleCode() { editor.value?.chain().focus().toggleCode().run() }
 
@@ -27,6 +28,7 @@ export function useEditorFormat(editor: Ref<any>) {
     toggleH2,
     toggleBulletList,
     toggleOrderedList,
+    toggleTaskList,
     toggleBlockquote,
     toggleCode,
     isActive,

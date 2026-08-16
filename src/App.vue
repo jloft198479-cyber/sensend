@@ -9,7 +9,7 @@ import { EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 
 // ── Composables ──
 import { useSensendEditor } from './composables/useEditor'
@@ -51,6 +51,7 @@ const {
   toggleH2,
   toggleBulletList,
   toggleOrderedList,
+  toggleTaskList,
   toggleBlockquote,
   toggleCode,
   isActive,
@@ -77,6 +78,11 @@ async function togglePin() {
 }
 
 async function hideWindow() { await invoke('hide_window') }
+
+// 主窗口 visible:false 启动（消白屏），前端挂载完成后再显示
+onMounted(async () => {
+  try { await getCurrentWindow().show() } catch (e) { console.error('显示窗口失败:', e) }
+})
 
 // ── mention ↔ 底栏双向同步 ──
 
@@ -190,6 +196,9 @@ async function onSaveHotkeys() {
           <button class="bm-btn" :class="{ active: isActive('orderedList') }" @click="toggleOrderedList" title="有序列表" aria-label="有序列表">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="10" y1="6" x2="21" y2="6"/><line x1="10" y1="12" x2="21" y2="12"/><line x1="10" y1="18" x2="21" y2="18"/><text x="2" y="8" font-size="8" font-weight="600" fill="currentColor" stroke="none">1</text><text x="2" y="14" font-size="8" font-weight="600" fill="currentColor" stroke="none">2</text><text x="2" y="20" font-size="8" font-weight="600" fill="currentColor" stroke="none">3</text></svg>
           </button>
+          <button class="bm-btn" :class="{ active: isActive('taskList') }" @click="toggleTaskList" title="待办" aria-label="待办">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M9 12l2 2 4-4"/></svg>
+          </button>
           <button class="bm-btn" :class="{ active: isActive('blockquote') }" @click="toggleBlockquote" title="引用" aria-label="引用">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21c3 0 7-1 7-8V5c0-1.25-.756-2.017-2-2H4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2 1 0 1 0 1 1v1c0 1-1 2-2 2s-1 .008-1 1.031V21z"/><path d="M15 21c3 0 7-1 7-8V5c0-1.25-.757-2.017-2-2h-4c-1.25 0-2 .75-2 1.972V11c0 1.25.75 2 2 2h.75c0 2.25.25 4-2.75 4v3c0 1 0 1 1 1z"/></svg>
           </button>
@@ -255,6 +264,44 @@ async function onSaveHotkeys() {
 .platform-mention:hover {
   background: linear-gradient(135deg, rgba(44, 175, 104, 0.12) 0%, rgba(44, 175, 104, 0.06) 100%);
   border-color: rgba(44, 175, 104, 0.25);
+}
+
+/* ═══ 待办列表（taskList/taskItem）═══ */
+ul[data-type="taskList"] {
+  list-style: none;
+  margin: 0.2em 0;
+  padding: 0;
+}
+ul[data-type="taskList"] li[data-type="taskItem"] {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0.2em 0;
+}
+ul[data-type="taskList"] li[data-type="taskItem"] > label {
+  flex: none;
+  margin-top: 3px;
+  cursor: pointer;
+  user-select: none;
+}
+ul[data-type="taskList"] li[data-type="taskItem"] > label input {
+  width: 14px;
+  height: 14px;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+ul[data-type="taskList"] li[data-type="taskItem"] > div {
+  flex: 1;
+  min-width: 0;
+}
+ul[data-type="taskList"] li[data-type="taskItem"] > div p {
+  margin: 0;
+}
+/* 已完成项：文字置灰 */
+ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted);
+  text-decoration: line-through;
 }
 </style>
 

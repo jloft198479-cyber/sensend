@@ -14,6 +14,8 @@ import { useEditor as useTiptapEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
+import TaskList from '@tiptap/extension-task-list'
+import TaskItem from '@tiptap/extension-task-item'
 import { TableKit } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import { VueRenderer } from '@tiptap/vue-3'
@@ -85,8 +87,13 @@ export function useSensendEditor(
     deleteAllMentions()
 
     // 在文档开头插入 @mention + 空格
+    // 打 mentionReplace 标记：onUpdate 快路径据此识别"这是 mention 变化"，必做全量检测
     editor.value.chain()
       .focus()
+      .command(({ tr }) => {
+        tr.setMeta('mentionReplace', true)
+        return true
+      })
       .insertContentAt(0, {
         type: 'mention',
         attrs: {
@@ -128,6 +135,9 @@ export function useSensendEditor(
     content: '',
     extensions: [
       StarterKit,
+      // 待办列表：taskList + taskItem，勾选状态存 attrs.checked（四个适配器均已支持）
+      TaskList,
+      TaskItem.configure({ nested: true }),
       // 表格支持：从网页/其他编辑器复制含表格的 HTML 时能正确解析
       TableKit,
       // Markdown 支持：提供 parse/serialize 能力，配合 handlePaste 处理纯文本 Markdown 粘贴
@@ -287,25 +297,32 @@ export function useSensendEditor(
         }
       },
     },
-    onUpdate: ({ editor: e }) => {
+    onUpdate: ({ editor: e, transaction: tr }) => {
       saveStatus.value = 'unsaved'
       autoSave()
 
       // [OPT] 字数统计：防抖 300ms，不再每次按键同步执行正则
       scheduleWordCount(e)
 
-      // [OPT] mention 差异检测：只在 ID 实际变化时才触发回调
-      // 普通打字不会改变 mention，跳过遍历和下游的 Vue 响应式更新
+      // [OPT] mention 快路径：三种情况才值得全量遍历，其余（普通打字）直接跳过
+      // 1. 本事务是 mention 替换（setMention / suggestion.command 打的标记）
+      // 2. 删过字符（退格/选中删除可能删掉 mention，from !== to）
+      // 3. 文中已有 mention（lastMentionId 非空时任何变化都可能影响它）
+      // 注：不能用 stepType !== 'replace' 判断——插入也是 ReplaceStep，恰好会漏掉唯一需检测的场景
       if (onMentionChange) {
-        let currentMentionId: string | null = null
-        e.state.doc.descendants((node: any) => {
-          if (node.type.name === 'mention' && node.attrs.id) {
-            currentMentionId = node.attrs.id
+        const isMentionReplace = tr.getMeta('mentionReplace') === true
+        const deletedSomething = tr.steps.some(s => (s as any).from !== (s as any).to)
+        if (isMentionReplace || deletedSomething || lastMentionId !== null) {
+          let currentMentionId: string | null = null
+          e.state.doc.descendants((node: any) => {
+            if (node.type.name === 'mention' && node.attrs.id) {
+              currentMentionId = node.attrs.id
+            }
+          })
+          if (currentMentionId !== lastMentionId) {
+            lastMentionId = currentMentionId
+            onMentionChange(currentMentionId)
           }
-        })
-        if (currentMentionId !== lastMentionId) {
-          lastMentionId = currentMentionId
-          onMentionChange(currentMentionId)
         }
       }
     },
@@ -363,6 +380,8 @@ export function useSensendEditor(
         }
         // [OPT] 初始化 lastSavedContent，避免首次 setContent 后立即触发保存
         lastSavedContent = JSON.stringify(editor.value.getJSON())
+        // [OPT] 同步 lastMentionId 与已加载文档（setContent 不触发 onUpdate，缓存需手动对齐）
+        lastMentionId = getMentionId()
         updateWordCount(editor.value)
       }
     } catch (e) {
