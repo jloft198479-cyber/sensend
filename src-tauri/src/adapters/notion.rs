@@ -73,159 +73,91 @@ impl NotionAdapter {
         Ok(body)
     }
 
-    // ── TipTap JSON → Notion Blocks 转换 ──
+    // ── IR → Notion Blocks 转换 ──
 
     fn tiptap_to_blocks(&self, tree: &Value) -> Vec<Value> {
-        let mut blocks = Vec::new();
-        if let Some(content) = tree.get("content").and_then(|c| c.as_array()) {
-            for node in content {
-                blocks.extend(self.convert_node(node));
-            }
-        }
+        let blocks: Vec<Value> = super::ir::parse(tree)
+            .iter()
+            .flat_map(|b| self.map_block(b))
+            .collect();
         if blocks.is_empty() {
-            blocks.push(json!({
+            return vec![json!({
                 "object": "block",
                 "type": "paragraph",
                 "paragraph": { "rich_text": [{"type":"text","text":{"content":""}}] }
-            }));
+            })];
         }
         blocks
     }
 
-    fn convert_node(&self, node: &Value) -> Vec<Value> {
+    /// IR 块 → Notion block(s)
+    fn map_block(&self, block: &super::ir::Block) -> Vec<Value> {
+        use super::ir::Block;
         let mut out = Vec::new();
-        let t = match node.get("type").and_then(|v| v.as_str()) {
-            Some(t) => t,
-            None => return out,
-        };
-        match t {
-            "paragraph" => {
+        match block {
+            Block::Paragraph(inlines) => {
                 out.push(json!({
                     "object": "block",
                     "type": "paragraph",
-                    "paragraph": { "rich_text": self.convert_text(node) }
+                    "paragraph": { "rich_text": map_rich_text(inlines) }
                 }));
             }
-            "heading" => {
-                let level = node.get("attrs").and_then(|a| a.get("level")).and_then(|l| l.as_u64()).unwrap_or(1);
-                let ht = if level == 1 { "heading_1" } else if level == 2 { "heading_2" } else { "heading_3" };
+            Block::Heading { level, inlines } => {
+                let ht = match level {
+                    1 => "heading_1",
+                    2 => "heading_2",
+                    _ => "heading_3",
+                };
                 out.push(json!({
                     "object": "block",
                     "type": ht,
-                    ht: { "rich_text": self.convert_text(node) }
+                    ht: { "rich_text": map_rich_text(inlines) }
                 }));
             }
-            "bulletList" => {
-                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                    for item in items {
-                        out.push(json!({
-                            "object": "block",
-                            "type": "bulleted_list_item",
-                            "bulleted_list_item": { "rich_text": self.convert_text(item) }
-                        }));
-                    }
+            Block::List { kind, items } => {
+                for item in items {
+                    out.push(self.map_list_item(*kind, item));
                 }
             }
-            "orderedList" => {
-                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                    for item in items {
-                        out.push(json!({
-                            "object": "block",
-                            "type": "numbered_list_item",
-                            "numbered_list_item": { "rich_text": self.convert_text(item) }
-                        }));
-                    }
-                }
-            }
-            "blockquote" => {
-                if let Some(paragraphs) = node.get("content").and_then(|c| c.as_array()) {
-                    for para in paragraphs {
-                        out.push(json!({
-                            "object": "block",
-                            "type": "quote",
-                            "quote": { "rich_text": self.convert_text(para) }
-                        }));
-                    }
-                } else {
-                    out.push(json!({
-                        "object": "block",
-                        "type": "quote",
-                        "quote": { "rich_text": self.convert_text(node) }
-                    }));
-                }
-            }
-            "codeBlock" => {
-                let lang = node.get("attrs")
-                    .and_then(|a| a.get("language").and_then(|l| l.as_str()))
-                    .unwrap_or("plain text");
+            Block::CodeBlock { language, code } => {
+                let lang = if language.is_empty() { "plain text" } else { language.as_str() };
                 out.push(json!({
                     "object": "block",
                     "type": "code",
                     "code": {
-                        "rich_text": self.convert_text(node),
+                        "rich_text": [{ "type": "text", "text": { "content": code } }],
                         "language": lang
                     }
                 }));
             }
-            "taskList" => {
-                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                    for item in items {
-                        let checked = item.get("attrs")
-                            .and_then(|a| a.get("checked"))
-                            .and_then(|c| c.as_bool())
-                            .unwrap_or(false);
-                        out.push(json!({
-                            "object": "block",
-                            "type": "to_do",
-                            "to_do": {
-                                "rich_text": self.convert_text(item),
-                                "checked": checked
-                            }
-                        }));
-                    }
+            Block::BlockQuote(paras) => {
+                for para in paras {
+                    out.push(json!({
+                        "object": "block",
+                        "type": "quote",
+                        "quote": { "rich_text": map_rich_text(para) }
+                    }));
                 }
             }
-            "table" => {
-                // TableKit 的 table 节点没有 col_count attrs，从实际行内容推断列数
-                let rows = node.get("content").and_then(|c| c.as_array());
-                let mut table_cells: Vec<Value> = Vec::new();
-                let mut col_count: usize = 0;
-                if let Some(rows) = rows {
-                    // 先扫一遍找出最大列数
-                    for row in rows {
-                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
-                            continue;
-                        }
-                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
-                            if cells.len() > col_count {
-                                col_count = cells.len();
-                            }
-                        }
+            Block::Table(table) => {
+                // 列数取各行最大值
+                let col_count = table.rows.iter().map(|r| r.len()).max().unwrap_or(1).max(1);
+                let mut table_rows: Vec<Value> = Vec::new();
+                for row in &table.rows {
+                    let mut row_cells: Vec<Value> = Vec::new();
+                    for cell in row {
+                        // 单元格保留行内格式（修复 #5：表格内联丢失）
+                        let rt = map_rich_text(cell);
+                        row_cells.push(if rt.is_empty() {
+                            json!({"type": "text", "text": {"content": ""}})
+                        } else {
+                            rt[0].clone()
+                        });
                     }
-                    // 再构建每行的 cells
-                    for row in rows {
-                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
-                            continue;
-                        }
-                        let mut row_cells: Vec<Value> = Vec::new();
-                        let cells = row.get("content").and_then(|c| c.as_array());
-                        if let Some(cells) = cells {
-                            for cell in cells {
-                                row_cells.push(json!({
-                                    "type": "text",
-                                    "text": { "content": markdown::extract_plain_text(cell).unwrap_or_default() }
-                                }));
-                            }
-                        }
-                        // 不足 col_count 补空
-                        while row_cells.len() < col_count {
-                            row_cells.push(json!({ "type": "text", "text": { "content": "" } }));
-                        }
-                        table_cells.push(json!(row_cells));
+                    while row_cells.len() < col_count {
+                        row_cells.push(json!({ "type": "text", "text": { "content": "" } }));
                     }
-                }
-                if col_count == 0 {
-                    col_count = 1;
+                    table_rows.push(json!(row_cells));
                 }
                 out.push(json!({
                     "object": "block",
@@ -234,87 +166,66 @@ impl NotionAdapter {
                         "table_width": col_count,
                         "has_column_header": false,
                         "has_row_header": false,
-                        "children": table_cells
+                        "children": table_rows
                     }
                 }));
             }
-            "horizontalRule" => {
+            Block::HorizontalRule => {
                 out.push(json!({
                     "object": "block",
                     "type": "divider",
                     "divider": {}
                 }));
             }
-            _ => {}
         }
         out
     }
 
-    fn convert_text(&self, node: &Value) -> Vec<Value> {
-        let mut rt = Vec::new();
-        if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
-            for child in content {
-                rt.extend(self.collect_text_nodes(child));
-            }
+    /// 列表项 → Notion block（嵌套子列表进 children，修复 #2）
+    /// 注意：Notion 单请求 children 仅支持两层嵌套
+    fn map_list_item(&self, kind: super::ir::ListKind, item: &super::ir::ListItem) -> Value {
+        let (block_type, checked) = match kind {
+            super::ir::ListKind::Bullet => ("bulleted_list_item", None),
+            super::ir::ListKind::Ordered => ("numbered_list_item", None),
+            super::ir::ListKind::Task => ("to_do", item.checked),
+        };
+
+        // rich_text：首段 + 后续段落（\n 分隔，修复列表项多段落丢失）
+        let mut rt = map_rich_text(&item.inlines);
+        for para in &item.extra_paras {
+            rt.push(json!({"type": "text", "text": {"content": "\n"}}));
+            rt.extend(map_rich_text(para));
         }
         if rt.is_empty() {
             rt.push(json!({"type":"text","text":{"content":""}}));
         }
-        rt
-    }
 
-    fn collect_text_nodes(&self, node: &Value) -> Vec<Value> {
-        let t = match node.get("type").and_then(|v| v.as_str()) {
-            Some(t) => t,
-            None => return Vec::new(),
-        };
-
-        if t != "text" {
-            let mut result = Vec::new();
-            if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
-                for child in content {
-                    result.extend(self.collect_text_nodes(child));
+        let mut data = serde_json::Map::new();
+        data.insert("rich_text".into(), json!(rt));
+        if let Some(checked) = checked {
+            data.insert("checked".into(), json!(checked));
+        }
+        // 嵌套子列表：映射为 children（仅一层，多层由 Notion API 限制）
+        let children: Vec<Value> = item
+            .children
+            .iter()
+            .filter_map(|c| match c {
+                super::ir::Block::List { items: sub_items, kind: sub_kind } => {
+                    Some(sub_items.iter().map(|it| self.map_list_item(*sub_kind, it)).collect::<Vec<Value>>())
                 }
-            }
-            return result;
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        if !children.is_empty() {
+            data.insert("children".into(), json!(children));
         }
 
-        let text = node.get("text").and_then(|t| t.as_str()).unwrap_or("");
-        let mut anno = serde_json::Map::new();
-        let mut link_url: Option<String> = None;
-
-        if let Some(marks) = node.get("marks").and_then(|m| m.as_array()) {
-            for mark in marks {
-                match mark.get("type").and_then(|t| t.as_str()).unwrap_or("") {
-                    "bold" => { anno.insert("bold".into(), json!(true)); }
-                    "italic" => { anno.insert("italic".into(), json!(true)); }
-                    "strike" => { anno.insert("strikethrough".into(), json!(true)); }
-                    "underline" => { anno.insert("underline".into(), json!(true)); }
-                    "code" => { anno.insert("code".into(), json!(true)); }
-                    "link" => {
-                        if let Some(href) = mark.get("attrs").and_then(|a| a.get("href")).and_then(|h| h.as_str()) {
-                            link_url = Some(href.to_string());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        let mut text_obj = serde_json::Map::new();
-        text_obj.insert("content".into(), json!(text));
-        if let Some(url) = link_url {
-            text_obj.insert("link".into(), json!({ "url": url }));
-        }
-
-        let mut obj = serde_json::Map::new();
-        obj.insert("type".into(), json!("text"));
-        obj.insert("text".into(), Value::Object(text_obj));
-        if !anno.is_empty() {
-            obj.insert("annotations".into(), Value::Object(anno));
-        }
-
-        vec![Value::Object(obj)]
+        json!({
+            "object": "block",
+            "type": block_type,
+            block_type: Value::Object(data)
+        })
     }
 
     // ── 数据库 Schema 提取 ──
@@ -527,8 +438,8 @@ impl PlatformAdapter for NotionAdapter {
     async fn publish(&self, content: &Value, instance: &PlatformInstance) -> Result<PublishResult, String> {
         let target_id = resolve_target_id("notion", &instance.target_id);
 
-        // 提取标题
-        let title = markdown::extract_title(content);
+        // 提取标题（全量文本，超 18 字去重不再失效）
+        let title = markdown::extract_title_full(content);
 
         // 转换内容为 blocks
         let mut blocks = self.tiptap_to_blocks(content);
@@ -610,6 +521,52 @@ impl PlatformAdapter for NotionAdapter {
     }
 }
 
+/// IR 行内内容 → Notion rich_text 数组
+/// hardBreak → 换行文本（修复 #1）；mention → "@标签" 文本（防数据丢失）
+fn map_rich_text(inlines: &[super::ir::Inline]) -> Vec<Value> {
+    use super::ir::{Inline, Mark};
+    let mut rt = Vec::new();
+    for inline in inlines {
+        match inline {
+            Inline::Text { text, marks } => {
+                let mut anno = serde_json::Map::new();
+                let mut link_url: Option<String> = None;
+                for mark in marks {
+                    match mark {
+                        Mark::Bold => { anno.insert("bold".into(), json!(true)); }
+                        Mark::Italic => { anno.insert("italic".into(), json!(true)); }
+                        Mark::Strike => { anno.insert("strikethrough".into(), json!(true)); }
+                        Mark::Underline => { anno.insert("underline".into(), json!(true)); }
+                        Mark::Code => { anno.insert("code".into(), json!(true)); }
+                        Mark::Link(href) => link_url = Some(href.clone()),
+                    }
+                }
+
+                let mut text_obj = serde_json::Map::new();
+                text_obj.insert("content".into(), json!(text));
+                if let Some(url) = link_url {
+                    text_obj.insert("link".into(), json!({ "url": url }));
+                }
+
+                let mut obj = serde_json::Map::new();
+                obj.insert("type".into(), json!("text"));
+                obj.insert("text".into(), Value::Object(text_obj));
+                if !anno.is_empty() {
+                    obj.insert("annotations".into(), Value::Object(anno));
+                }
+                rt.push(Value::Object(obj));
+            }
+            Inline::Break => {
+                rt.push(json!({ "type": "text", "text": { "content": "\n" } }));
+            }
+            Inline::Mention(label) => {
+                rt.push(json!({ "type": "text", "text": { "content": format!("@{}", label) } }));
+            }
+        }
+    }
+    rt
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -645,4 +602,51 @@ mod tests {
         underline_link,
         combined
     );
+
+    // ── 目标断言：缺陷修复不被快照更新悄悄退化 ──
+
+    #[test]
+    fn fix1_hardbreak_becomes_newline() {
+        let fixture = test_helpers::load_fixture("hardbreak");
+        let blocks = convert(&fixture);
+        let rich = blocks[0]["paragraph"]["rich_text"].as_array().unwrap();
+        let content: String = rich.iter()
+            .filter_map(|t| t.get("text").and_then(|t| t.get("content")).and_then(|c| c.as_str()))
+            .collect();
+        assert_eq!(content, "第一行\n第二行\n第三行");
+    }
+
+    #[test]
+    fn fix2_nested_list_children() {
+        let fixture = test_helpers::load_fixture("nested_list");
+        let blocks = convert(&fixture);
+        let first = &blocks[0]["bulleted_list_item"];
+        let children = first["children"].as_array().expect("嵌套子列表应进 children");
+        assert_eq!(children.len(), 2, "顶层项 1 应有 2 个嵌套子项");
+        // 无嵌套的项不应有 children 字段
+        assert!(blocks[1]["bulleted_list_item"].get("children").is_none());
+    }
+
+    #[test]
+    fn fix5_table_cell_keeps_annotations() {
+        let fixture = test_helpers::load_fixture("table_with_inline");
+        let blocks = convert(&fixture);
+        let cell = &blocks[0]["table"]["children"][0][0];
+        assert_eq!(cell["annotations"]["bold"], json!(true), "表头第一格粗体应保留");
+        let cell2 = &blocks[0]["table"]["children"][1][1];
+        assert_eq!(cell2["annotations"]["italic"], json!(true), "数据行斜体应保留");
+    }
+
+    #[test]
+    fn fix7_long_title_dedup_full_text() {
+        let fixture = test_helpers::load_fixture("long_title");
+        let title = markdown::extract_title_full(&fixture);
+        assert_eq!(title, "这是一个超过十八个字的标题文字啊");
+        // 首块 heading 文本应与全量标题一致（publish 去重条件成立）
+        let blocks = convert(&fixture);
+        let first_text: String = blocks[0]["heading_1"]["rich_text"].as_array().unwrap().iter()
+            .filter_map(|t| t.get("text").and_then(|t| t.get("content")).and_then(|c| c.as_str()))
+            .collect();
+        assert_eq!(first_text, title);
+    }
 }

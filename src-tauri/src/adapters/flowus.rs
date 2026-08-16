@@ -94,266 +94,148 @@ impl FlowUsAdapter {
 
     /// 将 TipTap JSON 文档树转换为 FlowUs block 数组
     fn tiptap_to_blocks(&self, tree: &Value) -> Vec<Value> {
-        let mut blocks = Vec::new();
-        if let Some(content) = tree.get("content").and_then(|c| c.as_array()) {
-            for node in content {
-                blocks.extend(self.convert_node(node));
-            }
-        }
+        let blocks: Vec<Value> = super::ir::parse(tree)
+            .iter()
+            .flat_map(|b| self.map_block(b))
+            .collect();
         if blocks.is_empty() {
-            blocks.push(json!({
+            return vec![json!({
                 "type": "paragraph",
                 "data": { "rich_text": [{"type":"text","text":{"content":"","link":null}}] }
-            }));
+            })];
         }
         blocks
     }
 
-    /// 转换单个 TipTap 节点为 FlowUs block(s)
-    fn convert_node(&self, node: &Value) -> Vec<Value> {
+    /// IR 块 → FlowUs block(s)
+    fn map_block(&self, block: &super::ir::Block) -> Vec<Value> {
+        use super::ir::Block;
         let mut out = Vec::new();
-        let t = match node.get("type").and_then(|v| v.as_str()) {
-            Some(t) => t,
-            None => return out,
-        };
-        match t {
-            "paragraph" => {
-                out.push(json!({
-                    "type": "paragraph",
-                    "data": {
-                        "rich_text": self.convert_text(node),
-                        "text_color": "default",
-                        "background_color": "default"
-                    }
-                }));
+        match block {
+            Block::Paragraph(inlines) => {
+                out.push(self.text_block("paragraph", inlines));
             }
-            "heading" => {
-                let level = node.get("attrs").and_then(|a| a.get("level")).and_then(|l| l.as_u64()).unwrap_or(1);
-                let ht = if level == 1 { "heading_1" } else if level == 2 { "heading_2" } else { "heading_3" };
-                out.push(json!({
-                    "type": ht,
-                    "data": {
-                        "rich_text": self.convert_text(node),
-                        "text_color": "default",
-                        "background_color": "default"
-                    }
-                }));
+            Block::Heading { level, inlines } => {
+                let ht = match level {
+                    1 => "heading_1",
+                    2 => "heading_2",
+                    _ => "heading_3",
+                };
+                out.push(self.text_block(ht, inlines));
             }
-            "bulletList" => {
-                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                    for item in items {
-                        out.push(json!({
-                            "type": "bulleted_list_item",
-                            "data": {
-                                "rich_text": self.convert_text(item),
-                                "text_color": "default",
-                                "background_color": "default"
-                            }
-                        }));
-                    }
+            Block::List { kind, items } => {
+                for item in items {
+                    out.push(self.map_list_item(*kind, item));
                 }
             }
-            "orderedList" => {
-                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                    for item in items {
-                        out.push(json!({
-                            "type": "numbered_list_item",
-                            "data": {
-                                "rich_text": self.convert_text(item),
-                                "text_color": "default",
-                                "background_color": "default"
-                            }
-                        }));
-                    }
-                }
-            }
-            "blockquote" => {
-                if let Some(paragraphs) = node.get("content").and_then(|c| c.as_array()) {
-                    for para in paragraphs {
-                        out.push(json!({
-                            "type": "quote",
-                            "data": {
-                                "rich_text": self.convert_text(para),
-                                "text_color": "default",
-                                "background_color": "default"
-                            }
-                        }));
-                    }
-                } else {
-                    out.push(json!({
-                        "type": "quote",
-                        "data": {
-                            "rich_text": self.convert_text(node),
-                            "text_color": "default",
-                            "background_color": "default"
-                        }
-                    }));
-                }
-            }
-            "codeBlock" => {
-                let lang = node.get("attrs")
-                    .and_then(|a| a.get("language").and_then(|l| l.as_str()))
-                    .unwrap_or("plain text");
+            Block::CodeBlock { language, code } => {
+                let lang = if language.is_empty() { "plain text" } else { language.as_str() };
                 out.push(json!({
                     "type": "code",
                     "data": {
-                        "rich_text": self.convert_text(node),
+                        "rich_text": [make_rich_element(code, &[])],
                         "language": lang
                     }
                 }));
             }
-            "taskList" => {
-                if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                    for item in items {
-                        let checked = item.get("attrs")
-                            .and_then(|a| a.get("checked"))
-                            .and_then(|c| c.as_bool())
-                            .unwrap_or(false);
-                        out.push(json!({
-                            "type": "todo",
-                            "data": {
-                                "rich_text": self.convert_text(item),
-                                "checked": checked,
-                                "text_color": "default",
-                                "background_color": "default"
-                            }
-                        }));
-                    }
+            Block::BlockQuote(paras) => {
+                for para in paras {
+                    out.push(self.text_block("quote", para));
                 }
             }
-            "table" => {
-                // TableKit 的 table 节点没有 col_count attrs，从实际行内容推断列数
-                if let Some(rows) = node.get("content").and_then(|c| c.as_array()) {
-                    // 先扫一遍找出最大列数
-                    let mut col_count: usize = 0;
-                    for row in rows {
-                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
-                            continue;
-                        }
-                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
-                            if cells.len() > col_count {
-                                col_count = cells.len();
-                            }
-                        }
+            Block::Table(table) => {
+                let col_count = table.rows.iter().map(|r| r.len()).max().unwrap_or(1).max(1);
+                for row in &table.rows {
+                    let mut row_cells: Vec<Value> = Vec::new();
+                    for cell in row {
+                        // 单元格保留行内格式（修复 #5）
+                        let rt = map_rich_text(cell);
+                        row_cells.push(if rt.is_empty() {
+                            json!({"type": "text", "text": {"content": "", "link": null}})
+                        } else {
+                            rt[0].clone()
+                        });
                     }
-                    if col_count == 0 {
-                        col_count = 1;
+                    while row_cells.len() < col_count {
+                        row_cells.push(json!({"type": "text", "text": {"content": "", "link": null }}));
                     }
-                    // 再构建每行的 cells
-                    for row in rows {
-                        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
-                            continue;
-                        }
-                        let mut row_cells: Vec<Value> = Vec::new();
-                        if let Some(cells) = row.get("content").and_then(|c| c.as_array()) {
-                            for cell in cells {
-                                let cell_text = markdown::extract_plain_text(cell).unwrap_or_default();
-                                row_cells.push(json!({
-                                    "type": "text",
-                                    "text": { "content": cell_text, "link": null }
-                                }));
-                            }
-                        }
-                        while row_cells.len() < col_count {
-                            row_cells.push(json!({ "type": "text", "text": { "content": "", "link": null } }));
-                        }
-                        out.push(json!({
-                            "type": "table_row",
-                            "data": { "cells": row_cells }
-                        }));
-                    }
+                    out.push(json!({
+                        "type": "table_row",
+                        "data": { "cells": row_cells }
+                    }));
                 }
             }
-            "horizontalRule" => {
+            Block::HorizontalRule => {
                 out.push(json!({
                     "type": "divider",
                     "data": {}
                 }));
             }
-            _ => {}
         }
         out
     }
 
-    /// 将节点的子内容转换为 FlowUs rich_text 数组
-    fn convert_text(&self, node: &Value) -> Vec<Value> {
-        let mut rt = Vec::new();
-        if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
-            for child in content {
-                rt.extend(self.collect_text_nodes(child));
+    /// 带颜色默认值的文本块（paragraph / heading / quote）
+    fn text_block(&self, block_type: &str, inlines: &[super::ir::Inline]) -> Value {
+        let mut rt = map_rich_text(inlines);
+        if rt.is_empty() {
+            rt.push(json!({"type":"text","text":{"content":"","link":null}}));
+        }
+        json!({
+            "type": block_type,
+            "data": {
+                "rich_text": rt,
+                "text_color": "default",
+                "background_color": "default"
             }
-        }
-        if rt.is_empty() { 
-            rt.push(json!({"type":"text","text":{"content":"","link":null}})); 
-        }
-        rt
+        })
     }
 
-    /// 递归收集文本节点，生成 FlowUs rich_text 元素（含 annotations）
-    fn collect_text_nodes(&self, node: &Value) -> Vec<Value> {
-        let t = match node.get("type").and_then(|v| v.as_str()) {
-            Some(t) => t,
-            None => return Vec::new(),
+    /// 列表项 → FlowUs block（嵌套子列表进 children，修复 #2；真机验证点）
+    fn map_list_item(&self, kind: super::ir::ListKind, item: &super::ir::ListItem) -> Value {
+        let block_type = match kind {
+            super::ir::ListKind::Bullet => "bulleted_list_item",
+            super::ir::ListKind::Ordered => "numbered_list_item",
+            super::ir::ListKind::Task => "todo",
         };
 
-        if t != "text" {
-            let mut result = Vec::new();
-            if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
-                for child in content {
-                    result.extend(self.collect_text_nodes(child));
+        let mut rt = map_rich_text(&item.inlines);
+        for para in &item.extra_paras {
+            rt.push(json!({"type": "text", "text": {"content": "\n", "link": null}}));
+            rt.extend(map_rich_text(para));
+        }
+        if rt.is_empty() {
+            rt.push(json!({"type":"text","text":{"content":"","link":null}}));
+        }
+
+        let mut data = serde_json::Map::new();
+        data.insert("rich_text".into(), json!(rt));
+        if kind == super::ir::ListKind::Task {
+            data.insert("checked".into(), json!(item.checked.unwrap_or(false)));
+        }
+        data.insert("text_color".into(), json!("default"));
+        data.insert("background_color".into(), json!("default"));
+
+        // 嵌套子列表（FlowUs 嵌套结构真机验证点；若不支持改为拍平输出）
+        let children: Vec<Value> = item
+            .children
+            .iter()
+            .filter_map(|c| match c {
+                super::ir::Block::List { items: sub_items, kind: sub_kind } => {
+                    Some(sub_items.iter().map(|it| self.map_list_item(*sub_kind, it)).collect::<Vec<Value>>())
                 }
-            }
-            return result;
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        if !children.is_empty() {
+            data.insert("children".into(), json!(children));
         }
 
-        // 处理 text 节点
-        let text = node.get("text").and_then(|t| t.as_str()).unwrap_or("");
-        let mut anno = serde_json::Map::new();
-        let mut link_url: Option<String> = None;
-        if let Some(marks) = node.get("marks").and_then(|m| m.as_array()) {
-            for mark in marks {
-                match mark.get("type").and_then(|t| t.as_str()).unwrap_or("") {
-                    "bold" => { anno.insert("bold".into(), json!(true)); }
-                    "italic" => { anno.insert("italic".into(), json!(true)); }
-                    "strike" => { anno.insert("strikethrough".into(), json!(true)); }
-                    "underline" => { anno.insert("underline".into(), json!(true)); }
-                    "code" => { anno.insert("code".into(), json!(true)); }
-                    "link" => {
-                        if let Some(href) = mark.get("attrs").and_then(|a| a.get("href")).and_then(|h| h.as_str()) {
-                            link_url = Some(href.to_string());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-
-        // 构造 FlowUs rich_text 元素
-        let mut text_obj = serde_json::Map::new();
-        text_obj.insert("content".into(), json!(text));
-        if let Some(ref url) = link_url {
-            text_obj.insert("link".into(), json!({ "url": url }));
-        } else {
-            text_obj.insert("link".into(), Value::Null);
-        }
-
-        // 合并用户 marks 和默认值
-        let mut full_anno = serde_json::Map::new();
-        full_anno.insert("bold".into(), json!(anno.contains_key("bold")));
-        full_anno.insert("italic".into(), json!(anno.contains_key("italic")));
-        full_anno.insert("strikethrough".into(), json!(anno.contains_key("strikethrough")));
-        full_anno.insert("underline".into(), json!(anno.contains_key("underline")));
-        full_anno.insert("code".into(), json!(anno.contains_key("code")));
-        full_anno.insert("color".into(), json!("default"));
-
-        let mut obj = serde_json::Map::new();
-        obj.insert("type".into(), json!("text"));
-        obj.insert("text".into(), Value::Object(text_obj));
-        obj.insert("annotations".into(), Value::Object(full_anno));
-        obj.insert("plain_text".into(), json!(text));
-        obj.insert("href".into(), if link_url.is_some() { json!(link_url) } else { Value::Null });
-
-        vec![Value::Object(obj)]
+        json!({
+            "type": block_type,
+            "data": Value::Object(data)
+        })
     }
 
     // ── 目标类型判断 ──
@@ -488,7 +370,7 @@ impl PlatformAdapter for FlowUsAdapter {
         let target_id = resolve_target_id("flowus", &instance.target_id);
         
         // 提取标题
-        let title = markdown::extract_title(content);
+        let title = markdown::extract_title_full(content);
         
         // 判断目标类型，获取正确的父级 ID
         let target = self.resolve_target(&instance.token, &target_id).await?;
@@ -571,6 +453,68 @@ impl PlatformAdapter for FlowUsAdapter {
     }
 }
 
+/// IR 行内内容 → FlowUs rich_text 数组（annotations 全字段 + plain_text + href）
+/// hardBreak → 换行文本（修复 #1）；mention → "@标签" 文本（防数据丢失）
+fn map_rich_text(inlines: &[super::ir::Inline]) -> Vec<Value> {
+    use super::ir::Inline;
+    let mut rt = Vec::new();
+    for inline in inlines {
+        let (text, marks) = match inline {
+            Inline::Text { text, marks } => (text.as_str(), marks),
+            Inline::Break => ("\n", &Vec::new()),
+            Inline::Mention(label) => {
+                rt.push(make_rich_element(&format!("@{}", label), &[]));
+                continue;
+            }
+        };
+        rt.push(make_rich_element(text, marks));
+    }
+    rt
+}
+
+/// 构造单个 FlowUs rich_text 元素
+fn make_rich_element(text: &str, marks: &[super::ir::Mark]) -> Value {
+    use super::ir::Mark;
+    let mut anno = serde_json::Map::new();
+    let mut link_url: Option<String> = None;
+    for mark in marks {
+        match mark {
+            Mark::Bold => { anno.insert("bold".into(), json!(true)); }
+            Mark::Italic => { anno.insert("italic".into(), json!(true)); }
+            Mark::Strike => { anno.insert("strikethrough".into(), json!(true)); }
+            Mark::Underline => { anno.insert("underline".into(), json!(true)); }
+            Mark::Code => { anno.insert("code".into(), json!(true)); }
+            Mark::Link(href) => link_url = Some(href.clone()),
+        }
+    }
+
+    let mut text_obj = serde_json::Map::new();
+    text_obj.insert("content".into(), json!(text));
+    match link_url {
+        Some(ref url) => text_obj.insert("link".into(), json!({ "url": url })),
+        None => text_obj.insert("link".into(), Value::Null),
+    };
+
+    let mut full_anno = serde_json::Map::new();
+    full_anno.insert("bold".into(), json!(anno.contains_key("bold")));
+    full_anno.insert("italic".into(), json!(anno.contains_key("italic")));
+    full_anno.insert("strikethrough".into(), json!(anno.contains_key("strikethrough")));
+    full_anno.insert("underline".into(), json!(anno.contains_key("underline")));
+    full_anno.insert("code".into(), json!(anno.contains_key("code")));
+    full_anno.insert("color".into(), json!("default"));
+
+    let mut obj = serde_json::Map::new();
+    obj.insert("type".into(), json!("text"));
+    obj.insert("text".into(), Value::Object(text_obj));
+    obj.insert("annotations".into(), Value::Object(full_anno));
+    obj.insert("plain_text".into(), json!(text));
+    obj.insert("href".into(), match link_url {
+        Some(url) => json!(url),
+        None => Value::Null,
+    });
+    Value::Object(obj)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -606,4 +550,33 @@ mod tests {
         underline_link,
         combined
     );
+
+    // ── 目标断言：缺陷修复不被快照更新悄悄退化 ──
+
+    #[test]
+    fn fix1_hardbreak_becomes_newline() {
+        let fixture = test_helpers::load_fixture("hardbreak");
+        let blocks = convert(&fixture);
+        let rich = blocks[0]["data"]["rich_text"].as_array().unwrap();
+        let content: String = rich.iter()
+            .filter_map(|t| t["text"]["content"].as_str())
+            .collect();
+        assert_eq!(content, "第一行\n第二行\n第三行");
+    }
+
+    #[test]
+    fn fix2_nested_list_children() {
+        let fixture = test_helpers::load_fixture("nested_list");
+        let blocks = convert(&fixture);
+        let children = blocks[0]["data"]["children"].as_array().expect("嵌套子列表应进 children");
+        assert_eq!(children.len(), 2);
+    }
+
+    #[test]
+    fn fix5_table_cell_keeps_annotations() {
+        let fixture = test_helpers::load_fixture("table_with_inline");
+        let blocks = convert(&fixture);
+        let cell = &blocks[0]["data"]["cells"][0];
+        assert_eq!(cell["annotations"]["bold"], json!(true), "表头第一格粗体应保留");
+    }
 }

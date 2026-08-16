@@ -258,261 +258,193 @@ impl LarkAdapter {
     }
 }
 
-/// 从 TipTap 节点提取纯文本
-fn extract_text_from_node(node: &Value) -> String {
-    let mut text = String::new();
-    if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
-        for child in content {
-            let child_type = child.get("type").and_then(|t| t.as_str()).unwrap_or("");
-            if child_type == "text" {
-                if let Some(t) = child.get("text").and_then(|t| t.as_str()) {
-                    text.push_str(t);
-                }
-            } else {
-                text.push_str(&extract_text_from_node(child));
-            }
-        }
-    }
-    text
-}
-
-/// TipTap inline marks → 飞书 text_element
-fn marks_to_text_elements(node: &Value) -> Vec<Value> {
+/// IR 行内内容 → 飞书 text elements
+/// hardBreak → 换行文本；mention → "@标签" 文本（防数据丢失）
+fn inlines_to_elements(inlines: &[super::ir::Inline]) -> Vec<Value> {
+    use super::ir::{Inline, Mark};
     let mut elements = Vec::new();
-
-    if let Some(content) = node.get("content").and_then(|c| c.as_array()) {
-        for child in content {
-            let child_type = child.get("type").and_then(|t| t.as_str()).unwrap_or("");
-            if child_type == "text" {
-                let text = child.get("text").and_then(|t| t.as_str()).unwrap_or("");
-                if text.is_empty() {
-                    continue;
-                }
-
-                let mut text_run = serde_json::Map::new();
-                text_run.insert("content".into(), json!(text));
-
-                let mut style = serde_json::Map::new();
-                if let Some(marks) = child.get("marks").and_then(|m| m.as_array()) {
-                    for mark in marks {
-                        let mark_type = mark.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                        match mark_type {
-                            "bold" => { style.insert("bold".into(), json!(true)); }
-                            "italic" => { style.insert("italic".into(), json!(true)); }
-                            "strike" => { style.insert("strikethrough".into(), json!(true)); }
-                            "underline" => { style.insert("underline".into(), json!(true)); }
-                            "code" => { style.insert("inline_code".into(), json!(true)); }
-                            "link" => {
-                                let href = mark.get("attrs")
-                                    .and_then(|a| a.get("href"))
-                                    .and_then(|h| h.as_str())
-                                    .unwrap_or("");
-                                if !href.is_empty() {
-                                    style.insert("link".into(), json!({ "url": href }));
-                                }
-                            }
-                            _ => {}
-                        }
-                    }
-                }
-
-                if !style.is_empty() {
-                    text_run.insert("text_element_style".into(), Value::Object(style));
-                }
-
-                elements.push(json!({ "text_run": Value::Object(text_run) }));
-            } else if child_type == "hardBreak" {
-                elements.push(json!({ "text_run": { "content": "\n" } }));
-            } else {
-                elements.extend(marks_to_text_elements(child));
+    for inline in inlines {
+        let (text, marks): (String, &Vec<Mark>) = match inline {
+            Inline::Text { text, marks } => (text.clone(), marks),
+            Inline::Break => ("\n".to_string(), &Vec::new()),
+            Inline::Mention(label) => {
+                elements.push(make_text_run(&format!("@{}", label), &[]));
+                continue;
             }
+        };
+        if text.is_empty() {
+            continue;
         }
+        elements.push(make_text_run(&text, marks));
     }
-
     elements
 }
 
-/// TipTap 节点 → 飞书 block
-fn node_to_lark_block(node: &Value) -> Option<Value> {
-    let node_type = node.get("type").and_then(|t| t.as_str()).unwrap_or("");
-    let text_elements = marks_to_text_elements(node);
+/// 构造单个 text_run（marks → text_element_style）
+fn make_text_run(text: &str, marks: &[super::ir::Mark]) -> Value {
+    use super::ir::Mark;
+    let mut text_run = serde_json::Map::new();
+    text_run.insert("content".into(), json!(text));
 
-    match node_type {
-        "paragraph" => {
-            Some(json!({
-                "block_type": BLOCK_TEXT,
-                "text": {
-                    "elements": if text_elements.is_empty() {
-                        vec![json!({ "text_run": { "content": "" } })]
-                    } else {
-                        text_elements
-                    },
-                    "style": {}
+    let mut style = serde_json::Map::new();
+    for mark in marks {
+        match mark {
+            Mark::Bold => { style.insert("bold".into(), json!(true)); }
+            Mark::Italic => { style.insert("italic".into(), json!(true)); }
+            Mark::Strike => { style.insert("strikethrough".into(), json!(true)); }
+            Mark::Underline => { style.insert("underline".into(), json!(true)); }
+            Mark::Code => { style.insert("inline_code".into(), json!(true)); }
+            Mark::Link(href) => {
+                if !href.is_empty() {
+                    style.insert("link".into(), json!({ "url": href }));
                 }
-            }))
-        }
-        "heading" => {
-            let level = node.get("attrs")
-                .and_then(|a| a.get("level"))
-                .and_then(|l| l.as_i64())
-                .unwrap_or(1);
-            let block_type = BLOCK_HEADING1 + level - 1;
-            let bt = if block_type > 11 { 11 } else { block_type };
-            let heading_level = if level > 9 { 9 } else { level };
-            let elements = if text_elements.is_empty() {
-                vec![json!({ "text_run": { "content": "" } })]
-            } else {
-                text_elements
-            };
-            let heading_key = format!("heading{}", heading_level);
-            let mut block = json!({ "block_type": bt });
-            block.as_object_mut().unwrap().insert(heading_key, json!({
-                "elements": elements,
-                "style": {}
-            }));
-            Some(block)
-        }
-        "blockquote" => {
-            if text_elements.is_empty() {
-                return None;
             }
-            Some(json!({
-                "block_type": BLOCK_QUOTE,
-                "quote": {
-                    "elements": text_elements,
+        }
+    }
+    if !style.is_empty() {
+        text_run.insert("text_element_style".into(), Value::Object(style));
+    }
+
+    json!({ "text_run": Value::Object(text_run) })
+}
+
+/// 空的 text_run（飞书要求 elements 非空）
+fn empty_element() -> Value {
+    json!({ "text_run": { "content": "" } })
+}
+
+/// IR 块 → 飞书 block(s)
+fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
+    use super::ir::Block;
+    for block in blocks {
+        match block {
+            Block::Paragraph(inlines) => {
+                let mut elements = inlines_to_elements(inlines);
+                if elements.is_empty() {
+                    elements.push(empty_element());
+                }
+                out.push(json!({
+                    "block_type": BLOCK_TEXT,
+                    "text": { "elements": elements, "style": {} }
+                }));
+            }
+            Block::Heading { level, inlines } => {
+                let level = *level as i64;
+                let block_type = BLOCK_HEADING1 + level - 1;
+                let bt = if block_type > 11 { 11 } else { block_type };
+                let heading_level = if level > 9 { 9 } else { level };
+                let mut elements = inlines_to_elements(inlines);
+                if elements.is_empty() {
+                    elements.push(empty_element());
+                }
+                let heading_key = format!("heading{}", heading_level);
+                let mut block = json!({ "block_type": bt });
+                block.as_object_mut().unwrap().insert(heading_key, json!({
+                    "elements": elements,
                     "style": {}
+                }));
+                out.push(block);
+            }
+            Block::List { kind, items } => {
+                for item in items {
+                    map_list_item(*kind, item, out);
                 }
-            }))
-        }
-        "codeBlock" => {
-            let code_text = extract_text_from_node(node);
-            Some(json!({
-                "block_type": BLOCK_CODE,
-                "code": {
-                    "elements": [{ "text_run": { "content": code_text } }],
-                    "style": { "language": 1 }
+            }
+            Block::CodeBlock { code, .. } => {
+                out.push(json!({
+                    "block_type": BLOCK_CODE,
+                    "code": {
+                        "elements": [{ "text_run": { "content": code } }],
+                        "style": { "language": 1 }
+                    }
+                }));
+            }
+            Block::BlockQuote(paras) => {
+                for para in paras {
+                    let elements = inlines_to_elements(para);
+                    if elements.is_empty() {
+                        continue;
+                    }
+                    out.push(json!({
+                        "block_type": BLOCK_QUOTE,
+                        "quote": { "elements": elements, "style": {} }
+                    }));
                 }
-            }))
+            }
+            Block::Table(table) => {
+                // 飞书无原生表格，降级为逐行文本（保留行内格式，修复 #5）
+                for row in &table.rows {
+                    let mut elements: Vec<Value> = Vec::new();
+                    for (ci, cell) in row.iter().enumerate() {
+                        if ci > 0 {
+                            elements.push(make_text_run(" | ", &[]));
+                        }
+                        elements.extend(inlines_to_elements(cell));
+                    }
+                    if elements.is_empty() {
+                        continue;
+                    }
+                    out.push(json!({
+                        "block_type": BLOCK_TEXT,
+                        "text": { "elements": elements, "style": {} }
+                    }));
+                }
+            }
+            Block::HorizontalRule => {
+                out.push(json!({
+                    "block_type": BLOCK_DIVIDER,
+                    "divider": {}
+                }));
+            }
         }
-        "horizontalRule" => {
-            Some(json!({
-                "block_type": BLOCK_DIVIDER,
-                "divider": {}
-            }))
-        }
-        _ => None,
     }
 }
 
-/// 从 listItem 节点提取 text elements
-fn extract_list_item_elements(item: &Value) -> Vec<Value> {
-    if let Some(children) = item.get("content").and_then(|c| c.as_array()) {
-        for child in children {
-            if child.get("type").and_then(|t| t.as_str()) == Some("paragraph") {
-                return marks_to_text_elements(child);
+/// 列表项 → 飞书 block（修复 #2 拍平保文本 + #3 多段落合并）
+fn map_list_item(kind: super::ir::ListKind, item: &super::ir::ListItem, out: &mut Vec<Value>) {
+    // rich_text：首段 + 后续段落（\n 分隔，修复 #3 多段落丢失）
+    let mut elements = inlines_to_elements(&item.inlines);
+    for para in &item.extra_paras {
+        elements.push(make_text_run("\n", &[]));
+        elements.extend(inlines_to_elements(para));
+    }
+
+    // 待办项：首段文本前缀 [x]/[ ]（保持历史行为）
+    if kind == super::ir::ListKind::Task {
+        if let Some(e) = elements.first_mut() {
+            if let Some(tr) = e.get_mut("text_run").and_then(|tr| tr.as_object_mut()) {
+                if let Some(content) = tr.get("content").and_then(|c| c.as_str()).map(|s| s.to_string()) {
+                    let prefix = if item.checked.unwrap_or(false) { "[x] " } else { "[ ] " };
+                    tr.insert("content".into(), json!(format!("{}{}", prefix, content)));
+                }
             }
         }
     }
-    marks_to_text_elements(item)
+
+    if !elements.is_empty() {
+        let block_type = match kind {
+            super::ir::ListKind::Bullet | super::ir::ListKind::Task => BLOCK_BULLET,
+            super::ir::ListKind::Ordered => BLOCK_ORDERED,
+        };
+        let key = if block_type == BLOCK_BULLET { "bullet" } else { "ordered" };
+        let mut block = json!({ "block_type": block_type });
+        block.as_object_mut().unwrap().insert(key.to_string(), json!({
+            "elements": elements,
+            "style": {}
+        }));
+        out.push(block);
+    }
+
+    // 嵌套子列表：飞书拍平为同级块（文本不丢，层级降级）
+    for child in &item.children {
+        map_blocks(std::slice::from_ref(child), out);
+    }
 }
 
 /// TipTap JSON → 飞书 block 数组
 pub(crate) fn tiptap_to_lark_blocks(content: &Value) -> Vec<Value> {
     let mut blocks = Vec::new();
-
-    if let Some(doc) = content.get("content") {
-        for node in doc.as_array().unwrap_or(&vec![]) {
-            let node_type = node.get("type").and_then(|t| t.as_str()).unwrap_or("");
-
-            match node_type {
-                "bulletList" => {
-                    if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                        for item in items {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("listItem") {
-                                let elements = extract_list_item_elements(item);
-                                if elements.is_empty() { continue; }
-                                blocks.push(json!({
-                                    "block_type": BLOCK_BULLET,
-                                    "bullet": { "elements": elements, "style": {} }
-                                }));
-                            }
-                        }
-                    }
-                }
-                "orderedList" => {
-                    if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                        for item in items {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("listItem") {
-                                let elements = extract_list_item_elements(item);
-                                if elements.is_empty() { continue; }
-                                blocks.push(json!({
-                                    "block_type": BLOCK_ORDERED,
-                                    "ordered": { "elements": elements, "style": {} }
-                                }));
-                            }
-                        }
-                    }
-                }
-                "taskList" => {
-                    if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                        for item in items {
-                            if item.get("type").and_then(|t| t.as_str()) == Some("taskItem") {
-                                let checked = item.get("attrs")
-                                    .and_then(|a| a.get("checked"))
-                                    .and_then(|c| c.as_bool())
-                                    .unwrap_or(false);
-                                let elements = extract_list_item_elements(item);
-                                if elements.is_empty() { continue; }
-                                let prefix = if checked { "[x] " } else { "[ ] " };
-                                let prefixed: Vec<Value> = elements.into_iter().map(|mut e| {
-                                    if let Some(tr) = e.get_mut("text_run").and_then(|tr| tr.as_object_mut()) {
-                                        if let Some(content) = tr.get("content").and_then(|c| c.as_str()).map(|s| s.to_string()) {
-                                            tr.insert("content".into(), json!(format!("{}{}", prefix, content)));
-                                        }
-                                    }
-                                    e
-                                }).collect();
-                                blocks.push(json!({
-                                    "block_type": BLOCK_BULLET,
-                                    "bullet": { "elements": prefixed, "style": {} }
-                                }));
-                            }
-                        }
-                    }
-                }
-                "table" => {
-                    // 飞书无原生表格，降级为逐行文本
-                    if let Some(rows) = node.get("content").and_then(|c| c.as_array()) {
-                        for row in rows {
-                            if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
-                                continue;
-                            }
-                            let mut cells: Vec<String> = Vec::new();
-                            if let Some(cells_arr) = row.get("content").and_then(|c| c.as_array()) {
-                                for cell in cells_arr {
-                                    cells.push(extract_text_from_node(cell));
-                                }
-                            }
-                            let line = cells.join(" | ");
-                            blocks.push(json!({
-                                "block_type": BLOCK_TEXT,
-                                "text": {
-                                    "elements": [{ "text_run": { "content": line } }],
-                                    "style": {}
-                                }
-                            }));
-                        }
-                    }
-                }
-                _ => {
-                    if let Some(block) = node_to_lark_block(node) {
-                        blocks.push(block);
-                    }
-                }
-            }
-        }
-    }
-
+    map_blocks(&super::ir::parse(content), &mut blocks);
     blocks
 }
 
@@ -609,4 +541,45 @@ mod tests {
         underline_link,
         combined
     );
+
+    // ── 目标断言：缺陷修复不被快照更新悄悄退化 ──
+
+    #[test]
+    fn fix2_nested_list_flattened_not_dropped() {
+        let fixture = test_helpers::load_fixture("nested_list");
+        let blocks = convert(&fixture);
+        // 现状缺陷是子项完全丢失；修复后拍平输出：顶层 2 项 + 子项 2 项 = 4 个 bullet
+        let bullets: Vec<&Value> = blocks.iter()
+            .filter(|b| b["block_type"] == json!(BLOCK_BULLET))
+            .collect();
+        assert_eq!(bullets.len(), 4, "嵌套子项应拍平输出而不是丢弃");
+        let texts: Vec<String> = bullets.iter().map(|b| {
+            b["bullet"]["elements"][0]["text_run"]["content"].as_str().unwrap_or("").to_string()
+        }).collect();
+        assert!(texts.contains(&"子项 1.1".to_string()), "子项文本不丢: {:?}", texts);
+        assert!(texts.contains(&"子项 1.2".to_string()));
+    }
+
+    #[test]
+    fn fix3_list_item_multi_paragraph_kept() {
+        let doc = serde_json::json!({
+            "type": "doc",
+            "content": [{
+                "type": "bulletList",
+                "content": [{
+                    "type": "listItem",
+                    "content": [
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "首段" }] },
+                        { "type": "paragraph", "content": [{ "type": "text", "text": "次段" }] }
+                    ]
+                }]
+            }]
+        });
+        let blocks = convert(&doc);
+        let elements = blocks[0]["bullet"]["elements"].as_array().unwrap();
+        let content: String = elements.iter()
+            .filter_map(|e| e["text_run"]["content"].as_str())
+            .collect();
+        assert_eq!(content, "首段\n次段", "列表项多段落应保留（\\n 分隔）");
+    }
 }

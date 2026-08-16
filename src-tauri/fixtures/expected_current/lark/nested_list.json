@@ -18,6 +18,32 @@
       "elements": [
         {
           "text_run": {
+            "content": "子项 1.1"
+          }
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 12,
+    "bullet": {
+      "elements": [
+        {
+          "text_run": {
+            "content": "子项 1.2"
+          }
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 12,
+    "bullet": {
+      "elements": [
+        {
+          "text_run": {
             "content": "顶层项 2"
           }
         }

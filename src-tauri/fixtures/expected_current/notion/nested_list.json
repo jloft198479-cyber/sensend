@@ -1,22 +1,40 @@
 [
   {
     "bulleted_list_item": {
+      "children": [
+        {
+          "bulleted_list_item": {
+            "rich_text": [
+              {
+                "text": {
+                  "content": "子项 1.1"
+                },
+                "type": "text"
+              }
+            ]
+          },
+          "object": "block",
+          "type": "bulleted_list_item"
+        },
+        {
+          "bulleted_list_item": {
+            "rich_text": [
+              {
+                "text": {
+                  "content": "子项 1.2"
+                },
+                "type": "text"
+              }
+            ]
+          },
+          "object": "block",
+          "type": "bulleted_list_item"
+        }
+      ],
       "rich_text": [
         {
           "text": {
             "content": "顶层项 1"
-          },
-          "type": "text"
-        },
-        {
-          "text": {
-            "content": "子项 1.1"
-          },
-          "type": "text"
-        },
-        {
-          "text": {
-            "content": "子项 1.2"
           },
           "type": "text"
         }

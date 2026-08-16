@@ -5,7 +5,20 @@
       "elements": [
         {
           "text_run": {
-            "content": "列名 | 说明"
+            "content": "列名",
+            "text_element_style": {
+              "bold": true
+            }
+          }
+        },
+        {
+          "text_run": {
+            "content": " | "
+          }
+        },
+        {
+          "text_run": {
+            "content": "说明"
           }
         }
       ],
@@ -18,7 +31,20 @@
       "elements": [
         {
           "text_run": {
-            "content": "值 1 | 值 2"
+            "content": "值 1"
+          }
+        },
+        {
+          "text_run": {
+            "content": " | "
+          }
+        },
+        {
+          "text_run": {
+            "content": "值 2",
+            "text_element_style": {
+              "italic": true
+            }
           }
         }
       ],

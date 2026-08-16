@@ -2,6 +2,60 @@
   {
     "data": {
       "background_color": "default",
+      "children": [
+        {
+          "data": {
+            "background_color": "default",
+            "rich_text": [
+              {
+                "annotations": {
+                  "bold": false,
+                  "code": false,
+                  "color": "default",
+                  "italic": false,
+                  "strikethrough": false,
+                  "underline": false
+                },
+                "href": null,
+                "plain_text": "子项 1.1",
+                "text": {
+                  "content": "子项 1.1",
+                  "link": null
+                },
+                "type": "text"
+              }
+            ],
+            "text_color": "default"
+          },
+          "type": "bulleted_list_item"
+        },
+        {
+          "data": {
+            "background_color": "default",
+            "rich_text": [
+              {
+                "annotations": {
+                  "bold": false,
+                  "code": false,
+                  "color": "default",
+                  "italic": false,
+                  "strikethrough": false,
+                  "underline": false
+                },
+                "href": null,
+                "plain_text": "子项 1.2",
+                "text": {
+                  "content": "子项 1.2",
+                  "link": null
+                },
+                "type": "text"
+              }
+            ],
+            "text_color": "default"
+          },
+          "type": "bulleted_list_item"
+        }
+      ],
       "rich_text": [
         {
           "annotations": {
@@ -16,40 +70,6 @@
           "plain_text": "顶层项 1",
           "text": {
             "content": "顶层项 1",
-            "link": null
-          },
-          "type": "text"
-        },
-        {
-          "annotations": {
-            "bold": false,
-            "code": false,
-            "color": "default",
-            "italic": false,
-            "strikethrough": false,
-            "underline": false
-          },
-          "href": null,
-          "plain_text": "子项 1.1",
-          "text": {
-            "content": "子项 1.1",
-            "link": null
-          },
-          "type": "text"
-        },
-        {
-          "annotations": {
-            "bold": false,
-            "code": false,
-            "color": "default",
-            "italic": false,
-            "strikethrough": false,
-            "underline": false
-          },
-          "href": null,
-          "plain_text": "子项 1.2",
-          "text": {
-            "content": "子项 1.2",
             "link": null
           },
           "type": "text"

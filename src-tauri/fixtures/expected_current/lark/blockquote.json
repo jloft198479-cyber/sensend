@@ -7,7 +7,15 @@
           "text_run": {
             "content": "引用段落"
           }
-        },
+        }
+      ],
+      "style": {}
+    }
+  },
+  {
+    "block_type": 15,
+    "quote": {
+      "elements": [
         {
           "text_run": {
             "content": "第二段引用"

@@ -11,7 +11,19 @@
         },
         {
           "text": {
+            "content": "\n"
+          },
+          "type": "text"
+        },
+        {
+          "text": {
             "content": "第二行"
+          },
+          "type": "text"
+        },
+        {
+          "text": {
+            "content": "\n"
           },
           "type": "text"
         },

@@ -133,6 +133,7 @@ pub mod notion;
 pub mod local;
 pub mod flowus;
 pub mod lark;
+pub mod ir;
 
 #[cfg(test)]
 mod test_helpers;

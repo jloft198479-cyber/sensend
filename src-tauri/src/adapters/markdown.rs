@@ -1,15 +1,16 @@
 //! 公共 Markdown 转换模块
-//! 将 TipTap JSON 树转换为 Markdown 文本，供 local.rs / flowus.rs 等适配器复用。
+//! IR → Markdown 文本，供 local.rs 等适配器复用。
+//! TipTap 解析统一走 ir::parse（唯一遍历点）。
 
+use super::ir::{self, Block, Inline, ListKind, Mark, Table};
 use serde_json::Value;
 
 /// TipTap JSON → Markdown 文本
 pub fn tiptap_to_markdown(tree: &Value) -> String {
+    let blocks = ir::parse(tree);
     let mut md = String::new();
-    if let Some(children) = tree.get("content").and_then(|c| c.as_array()) {
-        for node in children {
-            render_node(node, &mut md, 0);
-        }
+    for block in &blocks {
+        render_block(block, &mut md, 0);
     }
     let trimmed = md.trim_end().to_string();
     if trimmed.is_empty() {
@@ -19,15 +20,21 @@ pub fn tiptap_to_markdown(tree: &Value) -> String {
     }
 }
 
-/// 提取文档标题（取第一个非空段落前 18 字）
+/// 提取文档标题（取第一个非空段落前 18 字，用于本地文件名）
 pub fn extract_title(content: &Value) -> String {
+    let full = extract_title_full(content);
+    full.chars().take(18).collect()
+}
+
+/// 提取文档标题全量文本（不截断，用于平台页面标题与去重比较）
+pub fn extract_title_full(content: &Value) -> String {
     if let Some(children) = content.get("content").and_then(|c| c.as_array()) {
         // 优先取第一个 heading
         for node in children {
             if node.get("type").and_then(|t| t.as_str()) == Some("heading") {
                 if let Some(text) = extract_plain_text(node) {
                     if !text.is_empty() {
-                        return text.chars().take(18).collect();
+                        return text;
                     }
                 }
             }
@@ -37,7 +44,7 @@ pub fn extract_title(content: &Value) -> String {
             if let Some(text) = extract_plain_text(node) {
                 let trimmed = text.trim();
                 if !trimmed.is_empty() {
-                    return trimmed.chars().take(18).collect();
+                    return trimmed.to_string();
                 }
             }
         }
@@ -65,146 +72,88 @@ pub fn extract_plain_text(node: &Value) -> Option<String> {
     }
 }
 
-// ── 内部实现 ──
+// ── IR → Markdown 渲染 ──
 
-fn render_node(node: &Value, out: &mut String, list_depth: usize) {
-    let node_type = node.get("type").and_then(|t| t.as_str()).unwrap_or("");
-    match node_type {
-        "paragraph" => {
-            render_inline(node, out);
+/// hardBreak 的渲染方式（不同上下文行为不同）
+enum BreakMode {
+    /// 段落内：渲染为 Markdown 硬换行 "  \n"
+    Line,
+    /// 表格单元格/引用内：丢弃（与历史行为一致）
+    Suppress,
+}
+
+fn render_block(block: &Block, out: &mut String, list_depth: usize) {
+    match block {
+        Block::Paragraph(inlines) => {
+            render_inlines(inlines, out, BreakMode::Line);
             out.push('\n');
             // 列表项内的段落不双换行；顶层段落双换行
             if list_depth == 0 {
                 out.push('\n');
             }
         }
-        "heading" => {
-            let level = node
-                .get("attrs")
-                .and_then(|a| a.get("level"))
-                .and_then(|l| l.as_u64())
-                .unwrap_or(1);
-            out.push_str(&"#".repeat(level as usize));
+        Block::Heading { level, inlines } => {
+            out.push_str(&"#".repeat(*level as usize));
             out.push(' ');
-            render_inline(node, out);
+            render_inlines(inlines, out, BreakMode::Line);
             out.push_str("\n\n");
         }
-        "bulletList" => render_list(node, out, list_depth, ListKind::Bullet),
-        "orderedList" => render_list(node, out, list_depth, ListKind::Ordered),
-        "codeBlock" => {
-            let lang = node
-                .get("attrs")
-                .and_then(|a| a.get("language").and_then(|l| l.as_str()))
-                .unwrap_or("");
-            out.push_str(&format!("```{}\n", lang));
-            render_text(node, out);
+        Block::List { kind, items } => render_list(items, *kind, out, list_depth),
+        Block::CodeBlock { language, code } => {
+            out.push_str(&format!("```{}\n", language));
+            out.push_str(code);
             out.push_str("```\n\n");
         }
-        "blockquote" => {
-            if let Some(children) = node.get("content").and_then(|c| c.as_array()) {
-                for child in children {
-                    for line in node_to_inline_text(child).lines() {
-                        out.push_str(&format!("> {}\n", line));
-                    }
+        Block::BlockQuote(paras) => {
+            for para in paras {
+                let mut line = String::new();
+                render_inlines(para, &mut line, BreakMode::Suppress);
+                for l in line.lines() {
+                    out.push_str(&format!("> {}\n", l));
                 }
             }
             out.push('\n');
         }
-        "horizontalRule" => {
+        Block::Table(table) => render_table(table, out),
+        Block::HorizontalRule => {
             out.push_str("---\n\n");
-        }
-        "taskList" => {
-            if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-                for item in items {
-                    let checked = item.get("attrs")
-                        .and_then(|a| a.get("checked"))
-                        .and_then(|c| c.as_bool())
-                        .unwrap_or(false);
-                    let marker = if checked { "- [x] " } else { "- [ ] " };
-                    out.push_str(marker);
-                    // 列表项内段落
-                    if let Some(children) = item.get("content").and_then(|c| c.as_array()) {
-                        for (ci, child) in children.iter().enumerate() {
-                            if ci == 0 {
-                                render_inline(child, out);
-                                out.push('\n');
-                            } else {
-                                out.push_str("  ");
-                                render_inline(child, out);
-                                out.push('\n');
-                            }
-                        }
-                    } else {
-                        render_inline(item, out);
-                        out.push('\n');
-                    }
-                }
-            }
-            out.push('\n');
-        }
-        "table" => {
-            render_table(node, out);
-        }
-        "hardBreak" => {
-            out.push_str("  \n");
-        }
-        _ => {
-            // 兜底：递归处理子节点
-            if let Some(children) = node.get("content").and_then(|c| c.as_array()) {
-                for child in children {
-                    render_node(child, out, list_depth);
-                }
-            }
         }
     }
 }
 
-/// 列表类型
-enum ListKind {
-    Bullet,
-    Ordered,
-}
-
 /// 渲染列表（含嵌套）
-fn render_list(node: &Value, out: &mut String, list_depth: usize, kind: ListKind) {
+fn render_list(items: &[ir::ListItem], kind: ListKind, out: &mut String, list_depth: usize) {
     let indent = "  ".repeat(list_depth);
-    if let Some(items) = node.get("content").and_then(|c| c.as_array()) {
-        for (i, item) in items.iter().enumerate() {
-            let marker = match kind {
-                ListKind::Bullet => "- ".to_string(),
-                ListKind::Ordered => format!("{}. ", i + 1),
-            };
-            out.push_str(&indent);
-            out.push_str(&marker);
-
-            if let Some(children) = item.get("content").and_then(|c| c.as_array()) {
-                for (ci, child) in children.iter().enumerate() {
-                    let child_type = child.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                    // 嵌套列表：递归，深度 +1
-                    if child_type == "bulletList" || child_type == "orderedList" {
-                        out.push('\n');
-                        render_list(
-                            child,
-                            out,
-                            list_depth + 1,
-                            if child_type == "bulletList" {
-                                ListKind::Bullet
-                            } else {
-                                ListKind::Ordered
-                            },
-                        );
-                    } else if ci == 0 {
-                        // 列表项第一个子节点（通常是 paragraph）：内联输出紧跟 marker
-                        render_inline(child, out);
-                        out.push('\n');
-                    } else {
-                        // 列表项内后续段落：换行 + 缩进对齐
-                        out.push_str(&indent);
-                        out.push_str("  ");
-                        render_inline(child, out);
-                        out.push('\n');
-                    }
+    for (i, item) in items.iter().enumerate() {
+        let marker = match kind {
+            ListKind::Bullet => "- ".to_string(),
+            ListKind::Ordered => format!("{}. ", i + 1),
+            ListKind::Task => {
+                if item.checked.unwrap_or(false) {
+                    "- [x] ".to_string()
+                } else {
+                    "- [ ] ".to_string()
                 }
+            }
+        };
+        out.push_str(&indent);
+        out.push_str(&marker);
+        render_inlines(&item.inlines, out, BreakMode::Line);
+        out.push('\n');
+
+        // 列表项内后续段落：缩进对齐
+        for para in &item.extra_paras {
+            out.push_str(&indent);
+            out.push_str("  ");
+            render_inlines(para, out, BreakMode::Line);
+            out.push('\n');
+        }
+
+        // 嵌套子列表：递归，深度 +1
+        for child in &item.children {
+            if let Block::List { kind: sub_kind, items: sub_items } = child {
+                out.push('\n');
+                render_list(sub_items, *sub_kind, out, list_depth + 1);
             }
         }
     }
@@ -214,47 +163,34 @@ fn render_list(node: &Value, out: &mut String, list_depth: usize, kind: ListKind
     }
 }
 
-/// 渲染表格（GFM table 语法），表头按 col_count 补齐空单元格
-fn render_table(node: &Value, out: &mut String) {
-    let col_count = node.get("attrs")
-        .and_then(|a| a.get("col_count"))
-        .and_then(|c| c.as_u64())
-        .unwrap_or(0) as usize;
-
-    let rows = match node.get("content").and_then(|c| c.as_array()) {
-        Some(r) => r,
-        None => return,
-    };
-
-    // 提取所有行的单元格文本
-    let mut table_rows: Vec<Vec<String>> = Vec::new();
-    let mut max_cols = col_count;
-
-    for row in rows {
-        if row.get("type").and_then(|t| t.as_str()) != Some("tableRow") {
-            continue;
-        }
-        let mut cells: Vec<String> = Vec::new();
-        if let Some(cells_arr) = row.get("content").and_then(|c| c.as_array()) {
-            for cell in cells_arr {
-                let mut cell_text = String::new();
-                render_inline(cell, &mut cell_text);
-                cells.push(cell_text.trim().to_string());
-            }
-        }
-        if cells.len() > max_cols { max_cols = cells.len(); }
-        table_rows.push(cells);
+/// 渲染表格（GFM table 语法），按最大列数补齐空单元格
+fn render_table(table: &Table, out: &mut String) {
+    if table.rows.is_empty() {
+        return;
     }
-
-    if table_rows.is_empty() || max_cols == 0 {
+    let mut max_cols = table.col_count_hint;
+    for cells in &table.rows {
+        if cells.len() > max_cols {
+            max_cols = cells.len();
+        }
+    }
+    if max_cols == 0 {
         return;
     }
 
-    // 补齐每行到 max_cols 列
-    for cells in &mut table_rows {
-        while cells.len() < max_cols {
-            cells.push(String::new());
+    // 提取所有行的单元格文本
+    let mut table_rows: Vec<Vec<String>> = Vec::new();
+    for cells in &table.rows {
+        let mut row: Vec<String> = Vec::new();
+        for cell in cells {
+            let mut cell_text = String::new();
+            render_inlines(cell, &mut cell_text, BreakMode::Suppress);
+            row.push(cell_text.trim().to_string());
         }
+        while row.len() < max_cols {
+            row.push(String::new());
+        }
+        table_rows.push(row);
     }
 
     // 第一行作为表头
@@ -283,156 +219,115 @@ fn render_table(node: &Value, out: &mut String) {
     out.push('\n');
 }
 
-/// 提取内联文本（含 mark 格式：粗体、斜体、删除线、代码、链接）
-fn render_inline(node: &Value, out: &mut String) {
-    if let Some(text) = node.get("text").and_then(|t| t.as_str()) {
-        let mut s = text.to_string();
-        if let Some(marks) = node.get("marks").and_then(|m| m.as_array()) {
-            for mark in marks {
-                let mark_type = mark.get("type").and_then(|t| t.as_str()).unwrap_or("");
-                match mark_type {
-                    "bold" => {
-                        s = format!("**{}**", s);
-                    }
-                    "italic" => {
-                        s = format!("*{}*", s);
-                    }
-                    "strike" => {
-                        s = format!("~~{}~~", s);
-                    }
-                    "code" => {
-                        s = format!("`{}`", s);
-                    }
-                    "link" => {
-                        if let Some(href) = mark
-                            .get("attrs")
-                            .and_then(|a| a.get("href"))
-                            .and_then(|h| h.as_str())
-                        {
-                            return out.push_str(&format!("[{}]({})", s, href));
+/// 渲染行内内容（含 mark 格式：粗体、斜体、删除线、行内码、链接）
+fn render_inlines(inlines: &[Inline], out: &mut String, break_mode: BreakMode) {
+    for inline in inlines {
+        match inline {
+            Inline::Break => {
+                if let BreakMode::Line = break_mode {
+                    out.push_str("  \n");
+                }
+            }
+            Inline::Mention(label) => {
+                out.push_str(&format!("@{}", label));
+            }
+            Inline::Text { text, marks } => {
+                let mut s = text.clone();
+                let mut consumed = false;
+                for mark in marks {
+                    match mark {
+                        Mark::Bold => s = format!("**{}**", s),
+                        Mark::Italic => s = format!("*{}*", s),
+                        Mark::Strike => s = format!("~~{}~~", s),
+                        Mark::Code => s = format!("`{}`", s),
+                        // Markdown 无原生下划线语法，保持纯文本（B3 任务处理）
+                        Mark::Underline => {}
+                        Mark::Link(href) => {
+                            // 链接输出后即完成（与历史行为一致：link 后的 mark 忽略）
+                            out.push_str(&format!("[{}]({})", s, href));
+                            consumed = true;
                         }
                     }
-                    _ => {}
+                    if consumed {
+                        break;
+                    }
+                }
+                if !consumed {
+                    out.push_str(&s);
                 }
             }
         }
-        out.push_str(&s);
-    } else if let Some(children) = node.get("content").and_then(|c| c.as_array()) {
-        for child in children {
-            // mention 节点输出为 @名称
-            if child.get("type").and_then(|t| t.as_str()) == Some("mention") {
-                if let Some(label) = child
-                    .get("attrs")
-                    .and_then(|a| a.get("label"))
-                    .and_then(|l| l.as_str())
-                {
-                    out.push_str(&format!("@{}", label));
-                }
-            } else {
-                render_inline(child, out);
-            }
-        }
     }
-}
-
-/// 提取纯文本（忽略所有格式）
-fn render_text(node: &Value, out: &mut String) {
-    if let Some(text) = node.get("text").and_then(|t| t.as_str()) {
-        out.push_str(text);
-    }
-    if let Some(children) = node.get("content").and_then(|c| c.as_array()) {
-        for child in children {
-            render_text(child, out);
-        }
-    }
-}
-
-/// 节点 → 纯文本（用于 blockquote 等需要逐行引用的场景）
-fn node_to_inline_text(node: &Value) -> String {
-    let mut s = String::new();
-    render_inline(node, &mut s);
-    s
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::adapters::test_helpers;
+    use serde_json::json;
+
+    macro_rules! golden_tests {
+        ($($name:ident),* $(,)?) => {
+            $(
+                #[test]
+                fn $name() {
+                    let fixture = test_helpers::load_fixture(stringify!($name));
+                    let output = tiptap_to_markdown(&fixture);
+                    test_helpers::assert_or_update_golden("markdown", stringify!($name), "md", &output);
+                }
+            )*
+        };
+    }
+
+    golden_tests!(
+        simple_paragraph,
+        headings,
+        nested_list,
+        table_with_inline,
+        hardbreak,
+        tasklist,
+        codeblock,
+        blockquote,
+        long_title,
+        underline_link,
+        combined
+    );
+
+    // ── extract_title（#7 超长标题）──
 
     #[test]
-    fn golden_markdown_simple_paragraph() {
-        let fixture = test_helpers::load_fixture("simple_paragraph");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "simple_paragraph", "md", &output);
+    fn title_full_text_not_truncated() {
+        // 标题 23 个字（超过 18 字截断线）
+        let long = "这是一条专门用来测试超长标题去重逻辑的标题文字";
+        let doc = json!({
+            "type": "doc",
+            "content": [
+                { "type": "heading", "attrs": { "level": 1 }, "content": [{ "type": "text", "text": long }] },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "正文" }] }
+            ]
+        });
+        assert_eq!(extract_title_full(&doc), long);
+        assert_eq!(extract_title(&doc), long.chars().take(18).collect::<String>());
     }
 
     #[test]
-    fn golden_markdown_headings() {
-        let fixture = test_helpers::load_fixture("headings");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "headings", "md", &output);
-    }
+    fn title_heading_priority_and_fallback() {
+        let heading_first = json!({
+            "type": "doc",
+            "content": [
+                { "type": "paragraph", "content": [{ "type": "text", "text": "首段" }] },
+                { "type": "heading", "attrs": { "level": 2 }, "content": [{ "type": "text", "text": "标题段" }] }
+            ]
+        });
+        assert_eq!(extract_title_full(&heading_first), "标题段");
 
-    #[test]
-    fn golden_markdown_nested_list() {
-        let fixture = test_helpers::load_fixture("nested_list");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "nested_list", "md", &output);
-    }
+        let para_only = json!({
+            "type": "doc",
+            "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "  开头空白段落  " }] }]
+        });
+        assert_eq!(extract_title_full(&para_only), "开头空白段落");
 
-    #[test]
-    fn golden_markdown_table_with_inline() {
-        let fixture = test_helpers::load_fixture("table_with_inline");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "table_with_inline", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_hardbreak() {
-        let fixture = test_helpers::load_fixture("hardbreak");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "hardbreak", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_tasklist() {
-        let fixture = test_helpers::load_fixture("tasklist");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "tasklist", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_codeblock() {
-        let fixture = test_helpers::load_fixture("codeblock");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "codeblock", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_blockquote() {
-        let fixture = test_helpers::load_fixture("blockquote");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "blockquote", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_long_title() {
-        let fixture = test_helpers::load_fixture("long_title");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "long_title", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_underline_link() {
-        let fixture = test_helpers::load_fixture("underline_link");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "underline_link", "md", &output);
-    }
-
-    #[test]
-    fn golden_markdown_combined() {
-        let fixture = test_helpers::load_fixture("combined");
-        let output = tiptap_to_markdown(&fixture);
-        test_helpers::assert_or_update_golden("markdown", "combined", "md", &output);
+        let empty = json!({ "type": "doc", "content": [] });
+        assert_eq!(extract_title_full(&empty), "Sensend 笔记");
     }
 }
