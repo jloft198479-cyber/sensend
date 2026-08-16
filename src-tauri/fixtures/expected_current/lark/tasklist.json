@@ -1,28 +1,32 @@
 [
   {
-    "block_type": 12,
-    "bullet": {
+    "block_type": 17,
+    "todo": {
       "elements": [
         {
           "text_run": {
-            "content": "[x] 已完成"
+            "content": "已完成"
           }
         }
       ],
-      "style": {}
+      "style": {
+        "done": true
+      }
     }
   },
   {
-    "block_type": 12,
-    "bullet": {
+    "block_type": 17,
+    "todo": {
       "elements": [
         {
           "text_run": {
-            "content": "[ ] 未完成"
+            "content": "未完成"
           }
         }
       ],
-      "style": {}
+      "style": {
+        "done": false
+      }
     }
   }
 ]

@@ -17,6 +17,7 @@ const BLOCK_BULLET: i64 = 12;
 const BLOCK_ORDERED: i64 = 13;
 const BLOCK_CODE: i64 = 14;
 const BLOCK_QUOTE: i64 = 15;
+const BLOCK_TODO: i64 = 17;
 const BLOCK_DIVIDER: i64 = 22;
 
 /// 飞书 tenant_access_token 进程内缓存：key=app_id，有效期 2h（提前 5min 刷新）
@@ -409,28 +410,25 @@ fn map_list_item(kind: super::ir::ListKind, item: &super::ir::ListItem, out: &mu
         elements.extend(inlines_to_elements(para));
     }
 
-    // 待办项：首段文本前缀 [x]/[ ]（保持历史行为）
-    if kind == super::ir::ListKind::Task {
-        if let Some(e) = elements.first_mut() {
-            if let Some(tr) = e.get_mut("text_run").and_then(|tr| tr.as_object_mut()) {
-                if let Some(content) = tr.get("content").and_then(|c| c.as_str()).map(|s| s.to_string()) {
-                    let prefix = if item.checked.unwrap_or(false) { "[x] " } else { "[ ] " };
-                    tr.insert("content".into(), json!(format!("{}{}", prefix, content)));
-                }
-            }
-        }
-    }
-
     if !elements.is_empty() {
-        let block_type = match kind {
-            super::ir::ListKind::Bullet | super::ir::ListKind::Task => BLOCK_BULLET,
-            super::ir::ListKind::Ordered => BLOCK_ORDERED,
+        // 待办项：使用原生 todo 块（block_type 17）+ style.done 标记勾选状态（S3 验证结论）
+        let (block_type, key, extra_style): (i64, &str, serde_json::Map<String, Value>) = match kind {
+            super::ir::ListKind::Task => (
+                BLOCK_TODO,
+                "todo",
+                {
+                    let mut m = serde_json::Map::new();
+                    m.insert("done".into(), json!(item.checked.unwrap_or(false)));
+                    m
+                },
+            ),
+            super::ir::ListKind::Bullet => (BLOCK_BULLET, "bullet", serde_json::Map::new()),
+            super::ir::ListKind::Ordered => (BLOCK_ORDERED, "ordered", serde_json::Map::new()),
         };
-        let key = if block_type == BLOCK_BULLET { "bullet" } else { "ordered" };
         let mut block = json!({ "block_type": block_type });
         block.as_object_mut().unwrap().insert(key.to_string(), json!({
             "elements": elements,
-            "style": {}
+            "style": extra_style
         }));
         out.push(block);
     }
@@ -543,6 +541,22 @@ mod tests {
     );
 
     // ── 目标断言：缺陷修复不被快照更新悄悄退化 ──
+
+    #[test]
+    fn fix_s3_todo_uses_native_block() {
+        let fixture = test_helpers::load_fixture("tasklist");
+        let blocks = convert(&fixture);
+        assert_eq!(blocks.len(), 2);
+        // 待办项应为原生 todo 块（block_type 17），不是 bullet(12)
+        for (i, expected_done) in [true, false].iter().enumerate() {
+            let b = &blocks[i];
+            assert_eq!(b["block_type"], json!(BLOCK_TODO), "待办应使用 todo 块");
+            assert_eq!(b["todo"]["style"]["done"], json!(expected_done));
+            // 无 [x]/[ ] 文本前缀（原生勾选框，避免重复显示）
+            let content = b["todo"]["elements"][0]["text_run"]["content"].as_str().unwrap_or("");
+            assert!(!content.starts_with('['), "不应有文本前缀: {}", content);
+        }
+    }
 
     #[test]
     fn fix2_nested_list_flattened_not_dropped() {
