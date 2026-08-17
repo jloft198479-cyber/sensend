@@ -267,35 +267,37 @@ async function onSaveHotkeys() {
 }
 
 /* ═══ 待办列表（taskList/taskItem）═══ */
+/* 注：li 用 [data-checked] 而非 [data-type="taskItem"] 匹配 ——
+   extension-list 3.28 的 NodeView 只给 li 设 data-checked，不设 data-type */
 ul[data-type="taskList"] {
   list-style: none;
   margin: 0.2em 0;
   padding: 0;
 }
-ul[data-type="taskList"] li[data-type="taskItem"] {
+ul[data-type="taskList"] li[data-checked] {
   display: flex;
   align-items: flex-start;
   gap: 8px;
   margin: 0.2em 0;
 }
-ul[data-type="taskList"] li[data-type="taskItem"] > label {
+ul[data-type="taskList"] li[data-checked] > label {
   flex: none;
   margin-top: 3px;
   cursor: pointer;
   user-select: none;
 }
-ul[data-type="taskList"] li[data-type="taskItem"] > label input {
+ul[data-type="taskList"] li[data-checked] > label input {
   width: 14px;
   height: 14px;
   margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
 }
-ul[data-type="taskList"] li[data-type="taskItem"] > div {
+ul[data-type="taskList"] li[data-checked] > div {
   flex: 1;
   min-width: 0;
 }
-ul[data-type="taskList"] li[data-type="taskItem"] > div p {
+ul[data-type="taskList"] li[data-checked] > div p {
   margin: 0;
 }
 /* 已完成项：文字置灰 */

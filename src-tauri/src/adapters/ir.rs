@@ -80,7 +80,24 @@ pub fn parse(doc: &Value) -> Vec<Block> {
             blocks.extend(parse_block(node));
         }
     }
+    // 剥掉尾部空段：编辑器粘贴/光标落脚点会产生尾部空 paragraph，
+    // 不是用户内容，导出到平台会多一个空块；中间的空行是用户排版，保留
+    while blocks.last().is_some_and(is_blank_paragraph) {
+        blocks.pop();
+    }
     blocks
+}
+
+/// 尾部空段判定：无行内内容，或全部为纯空白文本
+fn is_blank_paragraph(block: &Block) -> bool {
+    match block {
+        Block::Paragraph(inlines) => inlines.iter().all(|i| match i {
+            Inline::Text { text, .. } => text.trim().is_empty(),
+            Inline::Break => true,
+            Inline::Mention(_) => false,
+        }),
+        _ => false,
+    }
 }
 
 /// 解析单个块级节点；未知类型递归提取子节点（内容不丢）
@@ -387,6 +404,57 @@ mod tests {
             }
             other => panic!("应为待办列表块，实际: {:?}", other),
         }
+    }
+
+    #[test]
+    fn ir_parse_trailing_blank_paragraphs_trimmed() {
+        // 粘贴后编辑器会给文档尾部补空 paragraph（光标落脚点），不是用户内容
+        let doc = json!({
+            "type": "doc",
+            "content": [
+                { "type": "taskList", "content": [
+                    { "type": "taskItem", "attrs": { "checked": false },
+                      "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "任务" }] }] }
+                ]},
+                { "type": "paragraph" },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "  " }] }
+            ]
+        });
+        let blocks = parse(&doc);
+        assert_eq!(blocks.len(), 1, "尾部空段应全部剥除，实际: {:?}", blocks);
+        assert!(matches!(blocks[0], Block::List { kind: ListKind::Task, .. }));
+    }
+
+    #[test]
+    fn ir_parse_middle_blank_paragraph_kept() {
+        // 中间空行是用户排版，必须保留
+        let doc = json!({
+            "type": "doc",
+            "content": [
+                { "type": "paragraph", "content": [{ "type": "text", "text": "上" }] },
+                { "type": "paragraph" },
+                { "type": "paragraph", "content": [{ "type": "text", "text": "下" }] }
+            ]
+        });
+        let blocks = parse(&doc);
+        assert_eq!(blocks.len(), 3, "中间空段不应被剥除，实际: {:?}", blocks);
+        assert!(matches!(blocks[1], Block::Paragraph(ref i) if i.is_empty()));
+    }
+
+    #[test]
+    fn ir_parse_trailing_mention_paragraph_kept() {
+        // 尾部含 mention 的段落是有效内容，不能误剥
+        let doc = json!({
+            "type": "doc",
+            "content": [
+                { "type": "paragraph", "content": [
+                    { "type": "mention", "attrs": { "label": "飞书文档" } },
+                    { "type": "text", "text": " " }
+                ]}
+            ]
+        });
+        let blocks = parse(&doc);
+        assert_eq!(blocks.len(), 1, "含 mention 的段落不应被剥除，实际: {:?}", blocks);
     }
 
     #[test]

@@ -15,7 +15,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
 import TaskList from '@tiptap/extension-task-list'
-import TaskItem from '@tiptap/extension-task-item'
+import TaskItemBase from '@tiptap/extension-task-item'
 import { TableKit } from '@tiptap/extension-table'
 import { Markdown } from '@tiptap/markdown'
 import { VueRenderer } from '@tiptap/vue-3'
@@ -37,6 +37,34 @@ export function useSensendEditor(
   instances: Ref<PlatformInstance[]>,
   platformTypes: Ref<PlatformTypeInfo[]>,
 ) {
+  /**
+   * 网页 checkbox 兼容：网页复制的待办是 <li><input type=checkbox>文本</li>，
+   * 原生 parseHTML 只认 li[data-type="taskItem"]，会丢 checkbox 退化成普通列表。
+   * 这里补两条 :has 规则（priority 52 高于 listItem 的 50），并把 input 的勾选态读进 attrs。
+   */
+  const TaskItem = TaskItemBase.extend({
+    parseHTML() {
+      return [
+        { tag: 'li[data-type="taskItem"]', priority: 51 },
+        { tag: 'li:has(> input[type="checkbox"])', priority: 52 },
+        { tag: 'li:has(> label input[type="checkbox"])', priority: 52 },
+      ]
+    },
+    addAttributes() {
+      const parent = (TaskItemBase.config.addAttributes as () => Record<string, any>)()
+      return {
+        ...parent,
+        checked: {
+          ...parent.checked,
+          parseHTML: (el: HTMLElement) =>
+            el.getAttribute('data-checked') === '' ||
+            el.getAttribute('data-checked') === 'true' ||
+            (el.querySelector('input[type="checkbox"]') as HTMLInputElement | null)?.checked === true,
+        },
+      }
+    },
+  })
+
   type SaveStatus = 'idle' | 'saved' | 'saving' | 'unsaved'
   const saveStatus = ref<SaveStatus>('idle')
   const wordCount = ref(0)
@@ -267,8 +295,29 @@ export function useSensendEditor(
     editorProps: {
       attributes: { class: 'editor-content' },
       handlePaste: (_view, event: ClipboardEvent) => {
-        // 有 HTML 时让默认处理（TableKit 已注册，能解析表格）
         const html = event.clipboardData?.getData('text/html')
+        // 含 checkbox 的 HTML（网页复制的待办）：先改造成 TipTap 标准结构再插入。
+        // 不处理的话：checkbox 被 parseHTML 丢弃 + 留下空 bulletList 壳（导出会多一个空列表项）
+        if (html && /<input[^>]+type=["']?checkbox/i.test(html)) {
+          const doc = new DOMParser().parseFromString(html, 'text/html')
+          doc.querySelectorAll('ul').forEach(ul => {
+            const lis = Array.from(ul.children).filter(el => el.tagName === 'LI')
+            if (!lis.length || !lis.some(li => li.querySelector('input[type="checkbox"]'))) return
+            ul.setAttribute('data-type', 'taskList')
+            lis.forEach(li => {
+              const cb = li.querySelector('input[type="checkbox"]') as HTMLInputElement | null
+              if (!cb) return
+              li.setAttribute('data-type', 'taskItem')
+              li.setAttribute('data-checked', String(cb.checked))
+              // 拆掉 label 包裹、删掉 checkbox 本体，只留纯文本/子结构
+              li.querySelectorAll('label').forEach(l => l.replaceWith(...Array.from(l.childNodes)))
+              li.querySelectorAll('input[type="checkbox"]').forEach(n => n.remove())
+            })
+          })
+          editor.value?.commands.insertContent(doc.body.innerHTML)
+          return true
+        }
+        // 其他 HTML：让默认处理（TableKit 已注册，能解析表格）
         if (html && html.trim()) return false
 
         // 纯文本：检测 Markdown 标记，用 Markdown 扩展解析
@@ -278,8 +327,10 @@ export function useSensendEditor(
         const manager = (editor.value?.storage as any)?.markdown?.manager
         if (!manager) return false
 
-        // 粗判是否含 Markdown 语法（标题/列表/引用/代码块/分隔线/粗体/行内代码/链接）
-        const looksLikeMarkdown = /(^|\n)(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|---)|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\([^)]+\)/.test(text)
+        // 粗判是否含 Markdown 语法（标题/列表/引用/代码块/分隔线/粗体/行内代码/链接/表格分隔行）
+        // 表格分支：形如 |---|---| 的分隔行（行内只含 |:-空格 且有连续两个以上 -），
+        // 普通句子里的单竖线不会命中
+        const looksLikeMarkdown = /(^|\n)(#{1,6}\s|[-*+]\s|\d+\.\s|>\s|```|---|\s*\|?[\s:|-]*-{2,}[\s:|-]*\|)|\*\*[^*]+\*\*|__[^_]+__|`[^`]+`|\[[^\]]+\]\([^)]+\)/.test(text)
         if (!looksLikeMarkdown) return false
 
         try {

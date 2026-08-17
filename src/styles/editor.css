@@ -89,3 +89,34 @@
 .editor-wrapper .tiptap hr {
   border: none; border-top: 1.5px solid var(--border-color); margin: 1.5em 0;
 }
+
+/* 表格 */
+.editor-wrapper .tiptap table {
+  border-collapse: collapse;
+  table-layout: fixed;
+  width: 100%;
+  margin: 0.75em 0;
+}
+.editor-wrapper .tiptap table td,
+.editor-wrapper .tiptap table th {
+  border: 1px solid var(--gray-border);
+  padding: 5px 8px;
+  vertical-align: top;
+  position: relative;
+  word-break: break-word;
+}
+.editor-wrapper .tiptap table th {
+  background: var(--bg-page);
+  font-weight: 600;
+  text-align: left;
+}
+.editor-wrapper .tiptap table td > p,
+.editor-wrapper .tiptap table th > p { margin: 0; line-height: 1.6; }
+/* 单元格选中高亮（Tab 在单元格间导航时） */
+.editor-wrapper .tiptap .selectedCell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-light);
+  pointer-events: none;
+}
