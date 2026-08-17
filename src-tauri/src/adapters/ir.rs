@@ -443,7 +443,9 @@ mod tests {
 
     #[test]
     fn ir_parse_trailing_mention_paragraph_kept() {
-        // 尾部含 mention 的段落是有效内容，不能误剥
+        // 尾部含 mention 的段落是有效内容，不能误剥。
+        // 注：生产路径上前端 stripMentions 已剔除 mention 节点，本测试锁定的是
+        // 防御性行为——防未来出现不经过 stripMentions 的新调用方
         let doc = json!({
             "type": "doc",
             "content": [
@@ -455,6 +457,53 @@ mod tests {
         });
         let blocks = parse(&doc);
         assert_eq!(blocks.len(), 1, "含 mention 的段落不应被剥除，实际: {:?}", blocks);
+    }
+
+    #[test]
+    fn ir_parse_all_blank_doc_yields_empty() {
+        // 全空文档 → 空 IR。锁定"parse 返回空 Vec 合法"契约：
+        // 四个适配器的空兜底（空段落块 / (空笔记) / 分隔线）都建立在此前提上
+        let doc = json!({ "type": "doc", "content": [
+            { "type": "paragraph" },
+            { "type": "paragraph", "content": [{ "type": "text", "text": "  " }] }
+        ]});
+        assert!(parse(&doc).is_empty(), "全空文档应返回空 IR");
+    }
+
+    #[test]
+    fn ir_parse_blank_after_mention_paragraph_trimmed() {
+        // mention 段保留，其后的真空段仍应剥除
+        let doc = json!({ "type": "doc", "content": [
+            { "type": "paragraph", "content": [
+                { "type": "mention", "attrs": { "label": "飞书" } }
+            ]},
+            { "type": "paragraph" }
+        ]});
+        let blocks = parse(&doc);
+        assert_eq!(blocks.len(), 1, "mention 段保留、其后空段剥除，实际: {:?}", blocks);
+    }
+
+    #[test]
+    fn ir_parse_trailing_hardbreak_only_paragraph_trimmed() {
+        // 尾部段落只含 hardBreak → 视觉空行，剥除（覆盖 Inline::Break 分支）
+        let doc = json!({ "type": "doc", "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": "内容" }] },
+            { "type": "paragraph", "content": [{ "type": "hardBreak" }, { "type": "hardBreak" }] }
+        ]});
+        assert_eq!(parse(&doc).len(), 1);
+    }
+
+    #[test]
+    fn ir_parse_trailing_empty_heading_kept() {
+        // 空结尾 heading 保留——显式锁定"仅剥 Paragraph"的设计取舍：
+        // 用户创建的结构块（heading/代码块/表格）即使为空也不擅自删
+        let doc = json!({ "type": "doc", "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": "内容" }] },
+            { "type": "heading", "attrs": { "level": 1 }, "content": [] }
+        ]});
+        let blocks = parse(&doc);
+        assert_eq!(blocks.len(), 2, "空 heading 应保留（仅剥 Paragraph），实际: {:?}", blocks);
+        assert!(matches!(blocks[1], Block::Heading { .. }));
     }
 
     #[test]
