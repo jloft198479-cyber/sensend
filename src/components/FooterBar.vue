@@ -130,13 +130,13 @@ function onDocClick(e: MouseEvent) {
         </button>
         <Transition name="menu-fade">
           <div v-if="showMenu" class="settings-menu">
-            <button class="settings-item" @click.stop="handleAddPlatform" aria-label="添加页面">
+            <button class="settings-item" @click.stop="handleAddPlatform" aria-label="添加和修改页面">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
                 stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/>
                 <line x1="8" y1="12" x2="16" y2="12"/>
               </svg>
-              <span>添加页面</span>
+              <span>添加和修改页面</span>
             </button>
             <button class="settings-item" @click.stop="handleHotkey" aria-label="快捷键设置">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"

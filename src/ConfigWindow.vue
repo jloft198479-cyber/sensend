@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { onMounted } from 'vue'
 import { getColorForType } from './types/platform'
 import { useConfig } from './composables/useConfig'
 
@@ -29,15 +28,6 @@ const {
 } = useConfig()
 
 onMounted(() => { loadData() })
-
-// ── 主题切换 ──
-const theme = ref('light')
-onMounted(async () => {
-  try { theme.value = await invoke<string>('get_theme') } catch {}
-})
-async function onThemeChange() {
-  await invoke('set_theme', { theme: theme.value })
-}
 </script>
 
 <template>
@@ -45,22 +35,20 @@ async function onThemeChange() {
     <!-- ═══ 顶栏 ═══ -->
     <header class="config-titlebar">
       <div class="title-left">
-        <span class="title">{{ showForm ? (editingInstanceId ? '编辑页面' : '添加页面') : '平台页面管理' }}</span>
+        <span class="title">{{ showForm ? (editingInstanceId ? '编辑页面' : '添加和修改页面') : '平台页面管理' }}</span>
       </div>
       <div class="title-actions">
         <button v-if="showForm" class="title-btn back-title-btn" @click="showForm = false" title="返回列表" aria-label="返回列表">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
           <span>返回</span>
         </button>
-        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="添加页面">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="添加和修改页面">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          <span>添加页面</span>
+          <span>添加和修改页面</span>
         </button>
       </div>
     </header>
@@ -153,7 +141,7 @@ async function onThemeChange() {
           <path d="M12 8v8M8 12h8"/>
         </svg>
         <p>还没有配置任何发送页面</p>
-        <p class="empty-hint">点击上方"添加页面"开始配置</p>
+        <p class="empty-hint">点击上方"添加和修改页面"开始配置</p>
       </div>
       <div v-else class="instance-list">
         <div v-for="inst in instances" :key="inst.id" class="instance-card">
@@ -189,16 +177,6 @@ async function onThemeChange() {
               </button>
             </template>
           </div>
-        </div>
-      </div>
-      <!-- 主题切换 -->
-      <div class="theme-row">
-        <label class="form-label">主题</label>
-        <div class="platform-select">
-          <select v-model="theme" @change="onThemeChange">
-            <option value="light">默认（浅色）</option>
-            <option value="dark">暗夜</option>
-          </select>
         </div>
       </div>
     </div>
@@ -552,21 +530,6 @@ async function onThemeChange() {
   transition: all 0.15s;
 }
 .confirm-btn:hover { background: var(--danger-bg); }
-
-/* ═══ 主题切换 ═══ */
-.theme-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 16px;
-  margin-top: 12px;
-  border-top: 1px solid var(--border-color);
-}
-.theme-row .form-label { margin: 0; font-size: 13px; }
-.theme-row .platform-select select {
-  font-size: 13px;
-  padding: 4px 8px;
-}
 
 /* ═══ 动画 ═══ */
 
