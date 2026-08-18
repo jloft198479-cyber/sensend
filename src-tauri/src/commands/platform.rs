@@ -146,3 +146,20 @@ pub async fn set_default_target(app: AppHandle, target_id: String) -> Result<(),
     store.set("default_target", serde_json::to_value(&target_id).map_err(|e| e.to_string())?);
     store.save().map_err(|e| e.to_string())
 }
+
+// ── 主题色（存 config.json，两窗口同步）──
+
+#[tauri::command]
+pub async fn get_theme(app: AppHandle) -> Result<String, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    Ok(store.get("theme").and_then(|v| v.as_str().map(|s| s.to_string())).unwrap_or_else(|| "light".to_string()))
+}
+
+#[tauri::command]
+pub async fn set_theme(app: AppHandle, theme: String) -> Result<(), String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    store.set("theme", serde_json::Value::String(theme.clone()));
+    store.save().map_err(|e| e.to_string())?;
+    // 通知所有窗口
+    app.emit("theme-updated", &theme).map_err(|e| e.to_string())
+}

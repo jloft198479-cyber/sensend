@@ -95,7 +95,7 @@ onMounted(loadFonts)
       <!-- 字体列表 -->
       <div class="fm-list">
         <div v-if="fonts.length === 0" class="fm-empty">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d4d4d8"
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gray-scrollbar)"
             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="4 7 4 4 20 4 20 7"/>
             <line x1="9" y1="20" x2="15" y2="20"/>

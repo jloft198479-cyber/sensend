@@ -248,7 +248,7 @@ onMounted(() => {
 }
 .send-btn:hover:not(:disabled) {
   background: var(--accent-hover);
-  box-shadow: 0 2px 6px rgba(44,175,104,0.3);
+  box-shadow: 0 2px 6px var(--accent-light);
 }
 .send-btn:active:not(:disabled) {
   transform: scale(0.96);

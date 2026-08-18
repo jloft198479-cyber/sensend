@@ -41,6 +41,8 @@ pub fn run() {
             commands::platform::publish_note,
             commands::platform::get_default_target,
             commands::platform::set_default_target,
+            commands::platform::get_theme,
+            commands::platform::set_theme,
             commands::hotkey::get_hotkeys,
             commands::hotkey::save_hotkeys,
             commands::font::scan_user_fonts,

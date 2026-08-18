@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { onMounted, ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
 import { getColorForType } from './types/platform'
 import { useConfig } from './composables/useConfig'
 
@@ -28,6 +29,15 @@ const {
 } = useConfig()
 
 onMounted(() => { loadData() })
+
+// ── 主题切换 ──
+const theme = ref('light')
+onMounted(async () => {
+  try { theme.value = await invoke<string>('get_theme') } catch {}
+})
+async function onThemeChange() {
+  await invoke('set_theme', { theme: theme.value })
+}
 </script>
 
 <template>
@@ -137,7 +147,7 @@ onMounted(() => { loadData() })
     <!-- ═══ 已配置平台列表（编辑表单展开时隐藏）═══ -->
     <div v-if="!showForm" class="list-section">
       <div v-if="instances.length === 0" class="empty-state">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#d4d4d8"
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gray-scrollbar)"
           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="18" rx="2"/>
           <path d="M12 8v8M8 12h8"/>
@@ -179,6 +189,16 @@ onMounted(() => { loadData() })
               </button>
             </template>
           </div>
+        </div>
+      </div>
+      <!-- 主题切换 -->
+      <div class="theme-row">
+        <label class="form-label">主题</label>
+        <div class="platform-select">
+          <select v-model="theme" @change="onThemeChange">
+            <option value="light">默认（浅色）</option>
+            <option value="dark">暗夜</option>
+          </select>
         </div>
       </div>
     </div>
@@ -531,7 +551,22 @@ onMounted(() => { loadData() })
   font-family: var(--font-sans);
   transition: all 0.15s;
 }
-.confirm-btn:hover { background: #fee2e2; }
+.confirm-btn:hover { background: var(--danger-bg); }
+
+/* ═══ 主题切换 ═══ */
+.theme-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  margin-top: 12px;
+  border-top: 1px solid var(--border-color);
+}
+.theme-row .form-label { margin: 0; font-size: 13px; }
+.theme-row .platform-select select {
+  font-size: 13px;
+  padding: 4px 8px;
+}
 
 /* ═══ 动画 ═══ */
 

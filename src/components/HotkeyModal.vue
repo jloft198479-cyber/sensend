@@ -146,7 +146,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s ease; padding: 0;
 }
-.modal-close:hover { background: #f4f4f5; color: var(--fg); }
+.modal-close:hover { background: var(--gray-hover); color: var(--fg); }
 
 .modal-body { padding: 6px; }
 
@@ -158,8 +158,8 @@ function onPanelKeydown(e: KeyboardEvent) {
 .hotkey-desc { font-size: 10.5px; color: var(--muted); }
 .hotkey-record-btn {
   display: flex; align-items: center; justify-content: center;
-  padding: 8px 12px; border: 1px solid var(--gray-border, #e4e4e7); border-radius: 8px;
-  background: var(--gray-input-bg, #fafafa); cursor: pointer; transition: all 0.15s;
+  padding: 8px 12px; border: 1px solid var(--gray-border); border-radius: 8px;
+  background: var(--gray-input-bg); cursor: pointer; transition: all 0.15s;
   min-height: 36px;
 }
 .hotkey-record-btn:hover { border-color: var(--accent); background: white; }
@@ -168,8 +168,8 @@ function onPanelKeydown(e: KeyboardEvent) {
   animation: pulse-border 1.5s infinite;
 }
 @keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(44,175,104,0.2); }
-  50% { box-shadow: 0 0 0 3px rgba(44,175,104,0.15); }
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-light); }
+  50% { box-shadow: 0 0 0 3px var(--accent-light); }
 }
 .hotkey-kbd {
   font-family: var(--font-sans); font-size: 12px; font-weight: 600;
