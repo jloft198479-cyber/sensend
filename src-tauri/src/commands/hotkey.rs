@@ -28,6 +28,8 @@ pub fn register_show_hotkey(app: &AppHandle, hotkey_str: &str) -> Result<(), Str
             if let Some(window) = app_handle.get_webview_window("main") {
                 if window.is_visible().unwrap_or(false) {
                     let _ = window.hide();
+                    // 隐藏 10 秒后自动修剪进程树工作集（隐藏即瘦身）
+                    crate::memory_trim::on_window_hidden();
                 } else {
                     crate::show_main(app_handle);
                 }

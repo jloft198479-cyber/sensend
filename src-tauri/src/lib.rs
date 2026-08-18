@@ -5,11 +5,14 @@ use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent}
 
 mod adapters;
 mod commands;
+mod memory_trim;
 
 /// 唤起主窗的统一入口（单实例 / 托盘菜单 / 托盘点击 / 快捷键共用）
 /// S5 悬浮球上线后，在此追加隐藏悬浮球的逻辑，四处调用点无需再改
 pub fn show_main(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
+        // 使 pending 的内存修剪失效，保证唤起首下不被换页拖慢
+        memory_trim::on_window_shown();
         let _ = window.show();
         let _ = window.set_focus();
     }
@@ -17,6 +20,24 @@ pub fn show_main(app: &tauri::AppHandle) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // ── 内存优化（乙）：禁用 GPU 进程 + V8 堆封顶 ──
+    // WebView2 通过该环境变量追加 Chromium 启动参数（必须在 WebView2 环境创建前设置）：
+    // - --disable-gpu：不启动 GPU 进程（省 ~40-60MB 物理内存），
+    //   本应用为小白底纯文字窗口，CPU 软件渲染肉眼无差别
+    // - --disable-software-rasterizer：连带禁用 SwiftShader 软件光栅化
+    // - --memory-pressure-threshold=moderate：更早触发 Chromium 内存回收
+    // - --js-flags=--max-old-space-size=96：V8 堆封顶 96MB，防 renderer 无界增长
+    let base = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
+    let extra = "--disable-gpu --disable-software-rasterizer --memory-pressure-threshold=moderate --js-flags=--max-old-space-size=96";
+    if base.is_empty() {
+        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", extra);
+    } else if !base.contains("--disable-gpu") {
+        std::env::set_var(
+            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
+            format!("{base} {extra}"),
+        );
+    }
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
@@ -102,6 +123,8 @@ pub fn run() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();
                     let _ = window.hide();
+                    // 隐藏 10 秒后自动修剪进程树工作集（隐藏即瘦身）
+                    memory_trim::on_window_hidden();
                 }
             }
         })

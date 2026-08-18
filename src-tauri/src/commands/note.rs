@@ -74,6 +74,8 @@ pub async fn request_quit(app: AppHandle) -> Result<(), String> {
 pub async fn hide_window(app: AppHandle) -> Result<(), String> {
     let window = app.get_webview_window("main").ok_or("窗口不存在")?;
     window.hide().map_err(|e| e.to_string())?;
+    // 隐藏 10 秒后自动修剪进程树工作集（隐藏即瘦身）
+    crate::memory_trim::on_window_hidden();
     Ok(())
 }
 

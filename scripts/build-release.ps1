@@ -19,9 +19,17 @@ if (Test-Path $vcvars) {
     $output = cmd /c "chcp 65001 >nul && `"$vcvars`" >nul 2>&1 && set"
     foreach ($line in $output) {
         if ($line -match "^([^=]+)=(.*)$") {
-            Set-Item -Path "env:$($matches[1])" -Value $matches[2]
+            # PATH 大小写变体（Path/PATH/path）在智能体工具宿主进程里并存，
+            # cmd set 会全部输出且循环内互相覆盖，导致 MSVC 路径丢失 → link.exe not found。
+            # 循环内跳过 PATH，下面单独取含 Hostx64 的那份整体替换。
+            if ($matches[1] -match "^(?i)path$") { continue }
+            Set-Item -Path ("env:" + $matches[1]) -Value $matches[2]
         }
     }
+    $vcPath = @($output | Where-Object { $_ -match "^(?i)path=.*Hostx64" }) | Select-Object -First 1
+    if ($vcPath) { $env:PATH = ($vcPath -replace "^(?i)path=", "") }
+    # cargo 前置（无论 vcvars 是否覆盖过 PATH，保证 cargo 可用）
+    $env:PATH = "M:\rust\.cargo\bin;$env:PATH"
 } else {
     Write-Host "WARNING: $vcvars not found, will try build without MSVC env" -ForegroundColor Yellow
 }
