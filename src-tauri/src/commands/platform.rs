@@ -56,7 +56,7 @@ pub async fn open_config_window(app: AppHandle) -> Result<(), String> {
         .min_inner_size(420.0, 580.0)
         .position(main_pos.x as f64 + 40.0, main_pos.y as f64 + 60.0)
         .resizable(true)
-        .decorations(true)
+        .decorations(false)
         .always_on_top(true)
         .visible(true)
         .build()

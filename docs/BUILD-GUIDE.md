@@ -220,45 +220,91 @@ $env:PATH += ";D:\Git\bin"
 
 ---
 
-## 四、发布流程
+## 四、发布流程（傻瓜式全流程）
 
-### 4.1 提交并推送源码到 GitHub
+> 目标：任何智能体照抄本流程即可完成「推代码 → 打 tag → 传安装包 → 发 Release」，全程可复制、可验证、可回滚。
+> 铁律：**顺序不可乱**——先构建成功，再打 tag、推送、发 Release。任何一步失败立即停止排查，不要带病往下走。
 
-```bash
+### 4.0 发布前自检（5 项，全绿才继续）
+
+在项目根目录 `F:\fzz-Project\sensend\sensend` 依次执行，任一失败即停止：
+
+```powershell
+# ① 版本号：记下它，后面 tag / Release 标题 / 安装包名全部要跟它一致
+npm pkg get version            # 期望输出如 "0.4.0"
+
+# ② gh 已登录（发布必须走 gh CLI，别用网页手动，网页无法验证）
+gh auth status                 # 期望：Logged in to github.com account xxx
+
+# ③ git 凭据可用（能读到远端即证明 push 通道通畅）
+git ls-remote --heads origin   # 期望输出 refs/heads/main
+
+# ④ 工作区干净（只有你自己要提交的改动；出现 ?? 未跟踪目录要逐个确认，严禁 git add . 盲加）
+git status
+
+# ⑤ 本地 tag 是否已存在该版本（存在则说明发过，先 git tag 确认，不要覆盖）
+git tag | Select-String "^v"
+```
+
+### 4.1 提交代码
+
+> 编码提示：commit message 建议英文为主；若写中文且终端出现乱码，先执行 `chcp 65001` 再提交。提交前**必须**用 `git status` 核对暂存内容——`.gitignore` 未忽略 `sensend-release/`，若该目录有未跟踪文件会被 `git add .` 误带，需逐文件 `git add <路径>` 代替盲加。
+
+```powershell
 cd F:\fzz-Project\sensend\sensend
-git add .
-git commit -m "feat(v0.x.0): 更新说明"
+git add <本次改动的文件/目录>        # 明确列出，不用 git add .
+git commit -m "feat(v0.4.0): 本次发布内容说明"
+git log --oneline -1                 # 验证提交成功
+```
+
+### 4.2 构建安装包（必须先于推送）
+
+> 必须走打包脚本加载 M 盘 Rust + MSVC 环境，**禁止**裸跑 `npm run tauri build`（见 §〇）。
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
+```
+
+构建成功后校验产物存在（路径里的版本号替换成 4.0 记下的）：
+
+```powershell
+Test-Path "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64-setup.exe"   # 期望 True
+```
+
+### 4.3 打 tag 并推送
+
+> tag 名必须与版本号一致（`v0.4.0`），与 package.json 的 `0.4.0` 对应。推送 = main + tag 两个都推。
+
+```powershell
+git tag v0.4.0                         # 若提示已存在：说明发过，停下来核对版本号
 git push origin main
+git push origin v0.4.0
+git ls-remote --tags origin | Select-String "v0.4.0"   # 验证 tag 已上远端
 ```
 
-### 4.2 打 tag 并推送
+### 4.4 创建 GitHub Release
 
-```bash
-git tag v0.x.0
-git push origin v0.x.0
+> 用 `--notes-file` 读文件方式写说明，彻底避开 PowerShell 里中文 `--notes` 的转义乱码。说明文件用完即删。
+
+```powershell
+# ① 写 Release 说明（内容见 4.5 模板），建议用英文文件名避免编码问题
+#    在项目根目录创建 release-notes.md（完成后删除）
+
+# ② 创建 Release（asset 用 4.2 校验过存在的安装包路径）
+gh release create v0.4.0 "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64-setup.exe" `
+  --title "Sensend v0.4.0" `
+  --notes-file release-notes.md
+
+# ③ 清理临时说明文件
+Remove-Item release-notes.md
 ```
 
-### 4.3 创建 Release 并上传安装包
+> 若 `gh release create` 报「already exists」：该 tag 已有 Release，通常是上次半途而废，先 `gh release view v0.4.0` 看状态再决定补传还是清理。
 
-**方式一：gh CLI（推荐）**
-
-```bash
-gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64-setup.exe" `
-  --title "Sensend v0.x.0" `
-  --notes "更新内容说明"
-```
-
-**方式二：网页创建**
-1. 打开 https://github.com/jloft198479-cyber/sensend/releases/new
-2. 选择刚推送的 tag
-3. 填写标题和描述
-4. 拖入安装包附件
-5. 点击"Publish release"
-
-### 4.4 Release 描述模板
+### 4.5 Release 描述模板
 
 ```markdown
-**Sensend v0.x.0**
+**Sensend v0.4.0**
 
 **更新内容**
 - 更新点 1
@@ -274,12 +320,40 @@ gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64
 - Windows 10/11 x64
 
 **安装说明**
-- 下载 `Sensend_0.x.0_x64-setup.exe` 双击安装
+- 下载 `Sensend_0.4.0_x64-setup.exe` 双击安装
 - Windows 可能提示"无法识别的应用"，点击"更多信息" → "仍要运行"
 
 **致谢**
 送给儿子小柏
 ```
+
+### 4.6 发布后验证（必须做，缺一不算发完）
+
+```powershell
+gh release view v0.4.0                # 期望看到标题、tag、asset 列表含 setup.exe
+git ls-remote --tags origin | Select-String "v0.4.0"   # 远端 tag 存在
+git log origin/main --oneline -1      # main 已含最新提交
+```
+
+### 4.7 发布故障速查表
+
+| 现象 | 原因 | 处理 |
+|------|------|------|
+| `gh` 命令不存在 | gh CLI 未装 | 安装 GitHub CLI 后 `gh auth login` |
+| `gh auth status` 报未登录 | 登录态丢失 | `gh auth login`（用浏览器授权）后重跑自检 |
+| `git push` 报认证失败 / 403 | 凭据过期 | 先 `gh auth status` 确认登录；凭据由 gh 管理，重登录即可 |
+| `git push` 报 non-fast-forward | 远端有新提交（他人/上次半途的） | `git pull --rebase origin main` 后重新 push，**禁止 force push** |
+| `git tag vX` 报已存在 | 该版本发过 | `git tag` 看清单确认，不要覆盖；要改说明用 `gh release edit` |
+| `build-release.ps1` 报找不到 cl.exe / cargo | M 盘路径变了或未按脚本走 | 确认 `Test-Path M:\rust`、`Test-Path M:\VS\BuildTools`；必须走脚本，禁止裸跑 |
+| `gh release create` 报 asset 不存在 | 安装包路径/版本号写错 | 回 4.2 用 `Test-Path` 核对实际文件名 |
+| Release 说明出现乱码 | PowerShell 中文转义问题 | 改用 `--notes-file`（4.4 推荐路径） |
+| `git add .` 误加了 sensend-release/ | `.gitignore` 未覆盖该目录 | `git rm -r --cached sensend-release` 撤出暂存，改逐文件 add |
+
+### 4.8 回滚
+
+- **代码已推、Release 未发**：`git revert` 或提交修复，正常再发下一版。
+- **Release 发错了**：`gh release delete v0.4.0 --cleanup-tag`（会同时删远端 tag），本地 `git tag -d v0.4.0` 后重来。
+- 回滚仅限发错的当次，历史发布（v0.1.0~v0.3.0）一律不动。
 
 ---
 
@@ -304,12 +378,13 @@ git status
 # 推送到远程
 git push origin main
 
-# 创建标签并推送
-git tag v0.x.0
-git push origin v0.x.0
+# 创建标签并推送（vX.Y.Z 替换为实际版本号）
+git tag v0.4.0
+git push origin v0.4.0
 
-# 创建 Release 并上传安装包（gh CLI）
-gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64-setup.exe" --title "Sensend v0.x.0" --notes "更新说明"
+# 创建 Release 并上传安装包（gh CLI，完整流程见 §四）
+# 注意：说明文字用 --notes-file 读文件，避免中文转义乱码
+gh release create v0.4.0 "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64-setup.exe" --title "Sensend v0.4.0" --notes-file release-notes.md
 ```
 
 ---

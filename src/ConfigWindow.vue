@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { ref, onMounted } from 'vue'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useConfig } from './composables/useConfig'
 
 const {
@@ -26,16 +27,29 @@ const {
   deleteInstance,
 } = useConfig()
 
-onMounted(() => { loadData() })
+// 无边框窗口：顶栏作为拖拽区（交互区 .title-actions 排除），关闭走自绘按钮
+const titlebarRef = ref<HTMLElement | null>(null)
+const closeWindow = () => { getCurrentWindow().close() }
+
+onMounted(() => {
+  loadData()
+  const bar = titlebarRef.value
+  if (!bar) return
+  const applyDrag = (el: HTMLElement) => {
+    if (el.closest('.title-actions')) return
+    el.setAttribute('data-tauri-drag-region', '')
+    Array.from(el.children).forEach((child) => {
+      if (child instanceof HTMLElement) applyDrag(child)
+    })
+  }
+  applyDrag(bar)
+})
 </script>
 
 <template>
   <div class="config-app">
     <!-- ═══ 顶栏 ═══ -->
-    <header class="config-titlebar">
-      <div class="title-left">
-        <span class="title">{{ showForm ? (editingInstanceId ? '编辑页面' : '添加和修改页面') : '平台页面管理' }}</span>
-      </div>
+    <header ref="titlebarRef" class="config-titlebar">
       <div class="title-actions">
         <button v-if="showForm" class="title-btn back-title-btn" @click="showForm = false" title="返回列表" aria-label="返回列表">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -44,17 +58,23 @@ onMounted(() => { loadData() })
           <span>返回</span>
         </button>
         <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="添加和修改页面">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
           <span>添加和修改页面</span>
         </button>
+        <button class="close-win-btn" @click="closeWindow" title="关闭" aria-label="关闭">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2.5" stroke-linecap="round">
+            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+          </svg>
+        </button>
       </div>
     </header>
 
-    <!-- ═══ 编辑表单（新增/编辑模式）═══ -->
-    <Transition name="slide">
-    <div v-if="showForm" class="edit-section">
+    <!-- ═══ 视图切换：编辑表单 / 页面列表（out-in，旧视图退场后新视图再入场，同屏仅一个）═══ -->
+    <Transition name="view" mode="out-in">
+    <div v-if="showForm" key="form" class="edit-section">
 
       <div class="edit-form">
         <div class="form-row">
@@ -129,10 +149,9 @@ onMounted(() => { loadData() })
         </Transition>
       </div>
     </div>
-    </Transition>
 
-    <!-- ═══ 已配置平台列表（编辑表单展开时隐藏）═══ -->
-    <div v-if="!showForm" class="list-section">
+    <!-- ═══ 已配置页面列表 ═══ -->
+    <div v-else key="list" class="list-section">
       <div v-if="instances.length === 0" class="empty-state">
         <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gray-scrollbar)"
           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -178,6 +197,7 @@ onMounted(() => { loadData() })
         </div>
       </div>
     </div>
+    </Transition>
   </div>
 </template>
 
@@ -197,23 +217,14 @@ onMounted(() => { loadData() })
 .config-titlebar {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
+  justify-content: flex-end;
+  padding: 0 14px 0 20px;
   height: 52px;
   background: var(--bg);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
-}
-.title-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.title {
-  font-size: 14px;
-  font-weight: 650;
-  color: var(--fg);
-  letter-spacing: -0.25px;
+  cursor: default;
+  user-select: none;
 }
 .title-actions {
   display: flex;
@@ -223,23 +234,31 @@ onMounted(() => { loadData() })
 .title-btn {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 5px;
-  padding: 6px 14px;
+  padding: 7px 16px;
+  min-width: 148px;
   border: none;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: var(--font-sans);
+  white-space: nowrap;
 }
 .title-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .add-new-btn {
   background: var(--accent);
   color: white;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .add-new-btn:hover:not(:disabled) {
   background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+.add-new-btn:active:not(:disabled) {
+  transform: translateY(0);
 }
 .back-title-btn {
   background: var(--gray-hover);
@@ -248,6 +267,25 @@ onMounted(() => { loadData() })
 .back-title-btn:hover {
   background: var(--gray-border);
   color: var(--fg);
+}
+/* 关闭按钮（无边框窗口自绘） */
+.close-win-btn {
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.close-win-btn:hover {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 .edit-section {
   flex: 1;
@@ -523,11 +561,10 @@ onMounted(() => { loadData() })
 }
 .confirm-btn:hover { background: var(--danger-bg); }
 
-/* ═══ 动画 ═══ */
-
-.slide-enter-active { transition: all 0.2s ease-out; }
-.slide-leave-active { transition: all 0.15s ease-in; }
-.slide-enter-from { opacity: 0; transform: translateY(-8px); }
-.slide-leave-to { opacity: 0; transform: translateY(-4px); }
+/* ═══ 视图切换过渡（out-in：旧视图淡出→新视图滑入，两个方向节奏对称）═══ */
+.view-enter-active { transition: opacity 0.16s ease-out, transform 0.16s ease-out; }
+.view-leave-active { transition: opacity 0.1s ease-in, transform 0.1s ease-in; }
+.view-enter-from { opacity: 0; transform: translateY(-6px); }
+.view-leave-to { opacity: 0; transform: translateY(-3px); }
 
 </style>

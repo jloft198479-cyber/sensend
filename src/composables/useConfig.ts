@@ -60,15 +60,16 @@ export function useConfig() {
   async function applyTokenMemory(platform: string) {
     try {
       const mem = await invoke<{ token: string; token2: string } | null>('get_token_memory', { platformType: platform })
-      configForm.token = mem?.token || ''
-      configForm.token2 = mem?.token2 || ''
+      // 仅在输入为空时回填，避免异步返回时覆盖用户手输内容
+      if (!configForm.token) configForm.token = mem?.token || ''
+      if (!configForm.token2) configForm.token2 = mem?.token2 || ''
     } catch {
       // 记忆读取失败不阻塞表单
     }
   }
 
   // ── 表单操作 ──
-  async function openAddModal() {
+  function openAddModal() {
     editingInstanceId.value = null
     configForm.name = ''
     configForm.platform_type = 'notion'
@@ -79,8 +80,9 @@ export function useConfig() {
     testResult.value = 'idle'
     testErrorMsg.value = ''
     showToken.value = false
-    await applyTokenMemory(configForm.platform_type)
     showForm.value = true
+    // 表单先出现，授权码记忆异步回填，不阻塞切换动画
+    void applyTokenMemory(configForm.platform_type)
   }
 
   function openEditModal(inst: PlatformInstance) {
