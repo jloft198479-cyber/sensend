@@ -120,3 +120,22 @@
   background: var(--accent-light);
   pointer-events: none;
 }
+
+/* ═══ 发送成功标记（ProseMirror widget decoration） ═══ */
+.sent-mark-badge {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--success-text);
+  background: var(--success-bg);
+  border: 1px solid var(--success-border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-left: 6px;
+  vertical-align: middle;
+  animation: sent-mark-pop 0.3s ease-out;
+}
+@keyframes sent-mark-pop {
+  0% { opacity: 0; transform: scale(0.8); }
+  100% { opacity: 1; transform: scale(1); }
+}

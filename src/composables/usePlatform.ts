@@ -72,24 +72,25 @@ export function usePlatform() {
   }
 
   /// 发送笔记（overrideTargetId 由 App.vue 的 resolvedTarget 提供）
-  async function publishNote(editorValue: any, overrideTargetId: string | null) {
-    if (!editorValue) return
+  /// 返回 true 表示发送成功
+  async function publishNote(editorValue: any, overrideTargetId: string | null): Promise<boolean> {
+    if (!editorValue) return false
 
     const text = editorValue.getText({ blockSeparator: '\n' }).replace(/(?<!\S)@\S+/g, '').trim()
     if (!text) {
       toastError('请先输入内容')
-      return
+      return false
     }
 
     if (!navigator.onLine) {
       toastError('当前无网络连接，请检查网络后重试')
-      return
+      return false
     }
 
     const targetId = overrideTargetId || activeInstanceId.value
     if (!targetId) {
       openConfigWindow()
-      return
+      return false
     }
 
     // 剔除 @mention 节点
@@ -120,9 +121,11 @@ export function usePlatform() {
       invoke('set_default_target', { targetId }).catch(e => {
         console.error('保存默认目标失败:', e)
       })
+      return true
     } catch (e: any) {
       const raw = e?.message || String(e)
       toastError(friendlyError(raw))
+      return false
     } finally {
       isSending.value = false
     }

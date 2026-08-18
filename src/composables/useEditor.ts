@@ -27,6 +27,7 @@ import type { Ref } from 'vue'
 import type { PlatformInstance, PlatformTypeInfo } from '../types/platform'
 import { getInstanceDisplayName } from '../types/platform'
 import MentionList from '../components/MentionList.vue'
+import { SentMarkExtension, markSent } from './useSentMark'
 
 /**
  * 编辑器核心 composable
@@ -168,6 +169,8 @@ export function useSensendEditor(
       TaskItem.configure({ nested: true }),
       // 表格支持：从网页/其他编辑器复制含表格的 HTML 时能正确解析
       TableKit,
+      // 发送成功视觉标记（ProseMirror decoration，不碰文档 JSON）
+      SentMarkExtension,
       // Markdown 支持：提供 parse/serialize 能力，配合 handlePaste 处理纯文本 Markdown 粘贴
       Markdown,
       Placeholder.configure({
@@ -460,5 +463,6 @@ export function useSensendEditor(
     getMentionId,
     setMention,
     setOnMentionChange,
+    markSent,
   }
 }

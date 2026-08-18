@@ -40,6 +40,7 @@ const {
   getMentionId,
   setMention,
   setOnMentionChange,
+  markSent,
 } = useSensendEditor(instances, platformTypes)
 
 // ── 格式操作 ──
@@ -104,8 +105,9 @@ const resolvedTarget = computed(() => {
   return activeInstance.value || null
 })
 
-function publishNote() {
-  platformPublishNote(editor.value, resolvedTarget.value?.id ?? null)
+async function publishNote() {
+  const ok = await platformPublishNote(editor.value, resolvedTarget.value?.id ?? null)
+  if (ok) markSent(editor.value)
 }
 
 // 底栏选择 → 同步编辑区 mention
