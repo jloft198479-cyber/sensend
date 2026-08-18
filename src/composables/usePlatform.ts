@@ -62,12 +62,9 @@ export function usePlatform() {
     }
   }
 
-  /// 友好化错误信息（401/403/429 等常见状态码 → 人话）
+  /// 友好化错误信息——只保留网络兜底，其余直接透传后端消息
   function friendlyError(raw: string): string {
-    if (/401|unauthorized|认证失败/i.test(raw)) return 'Token 过期或无效，请前往配置检查'
-    if (/403|forbidden|无权限/i.test(raw)) return '无权限访问目标，请检查 Token 权限'
-    if (/429|rate.?limit|频率/i.test(raw)) return '请求过于频繁，请稍后再试'
-    if (/network|connect|refused|dns/i.test(raw)) return '网络连接失败，请检查网络'
+    if (/network|connect|refused|dns|ECONNREFUSED|fetch failed/i.test(raw)) return '网络连接失败，请检查网络'
     return raw
   }
 

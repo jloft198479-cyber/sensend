@@ -1,8 +1,8 @@
 # Sensend Code Wiki
 
 > 超轻量级桌面悬浮记事本 — 代码百科文档
-> 版本：v0.3.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
-> 最近更新：2026-07-31（对齐 v0.3.0 发布状态）
+> 版本：v0.4.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
+> 最近更新：2026-08-18（对齐 v0.4.0 发布状态）
 
 ---
 
@@ -37,8 +37,10 @@
 | 多平台分发 | Notion / FlowUs / 飞书 / 本地文件夹，统一适配器接口 |
 | 自定义字体 | 用户可将 `.ttf/.otf/.woff2` 字体文件放入字体目录加载 |
 | 极简设计 | 无边框窗口、自定义标题栏、托盘常驻 |
-| 自动保存 | 编辑内容防抖 800ms 自动落盘到 `note.md` |
+| 自动保存 | 编辑内容防抖 800ms 自动落盘到 `note.json`（v0.4.0 起从 note.md 迁移） |
 | 默认目标记忆 | 上次发送/选择的平台实例 ID 存后端 `config.json`（v0.3.0 起，不再用 localStorage） |
+| 暗夜模式 | 浅色/暗夜双主题，两窗口实时同步（v0.4.0 新增） |
+| 发送成功标记 | 发送后编辑区末尾显示"✓ 已发送"徽章，3 秒自动消失（v0.4.0 新增） |
 
 ### 1.3 技术栈
 
@@ -177,6 +179,7 @@ sensend/
 │   │   ├── usePlatform.ts      # 平台实例与发送逻辑
 │   │   ├── useConfig.ts        # 配置窗口表单状态机
 │   │   ├── useHotkey.ts        # 快捷键录制与拦截
+│   │   ├── useSentMark.ts      # 发送成功视觉标记（ProseMirror decoration，v0.4.0 新增）
 │   │   └── useToast.ts         # 全局 Toast
 │   │
 │   ├── types/
@@ -221,7 +224,7 @@ sensend/
 
 ### 4.1 入口与路由：`src/main.ts`
 
-职责：根据 URL 参数 `?page=config` 决定挂载 `App`（主窗口）还是 `ConfigWindow`（配置窗口）。引入全局样式 `vars.css` 与 `editor.css`。
+职责：根据 URL 参数 `?page=config` 决定挂载 `App`（主窗口）还是 `ConfigWindow`（配置窗口）。引入全局样式 `vars.css` 与 `editor.css`。两窗口启动时均调用 `initTheme()` 读取后端 `get_theme` 设置 `document.documentElement.dataset.theme`，并监听 `theme-updated` 事件实现跨窗口实时同步（v0.4.0 新增）。ConfigWindow 采用动态 `import()` 懒加载，Rollup 自动分包（v0.4.0 优化）。
 
 ### 4.2 主窗口：`src/App.vue`
 
@@ -277,8 +280,8 @@ sensend/
 
 ### 4.7 样式：`src/styles/`
 
-- `vars.css`：全局 CSS 变量（配色体系、字体栈）、全局 reset、`@fontsource/dm-sans` 引入。
-- `editor.css`：TipTap 编辑器内容样式（标题、列表、代码块、blockquote、placeholder 等）。
+- `vars.css`：全局 CSS 变量（配色体系、字体栈）、全局 reset、`@fontsource/dm-sans` 引入。v0.4.0 新增 `[data-theme="dark"]` 暗夜主题变量覆盖（accent 暗变体 `#3dbd7e`）。
+- `editor.css`：TipTap 编辑器内容样式（标题、列表、代码块、blockquote、placeholder 等），含 `.sent-mark-badge` 发送成功标记样式（v0.4.0 新增）。
 
 ---
 
@@ -289,7 +292,7 @@ sensend/
 - `main.rs`：二进制入口，仅调用 `sensend_lib::run()`；release 模式下隐藏控制台窗口。
 - `lib.rs`：应用主体，`pub fn run()` 中完成：
   - 插件注册：`opener` / `dialog` / `store` / `global-shortcut` / `single-instance`。
-  - 命令注册：`invoke_handler!` 注册全部 20 个命令（v0.3.0 新增 `get_default_target` / `set_default_target`）。
+  - 命令注册：`invoke_handler!` 注册全部 22 个命令（v0.4.0 新增 `get_theme` / `set_theme`）。
   - `setup` 钩子：创建应用数据目录、初始化全局快捷键、构建系统托盘（显示/退出菜单 + 左键点击显示窗口）。
   - 窗口事件处理：主窗口关闭请求被拦截为 `hide()`（最小化到托盘）。
   - `single-instance` 回调：二次启动时显示并聚焦主窗口。
@@ -302,8 +305,8 @@ sensend/
 
 | 命令 | 签名 | 说明 |
 |------|------|------|
-| `read_note` | `(app) -> Result<String>` | 读取 `app_data_dir/note.md` |
-| `save_note` | `(app, content: String) -> Result<()>` | 写入 `note.md` |
+| `read_note` | `(app) -> Result<String>` | 读取 `app_data_dir/note.json`（v0.4.0 起），兜底读旧 `note.md` |
+| `save_note` | `(app, content: String) -> Result<()>` | 写入 `note.json`（tmp 改名原子写入） |
 | `hide_window` | `(app) -> Result<()>` | 隐藏主窗口 |
 | `open_data_dir` | `(app) -> Result<()>` | 在文件管理器中打开数据目录 |
 | `request_quit` | `(app) -> Result<()>` | `app.exit(0)` 退出应用 |
@@ -322,6 +325,8 @@ sensend/
 | `publish_note` | 核心：按 `publish_mode` 分发到 `publish` 或 `append_blocks` |
 | `get_default_target` | 读取后端 config.json 中记忆的默认发送目标 ID（v0.3.0 新增）|
 | `set_default_target` | 写入默认发送目标 ID 到后端 config.json（v0.3.0 新增）|
+| `get_theme` | 读取主题设置（light/dark），默认 light（v0.4.0 新增）|
+| `set_theme` | 写入主题到 config.json + emit `theme-updated` 事件通知两窗口（v0.4.0 新增）|
 
 **适配器工厂** `get_adapter(platform_type)` 根据 `platform_type` 字符串返回 `Box<dyn PlatformAdapter>`。
 
@@ -355,7 +360,7 @@ sensend/
 
 定义统一接口与共享设施：
 
-- **`http_client()`**：全局 `reqwest::Client`（`OnceLock` 单例，30s 超时，连接池复用）。
+- **`http_client()`**：全局 `reqwest::Client`（`OnceLock` 单例，15s 超时，连接池复用）。
 - **`PlatformInstance`**：用户配置的平台实例结构（id/name/platform_type/token/token2/target_id/publish_mode）。
 - **`PlatformTypeInfo` / `ConfigField`**：平台类型元数据，驱动前端表单动态渲染。
 - **`PlatformAdapter` trait**：统一适配器接口（见 [6.1](#61-platformadapter-trait)）。
@@ -409,14 +414,14 @@ pub trait PlatformAdapter: Send + Sync {
 
 #### `useSensendEditor(instances, platformTypes)` — [useEditor.ts](file:///workspace/src/composables/useEditor.ts)
 
-编辑器核心。返回 `editor/saveStatus/wordCount/charCount/getMentionId/setMention/setOnMentionChange`。
+编辑器核心。返回 `editor/saveStatus/wordCount/charCount/getMentionId/setMention/setOnMentionChange/markSent`。
 
 关键内部逻辑：
-- **TipTap 初始化**：`StarterKit` + `Placeholder` + `Mention`（自定义 `renderHTML`、`suggestion` 配置）+ `TableKit`（表格扩展，v0.2.0 起，目前仅支持粘贴富文本 HTML 进表，前端尚无插入入口，见 `docs/TODO.md`）。
+- **TipTap 初始化**：`StarterKit` + `Placeholder` + `Mention`（自定义 `renderHTML`、`suggestion` 配置）+ `TableKit`（表格扩展，v0.2.0 起）+ `SentMarkExtension`（发送成功标记，v0.4.0 新增）。
 - **mention 唯一性**：`suggestion.command` 在插入新 mention 前先删除所有旧 mention，并修正 range 偏移。
 - **mention 渲染**：基于 `tippy.js` + `VueRenderer(MentionList)`，根据剩余空间自动判断向上/向下弹出。
-- **自动保存**：`onUpdate` 触发防抖 800ms → `doSave` → `invoke('save_note')`。
-- **退出前保存**：监听 `app-exit-request` 事件，强制 `doSave` 后 `request_quit`。
+- **自动保存**：`onUpdate` 触发防抖 800ms → `doSave` → `invoke('save_note')`。`doSave` 内置 `saveStatus === 'saving'` 并发守卫（v0.4.0 新增）。
+- **退出前保存**：监听 `app-exit-request` 事件，仅在 `saveStatus === 'unsaved'` 时执行 `doSave`（v0.4.0 优化，避免重复写入）。
 - **字数统计**：中文按字符计、英文按单词计。
 
 #### `usePlatform()` — [usePlatform.ts](file:///workspace/src/composables/usePlatform.ts)
@@ -424,8 +429,8 @@ pub trait PlatformAdapter: Send + Sync {
 平台实例管理与发送。返回 `instances/activeInstanceId/platformTypes/isSending/selectTarget/openConfigWindow/publishNote/reloadInstances`。
 
 关键逻辑：
-- `publishNote(editorValue, overrideTargetId)`：剔除 mention 节点 → `invoke('publish_note')` → 成功 Toast 带「查看 ↗」按钮 → 记忆目标到后端 `config.json`（v0.3.0 起，通过 `set_default_target` 命令，不再用 localStorage）。
-- `friendlyError(raw)`：将 401/403/429/network 等错误转为人话。
+- `publishNote(editorValue, overrideTargetId)`：返回 `Promise<boolean>`，发送成功返回 true。剔除 mention 节点 → `invoke('publish_note')` → 成功 Toast 带「查看 ↗」按钮 → 记忆目标到后端 `config.json`。App.vue 在成功时调用 `markSent(editor)` 显示已发送标记。
+- `friendlyError(raw)`：仅做网络断开兜底判断，其余错误消息原样透传（v0.4.0 简化，后端错误消息已包含足够上下文）。
 - 监听 `instances-updated` 事件自动刷新。
 
 #### `useConfig()` — [useConfig.ts](file:///workspace/src/composables/useConfig.ts)
@@ -486,7 +491,7 @@ TipTap onUpdate
                          doSave: invoke('save_note', { content: JSON.stringify(getJSON()) })
                                     │
                                     ▼
-                         后端写 app_data_dir/note.md
+                          后端写 app_data_dir/note.json
 ```
 
 ### 7.2 `@mention` 机制
@@ -527,6 +532,7 @@ publishNote(editor, resolvedTargetId)
                                         │
                                         ▼
    前端 Toast 成功 + 「查看 ↗」按钮 (openUrl)
+   markSent(editor) → 编辑区末尾显示"✓ 已发送"徽章（3 秒后自动消失）
 ```
 
 ### 7.4 快捷键机制
@@ -695,8 +701,8 @@ npm run tauri build
 
 | 文件/目录 | 内容 |
 |----------|------|
-| `note.md` | 当前编辑器内容（TipTap JSON 字符串）|
-| `config.json` | 平台实例列表、快捷键配置 |
+| `note.json` | 当前编辑器内容（TipTap JSON 字符串，v0.4.0 起从 note.md 迁移；旧 note.md 自动兜底读取）|
+| `config.json` | 平台实例列表、快捷键配置、默认目标、主题设置 |
 | `fonts/` | 用户字体文件（ttf/otf/woff2/ttc）|
 
 > Windows 默认路径：`C:\Users\<user>\AppData\Roaming\com.jloft.sensend\`
@@ -709,6 +715,7 @@ npm run tauri build
 - `hotkey_show`：唤醒快捷键字符串。
 - `hotkey_send`：发送快捷键字符串。
 - `default_target`：上次发送/选择的平台实例 ID，用于启动时恢复默认目标（v0.3.0 起从 localStorage 迁移至此）。
+- `theme`：主题设置（`light` / `dark`），默认 `light`（v0.4.0 新增）。
 
 ### 10.3 前端 localStorage
 
