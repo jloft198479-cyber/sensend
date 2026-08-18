@@ -13,21 +13,30 @@ use tokio::io::AsyncWriteExt;
 #[tauri::command]
 pub async fn read_note(app: AppHandle) -> Result<String, String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let note_path = app_dir.join("note.md");
+    let note_path = app_dir.join("note.json");
+    // note.json 存在 → 直接读
     if note_path.exists() {
         tokio::fs::read_to_string(&note_path)
             .await
             .map_err(|e| e.to_string())
     } else {
-        Ok(String::new())
+        // 兜底：旧版 note.md（迁移期不删旧文件）
+        let legacy_path = app_dir.join("note.md");
+        if legacy_path.exists() {
+            tokio::fs::read_to_string(&legacy_path)
+                .await
+                .map_err(|e| e.to_string())
+        } else {
+            Ok(String::new())
+        }
     }
 }
 
 #[tauri::command]
 pub async fn save_note(app: AppHandle, content: String) -> Result<(), String> {
     let app_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
-    let note_path = app_dir.join("note.md");
-    let tmp_path = app_dir.join(".note.md.tmp");
+    let note_path = app_dir.join("note.json");
+    let tmp_path = app_dir.join(".note.json.tmp");
 
     // 原子写入：先写临时文件，成功后 rename 覆盖原文件
     // 使用 tokio::fs 异步 I/O，不阻塞线程池线程
