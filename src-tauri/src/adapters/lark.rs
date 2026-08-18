@@ -20,6 +20,49 @@ const BLOCK_QUOTE: i64 = 15;
 const BLOCK_TODO: i64 = 17;
 const BLOCK_DIVIDER: i64 = 22;
 
+// ── 飞书代码块语言映射（枚举值源自飞书官方 CodeLanguage 枚举）──
+// 未知语言回落 1（PlainText）
+const LARK_LANG_MAP: &[(&str, i64)] = &[
+    ("plaintext", 1), ("text", 1), ("", 1),
+    ("bash", 7), ("sh", 7),
+    ("csharp", 8), ("cs", 8), ("c#", 8),
+    ("cpp", 9), ("c++", 9),
+    ("c", 10),
+    ("css", 12),
+    ("dockerfile", 18),
+    ("go", 22), ("golang", 22),
+    ("html", 24),
+    ("json", 28),
+    ("java", 29),
+    ("javascript", 30), ("js", 30),
+    ("kotlin", 32),
+    ("lua", 36),
+    ("markdown", 39), ("md", 39),
+    ("php", 43),
+    ("perl", 44),
+    ("python", 49), ("py", 49),
+    ("ruby", 52), ("rb", 52),
+    ("rust", 53), ("rs", 53),
+    ("scala", 57),
+    ("shell", 60), ("console", 60),
+    ("swift", 61),
+    ("typescript", 63), ("ts", 63),
+    ("yaml", 67), ("yml", 67),
+    ("sql", 56),
+    ("xml", 66),
+    ("toml", 75),
+];
+
+/// 将编辑器语言字符串映射为飞书 CodeLanguage 枚举值，未知回落 1（PlainText）
+fn map_language(lang: &str) -> i64 {
+    let lower = lang.to_lowercase();
+    LARK_LANG_MAP
+        .iter()
+        .find(|(k, _)| *k == lower)
+        .map(|(_, v)| *v)
+        .unwrap_or(1)
+}
+
 /// 飞书 tenant_access_token 进程内缓存：key=app_id，有效期 2h（提前 5min 刷新）
 struct CachedToken {
     token: String,
@@ -351,12 +394,12 @@ fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
                     map_list_item(*kind, item, out);
                 }
             }
-            Block::CodeBlock { code, .. } => {
+            Block::CodeBlock { code, language } => {
                 out.push(json!({
                     "block_type": BLOCK_CODE,
                     "code": {
                         "elements": [{ "text_run": { "content": code } }],
-                        "style": { "language": 1 }
+                        "style": { "language": map_language(language) }
                     }
                 }));
             }
@@ -595,5 +638,23 @@ mod tests {
             .filter_map(|e| e["text_run"]["content"].as_str())
             .collect();
         assert_eq!(content, "首段\n次段", "列表项多段落应保留（\\n 分隔）");
+    }
+
+    #[test]
+    fn b2_language_mapping() {
+        // 已知语言 → 对应枚举值
+        assert_eq!(map_language("Rust"), 53, "Rust 大写应命中");
+        assert_eq!(map_language("rust"), 53);
+        assert_eq!(map_language("python"), 49);
+        assert_eq!(map_language("JavaScript"), 30);
+        assert_eq!(map_language("typescript"), 63);
+        assert_eq!(map_language("go"), 22);
+        assert_eq!(map_language("cs"), 8, "cs 别名应命中 CSharp");
+        assert_eq!(map_language("cpp"), 9);
+        assert_eq!(map_language("yaml"), 67);
+        assert_eq!(map_language("YAML"), 67, "大小写不敏感");
+        // 未知语言 → PlainText
+        assert_eq!(map_language("brainfuck"), 1, "未知语言回落 PlainText");
+        assert_eq!(map_language(""), 1, "空串回落 PlainText");
     }
 }
