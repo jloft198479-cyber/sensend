@@ -56,8 +56,19 @@ export function useConfig() {
     }
   }
 
+  // ── 授权码记忆：按平台预填上次填写的 token/token2 ──
+  async function applyTokenMemory(platform: string) {
+    try {
+      const mem = await invoke<{ token: string; token2: string } | null>('get_token_memory', { platformType: platform })
+      configForm.token = mem?.token || ''
+      configForm.token2 = mem?.token2 || ''
+    } catch {
+      // 记忆读取失败不阻塞表单
+    }
+  }
+
   // ── 表单操作 ──
-  function openAddModal() {
+  async function openAddModal() {
     editingInstanceId.value = null
     configForm.name = ''
     configForm.platform_type = 'notion'
@@ -68,6 +79,7 @@ export function useConfig() {
     testResult.value = 'idle'
     testErrorMsg.value = ''
     showToken.value = false
+    await applyTokenMemory(configForm.platform_type)
     showForm.value = true
   }
 
@@ -88,7 +100,7 @@ export function useConfig() {
     if (selected) configForm.target_id = selected as string
   }
 
-  function onPlatformTypeChange() {
+  async function onPlatformTypeChange() {
     testResult.value = 'idle'
     testErrorMsg.value = ''
     configForm.token = ''
@@ -96,6 +108,7 @@ export function useConfig() {
     configForm.target_id = ''
     configForm.publish_mode = 'page'
     showToken.value = false
+    await applyTokenMemory(configForm.platform_type)
   }
 
   function resolveField(key: string): string {
@@ -148,6 +161,16 @@ export function useConfig() {
         publish_mode: configForm.publish_mode,
       }
       await invoke('save_platform_instance', { instance })
+      // 保存成功即更新该平台授权码记忆（新增/编辑均计入），失败不影响保存
+      try {
+        await invoke('set_token_memory', {
+          platformType: instance.platform_type,
+          token: instance.token,
+          token2: instance.token2 || '',
+        })
+      } catch {
+        console.warn('授权码记忆更新失败')
+      }
       if (editingInstanceId.value) {
         const idx = instances.value.findIndex(i => i.id === editingInstanceId.value)
         if (idx >= 0) instances.value[idx] = instance

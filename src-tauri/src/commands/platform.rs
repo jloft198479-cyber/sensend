@@ -1,6 +1,8 @@
 use tauri::{AppHandle, Emitter, Manager, WebviewUrl};
 use tauri_plugin_store::StoreExt;
+use serde::Serialize;
 use serde_json::Value;
+use std::collections::HashMap;
 
 use crate::adapters::{self, PlatformAdapter, PlatformInstance, PlatformTypeInfo, ProbeResult, PublishResult};
 
@@ -144,6 +146,44 @@ pub async fn get_default_target(app: AppHandle) -> Result<Option<String>, String
 pub async fn set_default_target(app: AppHandle, target_id: String) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     store.set("default_target", serde_json::to_value(&target_id).map_err(|e| e.to_string())?);
+    store.save().map_err(|e| e.to_string())
+}
+
+// ── 授权码记忆（存 config.json：token_memory { 平台: { token, token2 } }）──
+
+/// 某平台最近一次填写的授权码，新增页面时预填，省去复制粘贴
+#[derive(Serialize, serde::Deserialize, Clone, Default)]
+pub struct TokenMemory {
+    pub token: String,
+    pub token2: String,
+}
+
+#[tauri::command]
+pub async fn get_token_memory(app: AppHandle, platform_type: String) -> Result<Option<TokenMemory>, String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    match store.get("token_memory") {
+        Some(value) => {
+            let map: HashMap<String, TokenMemory> = serde_json::from_value(value).map_err(|e| e.to_string())?;
+            Ok(map.get(&platform_type).cloned())
+        }
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub async fn set_token_memory(
+    app: AppHandle,
+    platform_type: String,
+    token: String,
+    token2: String,
+) -> Result<(), String> {
+    let store = app.store("config.json").map_err(|e| e.to_string())?;
+    let mut map: HashMap<String, TokenMemory> = store
+        .get("token_memory")
+        .and_then(|v| serde_json::from_value(v).ok())
+        .unwrap_or_default();
+    map.insert(platform_type, TokenMemory { token, token2 });
+    store.set("token_memory", serde_json::to_value(map).map_err(|e| e.to_string())?);
     store.save().map_err(|e| e.to_string())
 }
 
