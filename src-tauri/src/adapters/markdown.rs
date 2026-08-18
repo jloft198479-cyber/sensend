@@ -240,8 +240,8 @@ fn render_inlines(inlines: &[Inline], out: &mut String, break_mode: BreakMode) {
                         Mark::Italic => s = format!("*{}*", s),
                         Mark::Strike => s = format!("~~{}~~", s),
                         Mark::Code => s = format!("`{}`", s),
-                        // Markdown 无原生下划线语法，保持纯文本（B3 任务处理）
-                        Mark::Underline => {}
+                        // Markdown 无原生下划线语法，用 <u> HTML 兜底
+                        Mark::Underline => s = format!("<u>{}</u>", s),
                         Mark::Link(href) => {
                             // 链接输出后即完成（与历史行为一致：link 后的 mark 忽略）
                             out.push_str(&format!("[{}]({})", s, href));
