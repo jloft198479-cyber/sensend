@@ -120,7 +120,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   z-index: 1000;
 }
 .modal-panel {
-  background: white;
+  background: var(--bg);
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.08);
   width: 280px;
@@ -162,7 +162,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   background: var(--gray-input-bg); cursor: pointer; transition: all 0.15s;
   min-height: 36px;
 }
-.hotkey-record-btn:hover { border-color: var(--accent); background: white; }
+.hotkey-record-btn:hover { border-color: var(--accent); background: var(--bg); }
 .hotkey-record-btn.recording {
   border-color: var(--accent); background: var(--accent-light);
   animation: pulse-border 1.5s infinite;

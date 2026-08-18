@@ -1,0 +1,46 @@
+/* ═══ 暗夜主题 ═══ */
+
+[data-theme="dark"] {
+  /* 背景层 */
+  --bg: #1a1a1a;
+  --bg-page: #232323;
+
+  /* 文字层级 */
+  --fg: #e4e4e4;
+  --fg-secondary: #a0a0a0;
+  --muted: #808080;
+
+  /* 边框 & 分隔 */
+  --border-color: rgba(255, 255, 255, 0.08);
+
+  /* 主色 — 品牌绿暗变体 */
+  --accent: #3dbd7e;
+  --accent-hover: #4aca8a;
+  --accent-light: rgba(61, 189, 126, 0.15);
+
+  /* 语义色 */
+  --danger: #f87171;
+  --danger-bg: rgba(248, 113, 113, 0.1);
+  --danger-border: rgba(248, 113, 113, 0.25);
+  --success-bg: rgba(61, 189, 126, 0.1);
+  --success-text: #4aca8a;
+  --success-border: rgba(61, 189, 126, 0.25);
+
+  /* 灰度色板 */
+  --gray-border: #3a3a3a;
+  --gray-hover: #2e2e2e;
+  --gray-input-bg: #282828;
+  --gray-scrollbar: #555555;
+  --gray-placeholder: #707070;
+  --brand-muted: #666666;
+
+  /* 交互状态 */
+  --bg-hover: rgba(255, 255, 255, 0.06);
+
+  /* 编辑器专用 */
+  --code-bg: #2a2a2a;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.1);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+}

@@ -37,7 +37,6 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "local".into(),
             name: "本地文件夹".into(),
-            color: "#2CAF68".into(),
             fields: vec![
                 ConfigField { key: "token".into(), label: "（无需填写）".into(), hint: "".into(), secret: true, hidden: true, browse: false, default_value: Some("local".into()), optional: true },
                 ConfigField { key: "target_id".into(), label: "文件夹路径".into(), hint: "如 D:\\Notes 或 C:\\Users\\xxx\\Desktop".into(), secret: false, hidden: false, browse: true, default_value: None, optional: false },
@@ -46,7 +45,6 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "notion".into(),
             name: "Notion".into(),
-            color: "#2CAF68".into(),
             fields: vec![
                 ConfigField { key: "token".into(), label: "Integration Token".into(), hint: "Notion Integration Token".into(), secret: true, hidden: false, browse: false, default_value: None, optional: false },
                 ConfigField { key: "target_id".into(), label: "Parent Page".into(), hint: "粘贴页面链接，自动解析 ID".into(), secret: false, hidden: false, browse: false, default_value: None, optional: false },
@@ -55,7 +53,6 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "flowus".into(),
             name: "FlowUs".into(),
-            color: "#2CAF68".into(),
             fields: vec![
                 ConfigField { key: "token".into(), label: "授权码".into(), hint: "FlowUs MCP 授权码".into(), secret: true, hidden: false, browse: false, default_value: None, optional: false },
                 ConfigField { key: "target_id".into(), label: "目标页面".into(), hint: "粘贴页面链接，自动解析 ID".into(), secret: false, hidden: false, browse: false, default_value: None, optional: false },
@@ -64,7 +61,6 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "lark".into(),
             name: "飞书".into(),
-            color: "#2CAF68".into(),
             fields: vec![
                 ConfigField { key: "token".into(), label: "App ID".into(), hint: "飞书应用的 App ID".into(), secret: false, hidden: false, browse: false, default_value: None, optional: false },
                 ConfigField { key: "token2".into(), label: "App Secret".into(), hint: "飞书应用的 App Secret".into(), secret: true, hidden: false, browse: false, default_value: None, optional: false },
@@ -78,7 +74,6 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
 pub struct PlatformTypeInfo {
     pub key: String,
     pub name: String,
-    pub color: String,
     pub fields: Vec<ConfigField>,
 }
 

@@ -128,7 +128,7 @@ const {
 } = useHotkey(publishNote, () => editor.value, isSending)
 
 // ── 快捷键保存失败反馈 ──
-const { error: toastError } = useToast()
+const { error: toastError, success: toastSuccess } = useToast()
 
 async function openDataDir() {
   try {
@@ -136,6 +136,16 @@ async function openDataDir() {
   } catch (e) {
     console.error('打开数据目录失败:', e)
   }
+}
+
+// ── 一键清空笔记（可撤销：Ctrl+Z 或 toast 撤销按钮）──
+function handleClear() {
+  if (!editor.value) return
+  editor.value.commands.clearContent()
+  toastSuccess('已清空笔记', {
+    label: '撤销',
+    onClick: () => editor.value?.commands.undo(),
+  })
 }
 
 async function onSaveHotkeys() {
@@ -224,6 +234,7 @@ async function onSaveHotkeys() {
       @open-hotkey="openHotkeyModal"
       @open-data-dir="openDataDir"
       @select-target="handleFooterSelect"
+      @clear="handleClear"
     />
 
     <!-- ═══ 快捷键设置弹窗 ═══ -->
@@ -253,8 +264,8 @@ async function onSaveHotkeys() {
 /* ═══ @平台 Mention ═══ */
 .platform-mention {
   color: var(--accent);
-  background: linear-gradient(135deg, var(--accent-light) 0%, rgba(44, 175, 104, 0.03) 100%);
-  border: 1px solid rgba(44, 175, 104, 0.15);
+  background: linear-gradient(135deg, var(--accent-light) 0%, color-mix(in srgb, var(--accent) 3%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
   border-radius: 5px;
   padding: 1px 6px;
   font-size: 0.92em;
@@ -264,8 +275,8 @@ async function onSaveHotkeys() {
   transition: all 0.15s ease;
 }
 .platform-mention:hover {
-  background: linear-gradient(135deg, rgba(44, 175, 104, 0.12) 0%, rgba(44, 175, 104, 0.06) 100%);
-  border-color: rgba(44, 175, 104, 0.25);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, color-mix(in srgb, var(--accent) 6%, transparent) 100%);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
 /* ═══ 待办列表（taskList/taskItem）═══ */

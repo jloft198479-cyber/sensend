@@ -145,18 +145,28 @@ sensend/
 ├── tsconfig.json               # TypeScript 配置（strict）
 ├── tsconfig.node.json
 ├── README.md
+├── BUILD-ENV.md                # 构建环境配置（MSVC / NSIS / Rust 环境变量）
 ├── LICENSE
 ├── logo.png
 │
 ├── docs/                       # 文档目录
 │   ├── BUILD-GUIDE.md          # 打包发布手册
+│   ├── BUILD-ENV.md            # 构建环境配置
 │   ├── EXPERIENCE.md           # 开发经验手册
-│   ├── FILELIST.md             # 源码清单
 │   ├── CODE-WIKI.md            # 本文档
-│   └── TODO.md                 # 待办事项（v0.3.0 新增）
+│   ├── TODO.md                 # 待办事项
+│   ├── FORMAT-FIXES.md         # 格式修复记录与验证规范
+│   ├── FEISHU-GUIDE.md         # 飞书对接指南（权限模型/配置/排查）
+│   ├── FEISHU-FORMAT-SPEC.md   # 飞书格式调研报告（block 类型/富文本/P1-P3 改进）
+│   ├── NOTION-FORMAT-SPEC.md   # Notion 格式调研报告（block 类型/富文本/P1-P3 改进）
+│   └── YOUDAO-MCP-FEASIBILITY.md  # 有道云笔记 MCP 接入可行性报告
 │
-├── scripts/                    # 辅助脚本（v0.3.0 新增）
-│   └── build-release.ps1       # Windows 打包脚本（自动加载 MSVC + Rust 环境）
+├── scripts/                    # 辅助脚本
+│   ├── build-release.ps1       # Windows 打包脚本（自动加载 MSVC + Rust 环境）
+│   ├── run-app.ps1             # 开发启动脚本（PowerShell）
+│   ├── run-app.bat             # 开发启动脚本（批处理）
+│   ├── run-tests.ps1           # 后端黄金测试运行脚本（PowerShell）
+│   └── run-tests.bat           # 后端黄金测试运行脚本（批处理）
 │
 ├── src/                        # ── 前端源码 ──
 │   ├── main.ts                 # 入口：按 URL 参数路由 main/config
@@ -211,11 +221,13 @@ sensend/
         │
         └── adapters/           # ── 平台适配器层 ──
             ├── mod.rs          # 公共 trait/类型/ID 解析/HTTP 客户端
+            ├── ir.rs           # 中间表示（IR）— TipTap JSON → IR Block 统一遍历点
             ├── markdown.rs     # TipTap JSON ↔ Markdown 转换
             ├── notion.rs       # Notion 适配器
             ├── flowus.rs       # FlowUs 适配器
             ├── lark.rs         # 飞书适配器
-            └── local.rs       # 本地文件夹适配器
+            ├── local.rs        # 本地文件夹适配器
+            └── test_helpers.rs # 测试辅助工具（fixture 加载/比较）
 ```
 
 ---
@@ -292,7 +304,7 @@ sensend/
 - `main.rs`：二进制入口，仅调用 `sensend_lib::run()`；release 模式下隐藏控制台窗口。
 - `lib.rs`：应用主体，`pub fn run()` 中完成：
   - 插件注册：`opener` / `dialog` / `store` / `global-shortcut` / `single-instance`。
-  - 命令注册：`invoke_handler!` 注册全部 22 个命令（v0.4.0 新增 `get_theme` / `set_theme`）。
+  - 命令注册：`invoke_handler!` 注册全部 24 个命令（v0.4.0 新增 `get_theme` / `set_theme`）。
   - `setup` 钩子：创建应用数据目录、初始化全局快捷键、构建系统托盘（显示/退出菜单 + 左键点击显示窗口）。
   - 窗口事件处理：主窗口关闭请求被拦截为 `hide()`（最小化到托盘）。
   - `single-instance` 回调：二次启动时显示并聚焦主窗口。
@@ -368,22 +380,28 @@ sensend/
 - **`get_platform_types()`**：返回四种平台的字段定义。
 - **`resolve_target_id(platform_type, raw)`**：从 URL 或纯文本提取平台 ID（分发到 `resolve_notion_id` / `resolve_flowus_id` / `LarkAdapter::resolve_lark_id`）。
 
-#### 5.3.2 公共转换：`markdown.rs`
+#### 5.3.2 中间表示：`ir.rs`
 
-TipTap JSON ↔ Markdown 转换，供 `local.rs` 与 `flowus.rs` 复用：
+IR（中间表示）是 TipTap JSON → 平台格式的唯一中间层。`ir::parse(content)` 将 TipTap JSON 解析为 `Vec<Block>` 序列，只发生一次；markdown/notion/flowus/lark 四个映射层各自把 IR 渲染成平台格式，不再各自遍历 TipTap JSON。
 
-- `tiptap_to_markdown(tree)`：递归渲染 paragraph/heading/list/codeBlock/blockquote/horizontalRule/hardBreak/table，处理嵌套列表与 marks（粗体/斜体/删除线/代码/链接），mention 输出为 `@名称`。表格输出标准 GFM 语法（`| cell |` + `| --- |` 分隔行）。
+核心类型：`Mark`（Bold/Italic/Strike/Underline/Code/Link）、`Inline`（Text/Break/Mention）、`Block`（Paragraph/Heading/List/CodeBlock/Blockquote/HardBreak/Table/TaskList）、`ListKind`（Bullet/Ordered）。
+
+#### 5.3.3 公共转换：`markdown.rs`
+
+IR → Markdown 文本转换，供 `local.rs` 等适配器复用（TipTap 解析统一走 `ir::parse`）：
+
+- `tiptap_to_markdown(tree)`：内部先调 `ir::parse(tree)` 得到 IR，再递归渲染 paragraph/heading/list/codeBlock/blockquote/horizontalRule/hardBreak/table，处理嵌套列表与 marks（粗体/斜体/删除线/代码/链接），mention 输出为 `@名称`。表格输出标准 GFM 语法（`| cell |` + `| --- |` 分隔行）。
 - `extract_title(content)`：优先取首个 heading 文本，兜底取首个非空段落，截取前 18 字。
 - `extract_plain_text(node)`：忽略格式的纯文本提取。
 
-#### 5.3.3 适配器实现
+#### 5.3.4 适配器实现
 
 | 适配器 | 文件 | 关键能力 |
 |--------|------|---------|
 | `LocalAdapter` | [local.rs](file:///workspace/src-tauri/src/adapters/local.rs) | 写入 `标题_时间戳.md`（UTF-8 BOM）；`test_connection` 通过写测试文件验证权限 |
-| `NotionAdapter` | [notion.rs](file:///workspace/src-tauri/src/adapters/notion.rs) | `resolve_target` 三步试探法判断 Database/Page；`extract_schema_from_properties` 提取 title/date 列；TipTap→Notion blocks；分块追加（每批 100）|
-| `FlowUsAdapter` | [flowus.rs](file:///workspace/src-tauri/src/adapters/flowus.rs) | `resolve_target` 检测 child_database；TipTap→FlowUs blocks（带完整 annotations）；创建页面后追加内容 |
-| `LarkAdapter` | [lark.rs](file:///workspace/src-tauri/src/adapters/lark.rs) | App ID+Secret 换 `tenant_access_token`；wiki URL 解析 `node_token`→`document_id`；TipTap→飞书 blocks（block_type 常量）；仅追加模式 |
+| `NotionAdapter` | [notion.rs](file:///workspace/src-tauri/src/adapters/notion.rs) | `resolve_target` 三步试探法判断 Database/Page；`extract_schema_from_properties` 提取 title/date 列；IR→Notion blocks；分块追加（每批 100）|
+| `FlowUsAdapter` | [flowus.rs](file:///workspace/src-tauri/src/adapters/flowus.rs) | `resolve_target` 检测 child_database；IR→FlowUs blocks（带完整 annotations）；创建页面后追加内容 |
+| `LarkAdapter` | [lark.rs](file:///workspace/src-tauri/src/adapters/lark.rs) | App ID+Secret 换 `tenant_access_token`；wiki URL 解析 `node_token`→`document_id`；IR→飞书 blocks（block_type 常量）；仅追加模式 |
 
 ---
 
@@ -391,7 +409,7 @@ TipTap JSON ↔ Markdown 转换，供 `local.rs` 与 `flowus.rs` 复用：
 
 ### 6.1 `PlatformAdapter` trait
 
-[adapters/mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs#L115-L129) 定义统一接口：
+[adapters/mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs#L116-L130) 定义统一接口：
 
 ```rust
 #[async_trait]
@@ -461,14 +479,14 @@ pub trait PlatformAdapter: Send + Sync {
 
 | 函数 | 位置 | 说明 |
 |------|------|------|
-| `resolve_target_id` | [mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs#L139) | 平台 ID 解析分发 |
-| `resolve_notion_id` | [mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs#L156) | 从右向左扫描 32 位 hex，兼容 UUID 格式 |
-| `NotionAdapter::resolve_target` | [notion.rs](file:///workspace/src-tauri/src/adapters/notion.rs#L274) | 三步试探：直接查 Database → 查子块 child_database → 兜底 Page |
-| `NotionAdapter::extract_schema_from_properties` | [notion.rs](file:///workspace/src-tauri/src/adapters/notion.rs#L250) | 提取 title 列与 date 列名 |
-| `LarkAdapter::get_tenant_token` | [lark.rs](file:///workspace/src-tauri/src/adapters/lark.rs#L37) | App ID+Secret 换租户 token |
-| `LarkAdapter::resolve_document_id` | [lark.rs](file:///workspace/src-tauri/src/adapters/lark.rs#L139) | wiki URL → document_id（调用 `/wiki/v2/spaces/get_node`）|
-| `tiptap_to_markdown` | [markdown.rs](file:///workspace/src-tauri/src/adapters/markdown.rs#L7) | TipTap JSON → Markdown 文本 |
-| `extract_title` | [markdown.rs](file:///workspace/src-tauri/src/adapters/markdown.rs#L23) | 提取文档标题（前 18 字）|
+| `resolve_target_id` | [mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs#L143) | 平台 ID 解析分发 |
+| `resolve_notion_id` | [mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs#L160) | 从右向左扫描 32 位 hex，兼容 UUID 格式 |
+| `NotionAdapter::resolve_target` | [notion.rs](file:///workspace/src-tauri/src/adapters/notion.rs#L261) | 三步试探：直接查 Database → 查子块 child_database → 兜底 Page |
+| `NotionAdapter::extract_schema_from_properties` | [notion.rs](file:///workspace/src-tauri/src/adapters/notion.rs#L234) | 提取 title 列与 date 列名 |
+| `LarkAdapter::get_tenant_token` | [lark.rs](file:///workspace/src-tauri/src/adapters/lark.rs#L92) | App ID+Secret 换租户 token |
+| `LarkAdapter::resolve_document_id` | [lark.rs](file:///workspace/src-tauri/src/adapters/lark.rs#L220) | wiki URL → document_id（调用 `/wiki/v2/spaces/get_node`）|
+| `tiptap_to_markdown` | [markdown.rs](file:///workspace/src-tauri/src/adapters/markdown.rs#L9) | TipTap JSON → Markdown 文本 |
+| `extract_title` | [markdown.rs](file:///workspace/src-tauri/src/adapters/markdown.rs#L24) | 提取文档标题（前 18 字）|
 
 ---
 
@@ -610,10 +628,12 @@ publishNote(editor, resolvedTargetId)
 lib.rs
   ├── commands::{note, platform, hotkey, font}
   │     └── adapters (via platform.rs::get_adapter)
-  └── adapters::{mod, markdown, notion, flowus, lark, local}
+  └── adapters::{mod, ir, markdown, notion, flowus, lark, local, test_helpers}
         ├── mod.rs: PlatformAdapter trait, http_client, 类型
+        ├── ir.rs: TipTap JSON → IR Block 统一遍历点（所有适配器共享）
         ├── markdown.rs: 被 local / flowus 复用
-        └── notion/flowus/lark: 各自实现 TipTap → 平台 blocks
+        ├── notion/flowus/lark: 各自实现 IR → 平台 blocks
+        └── test_helpers.rs: 测试 fixture 加载与比较
 ```
 
 ### 8.4 前端模块依赖
@@ -736,7 +756,7 @@ npm run tauri build
 
 2. **注册模块**：在 [adapters/mod.rs](file:///workspace/src-tauri/src/adapters/mod.rs) 末尾 `pub mod yuque;`，并在 `get_platform_types()` 中添加 `PlatformTypeInfo`（定义 `key/name/color/fields`）。
 
-3. **工厂分发**：在 [commands/platform.rs](file:///workspace/src-tauri/src/commands/platform.rs#L23) 的 `get_adapter` 中添加 `"yuque" => Ok(Box::new(adapters::yuque::YuqueAdapter::new()))`。
+3. **工厂分发**：在 [commands/platform.rs](file:///workspace/src-tauri/src/commands/platform.rs#L25) 的 `get_adapter` 中添加 `"yuque" => Ok(Box::new(adapters::yuque::YuqueAdapter::new()))`。
 
 4. **ID 解析**（可选）：若平台 URL 需特殊解析，在 `resolve_target_id` 中增加分支。
 

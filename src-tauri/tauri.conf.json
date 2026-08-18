@@ -25,7 +25,7 @@
         "center": true,
         "visible": false,
         "visibleOnAllWorkspaces": true,
-        "backgroundColor": "#f5f5f5"
+        "backgroundColor": "#ffffff"
       }
     ],
     "security": {

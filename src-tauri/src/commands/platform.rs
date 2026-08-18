@@ -62,6 +62,9 @@ pub async fn open_config_window(app: AppHandle) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
 
+    // 新窗口底色跟随当前主题
+    apply_window_bg(&app, stored_window_bg(&app));
+
     Ok(())
 }
 
@@ -187,19 +190,59 @@ pub async fn set_token_memory(
     store.save().map_err(|e| e.to_string())
 }
 
-// ── 主题色（存 config.json，两窗口同步）──
+// ── 主题色（存 config.json，两窗口同步 + 窗口底色跟随）──
+// 设计原则：主题注册表（含 windowBg 颜色）只有前端 useTheme.ts 一份（SSOT），
+// 后端不存任何颜色映射，只负责"存值 / 涂色"，加主题无需改 Rust。
 
-#[tauri::command]
-pub async fn get_theme(app: AppHandle) -> Result<String, String> {
-    let store = app.store("config.json").map_err(|e| e.to_string())?;
-    Ok(store.get("theme").and_then(|v| v.as_str().map(|s| s.to_string())).unwrap_or_else(|| "light".to_string()))
+/// 读已存主题（无记录默认 light）
+pub fn stored_theme(app: &AppHandle) -> String {
+    app.store("config.json")
+        .ok()
+        .and_then(|s| s.get("theme").and_then(|v| v.as_str().map(|v| v.to_string())))
+        .unwrap_or_else(|| "light".to_string())
+}
+
+/// 解析 "#rrggbb" 为原生 Color，失败返回 None
+fn parse_hex(hex: &str) -> Option<tauri::window::Color> {
+    let h = hex.trim_start_matches('#');
+    if h.len() == 6 {
+        let r = u8::from_str_radix(&h[0..2], 16).ok()?;
+        let g = u8::from_str_radix(&h[2..4], 16).ok()?;
+        let b = u8::from_str_radix(&h[4..6], 16).ok()?;
+        Some(tauri::window::Color(r, g, b, 255))
+    } else {
+        None
+    }
+}
+
+/// 读前端已存的窗口底色（无记录/坏值兜底白色）
+pub fn stored_window_bg(app: &AppHandle) -> tauri::window::Color {
+    app.store("config.json")
+        .ok()
+        .and_then(|s| s.get("theme_bg").and_then(|v| v.as_str().map(|v| v.to_string())))
+        .and_then(|hex| parse_hex(&hex))
+        .unwrap_or(tauri::window::Color(0xff, 0xff, 0xff, 255))
+}
+
+/// 全部窗口底色涂成指定颜色（防加载时闪白/闪黑）
+pub fn apply_window_bg(app: &AppHandle, color: tauri::window::Color) {
+    for win in app.webview_windows().values() {
+        let _ = win.set_background_color(Some(color));
+    }
 }
 
 #[tauri::command]
-pub async fn set_theme(app: AppHandle, theme: String) -> Result<(), String> {
+pub async fn get_theme(app: AppHandle) -> Result<String, String> {
+    Ok(stored_theme(&app))
+}
+
+#[tauri::command]
+pub async fn set_theme(app: AppHandle, theme: String, window_bg: String) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     store.set("theme", serde_json::Value::String(theme.clone()));
+    store.set("theme_bg", serde_json::Value::String(window_bg.clone()));
     store.save().map_err(|e| e.to_string())?;
-    // 通知所有窗口
+    // 窗口底色跟随 + 通知所有窗口
+    apply_window_bg(&app, parse_hex(&window_bg).unwrap_or(tauri::window::Color(0xff, 0xff, 0xff, 255)));
     app.emit("theme-updated", &theme).map_err(|e| e.to_string())
 }

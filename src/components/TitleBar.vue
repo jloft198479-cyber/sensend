@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { ref, onMounted, onUnmounted } from 'vue'
+import { currentTheme, setTheme, THEMES } from '../composables/useTheme'
 
 interface FontOption {
   value: string
@@ -26,15 +26,15 @@ defineEmits<{
   'open-config': []
 }>()
 
-// ── 明暗主题（顶栏按钮，主窗口唯一入口）──
-const theme = ref('light')
-onMounted(async () => {
-  try { theme.value = await invoke<string>('get_theme') } catch {}
-})
-async function toggleTheme() {
-  theme.value = theme.value === 'dark' ? 'light' : 'dark'
-  await invoke('set_theme', { theme: theme.value })
+// ── 主题菜单（主窗口唯一入口，主题列表来自 useTheme 注册表）──
+const showThemeMenu = ref(false)
+function pickTheme(id: string) {
+  showThemeMenu.value = false
+  setTheme(id)
 }
+function closeThemeMenu() { showThemeMenu.value = false }
+onMounted(() => document.addEventListener('click', closeThemeMenu))
+onUnmounted(() => document.removeEventListener('click', closeThemeMenu))
 
 // ── 拖拽区域：递归标记所有非交互子元素 ──
 const titlebarRef = ref<HTMLElement | null>(null)
@@ -70,7 +70,12 @@ onMounted(() => {
       <!-- 字体切换 -->
       <div class="font-picker">
         <button class="action-btn" @click.stop="$emit('toggle-font-menu')" title="切换字体" aria-label="切换字体">
-          <span class="font-icon">T</span>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="4 7 4 4 20 4 20 7"/>
+            <line x1="9" y1="20" x2="15" y2="20"/>
+            <line x1="12" y1="4" x2="12" y2="20"/>
+          </svg>
         </button>
         <div v-if="showFontMenu" class="font-menu" @click.stop>
           <div class="font-menu-title">编辑器字体</div>
@@ -98,26 +103,30 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 明暗主题 -->
-      <button class="action-btn" :title="theme === 'dark' ? '切换到浅色' : '切换到暗夜'"
-        :aria-label="theme === 'dark' ? '切换到浅色' : '切换到暗夜'" @click.stop="toggleTheme">
-        <svg v-if="theme === 'light'" width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="5"/>
-          <line x1="12" y1="1" x2="12" y2="3"/>
-          <line x1="12" y1="21" x2="12" y2="23"/>
-          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-          <line x1="1" y1="12" x2="3" y2="12"/>
-          <line x1="21" y1="12" x2="23" y2="12"/>
-          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-        </svg>
-        <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 1 21 12.79z"/>
-        </svg>
-      </button>
+      <!-- 主题切换 -->
+      <div class="font-picker">
+        <button class="action-btn" @click.stop="showThemeMenu = !showThemeMenu" title="切换主题" aria-label="切换主题">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 22a10 10 0 1 1 10-10c0 1.5-1.2 2.7-2.7 2.7H16a2.5 2.5 0 0 0-2.4 3.4c.4 1 0 1.8-1.6 1.9"/>
+            <circle cx="7.5" cy="11.5" r="1" fill="currentColor"/>
+            <circle cx="10.5" cy="7.5" r="1" fill="currentColor"/>
+            <circle cx="15.5" cy="7.5" r="1" fill="currentColor"/>
+            <circle cx="18.5" cy="11.5" r="1" fill="currentColor"/>
+          </svg>
+        </button>
+        <div v-if="showThemeMenu" class="font-menu" @click.stop>
+          <button v-for="t in THEMES" :key="t.id" class="font-menu-item"
+            :class="{ active: currentTheme === t.id }" @click="pickTheme(t.id)">
+            <span class="theme-dot" :style="{ background: t.preview }"></span>
+            <span>{{ t.name }}</span>
+            <svg v-if="currentTheme === t.id" width="14" height="14" viewBox="0 0 24 24"
+              fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+          </button>
+        </div>
+      </div>
 
       <!-- 置顶 -->
       <button class="action-btn" :class="{ 'pin-active': isPinned }"
@@ -289,12 +298,6 @@ onMounted(() => {
   opacity: 0.55;
   cursor: not-allowed;
 }
-.font-icon {
-  font-size: 14px;
-  font-family: Georgia, 'Times New Roman', serif;
-  font-weight: 700;
-  line-height: 1;
-}
 .spin-icon {
   animation: spin 0.8s linear infinite;
 }
@@ -362,5 +365,14 @@ onMounted(() => {
 .font-menu-action:hover {
   color: var(--fg);
   background: var(--bg-hover);
+}
+
+/* 主题菜单预览色点 */
+.theme-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  flex-shrink: 0;
 }
 </style>

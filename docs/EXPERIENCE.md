@@ -1,8 +1,8 @@
 # Sensend 开发经验手册
 
 > 作者：简乐
-> 最近更新：2026-07-31（对齐 v0.3.0 发布状态）
-> 项目：Sensend v0.3.0
+> 最近更新：2026-08-18（对齐 v0.4.0 发布状态）
+> 项目：Sensend v0.4.0
 > 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
 
 ---
@@ -55,16 +55,6 @@ Sensend 的核心设计理念：
 - 用户提到"高度/宽度"时，要确认具体数值和目标
 - 修改前先复述需求，确认理解正确
 
-**正确做法**：
-```
-用户：窗口高度不够
-我：你说的是主窗口（420×210）还是配置窗口（420×580）？
-用户：配置窗口
-我：需要调整到多少？
-用户：580px 吧
-我：好的，我把配置窗口高度从 540px 改到 580px
-```
-
 ---
 
 ## 二、平台适配器开发
@@ -92,8 +82,12 @@ Sensend 的核心设计理念：
 | 标题3 | heading_3 | heading_3 | 5 |
 | 无序列表 | bulleted_list_item | bulleted_list_item | 12 |
 | 有序列表 | numbered_list_item | numbered_list_item | 13 |
-| 引用 | quote | quote | 16 |
-| 代码 | code | code | 17 |
+| 引用 | quote | quote | 15 |
+| 代码 | code | code | 14 |
+| 待办 | to_do | to_do | 17 |
+| 分割线 | divider | divider | 22 |
+
+> **注意**：飞书的 block_type 数字枚举容易记混（引用=15、代码=14，不是 16/17），代码中用常量定义在 `lark.rs` L14-L21。
 
 **飞书认证流程**：
 ```rust
@@ -126,8 +120,6 @@ let headers = vec![
 | 文件夹 | ❌ 移除 | tenant_access_token 只能访问应用创建的文件夹 |
 | 多维表 | ❌ 移除 | 仅写入标题，不适合长文本存储 |
 
-**重构结果**：884 行 → 403 行
-
 **前端配套改动**：
 - 凭证输入拆分为 App ID、App Secret 两个输入框
 - 提示文案改为"粘贴飞书文档链接，内容将追加到文档末尾"
@@ -145,508 +137,105 @@ let headers = vec![
 - 核心逻辑不要重写，只做必要的结构调整
 - 重构后必须测试所有功能点
 
-**正确做法**：
-```rust
-// 重构前：标记要保留的函数
-// ✅ marks_to_text_elements - 保留，文本格式转换核心逻辑
-// ✅ node_to_lark_block - 保留，节点转换核心逻辑
-// ❌ create_folder - 删除，不再需要
-// ❌ create_record - 删除，不再需要
-
-// 重构时：只删除不需要的，保留核心逻辑
-```
-
 ---
 
-## 三、Tauri 打包
+## 三、重难点问题（新 Agent 必读）
 
-### 3.1 NSIS 环境配置
+> 以下是项目中最容易踩坑、最关键的设计约束，按优先级排列。理解这些可以避免 80% 的返工。
 
-**问题**：Tauri 构建时报错找不到 NSIS 或插件。
+### ⚠️ 1. IR 是唯一出站关卡——改一处影响四平台
 
-**原因**：Tauri 需要特殊的 NSIS 目录结构，标准版 NSIS 不包含 Tauri 专用插件。
+**位置**：`src-tauri/src/adapters/ir.rs`
 
-**解决方案**：
+所有平台适配器共享同一个 IR 中间层。`ir::parse(content)` 将 TipTap JSON 解析为 `Vec<Block>`，只遍历一次，四个适配器（markdown/notion/flowus/lark）各自把 IR 渲染成平台格式。
 
-1. 创建目录结构：
-```
-%LOCALAPPDATA%\tauri\NSIS\
-├── makensis.exe
-├── Bin\
-│   └── makensis.exe
-├── Include\
-│   ├── MUI2.nsh
-│   ├── FileFunc.nsh
-│   ├── x64.nsh
-│   ├── nsDialogs.nsh
-│   ├── WinMessages.nsh
-│   └── Win\
-│       ├── COM.nsh
-│       ├── Propkey.nsh
-│       └── RestartManager.nsh
-├── Plugins\
-│   └── x86-unicode\
-│       └── additional\
-│           └── nsis_tauri_utils.dll
-└── Stubs\
-    ├── lzma-x86-unicode
-    └── lzma_solid-x86-unicode
-```
+**含义**：
+- 在 IR 层修一个 bug，一次修复四个平台同时生效
+- 在 IR 层引入一个 bug，四个平台同时炸
+- 改 IR 后必须跑完整黄金测试：`powershell -File scripts/run-tests.ps1`
 
-2. 下载 NSIS 3.11：
-```
-https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip
-```
+**已有防御**：IR 尾部空段剥除逻辑（`parse()` 末尾 while 循环），有 4 条边界测试保护，不要随意改动。
 
-3. 解压到 `%LOCALAPPDATA%\tauri\NSIS\`
+### ⚠️ 2. 构建环境——普通终端跑 `npm run tauri build` 必挂
 
-4. 下载 Tauri 插件：
-```
-https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll
-```
+**根因**：Rust（`M:\rust`）和 VS Build Tools（`M:\VS\BuildTools`）都不在系统 PATH。
 
-5. 放到 `Plugins\x86-unicode\additional\` 目录
-
-### 3.2 插件版本问题
-
-**问题**：
-```
-Warn NSIS directory contains mis-hashed files. Redownloading them.
-Downloading nsis_tauri_utils-v0.5.3...
-failed to bundle project `io: Connection refused`
-```
-
-**原因**：Tauri 2.x 需要 `nsis_tauri_utils.dll` v0.5.3，我下载的是 v0.4.1。
-
-**版本对照**：
-
-| Tauri 版本 | nsis_tauri_utils 版本 |
-|------------|----------------------|
-| Tauri 1.x | v0.4.x |
-| Tauri 2.x | v0.5.x |
-
-**解决方案**：下载正确版本的插件，Tauri 会检查文件 hash，版本不对会自动尝试重新下载。
-
-### 3.3 安装包图标配置
-
-**问题**：生成的安装包显示默认图标，不是自定义 Logo。
-
-**原因**：需要在 `tauri.conf.json` 中配置 `windows.nsis` 选项。
-
-**解决方案**：
-
-```json
-{
-  "bundle": {
-    "active": true,
-    "targets": ["nsis"],
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/128x128@2x.png",
-      "icons/icon.icns",
-      "icons/icon.ico"
-    ],
-    "windows": {
-      "nsis": {
-        "installMode": "currentUser",
-        "languages": ["SimpChinese", "English"]
-      }
-    }
-  }
-}
-```
-
-**图标文件要求**：
-- `icon.ico`：Windows 应用图标，建议 256×256 或更大
-- `icon.icns`：macOS 应用图标
-- `icon.png`：通用图标，建议 512×512
-
-### 3.4 构建产物位置
-
-构建完成后，产物位置：
-
-| 类型 | 路径 |
-|------|------|
-| 可执行文件 | `src-tauri\target\release\sensend.exe` |
-| NSIS 安装包 | `src-tauri\target\release\bundle\nsis\Sensend_0.1.0_x64-setup.exe` |
-| MSI 安装包 | `src-tauri\target\release\bundle\msi\Sensend_0.1.0_x64.msi` |
-
-**文件大小参考**：
-- 可执行文件：约 14MB
-- NSIS 安装包：约 3.5MB
-
----
-
-## 四、发布与分发
-
-### 4.1 GitHub 发布流程（v0.3.0 起）
-
-> 历史：v0.1.0 时期使用 Gitee，因 Gitee API 上传附件受限（见 4.2 历史记录），v0.2.0 起迁移到 GitHub。
-> 当前仓库：https://github.com/jloft198479-cyber/sensend
-
-**步骤一：提交并推送源码**
-
-```bash
-cd F:\fzz-Project\sensend\sensend
-git add .
-git commit -m "feat(v0.x.0): 更新说明"
-git push origin main
-```
-
-**步骤二：打 tag 并推送**
-
-```bash
-git tag v0.x.0
-git push origin v0.x.0
-```
-
-**步骤三：创建 Release 并上传安装包（使用 gh CLI）**
-
-```bash
-gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64-setup.exe" `
-  --title "Sensend v0.x.0" `
-  --notes "更新内容说明"
-```
-
-也可在网页 https://github.com/jloft198479-cyber/sensend/releases/new 手动创建并拖入安装包。
-
-### 4.2 Gitee API 上传附件失败（历史记录）
-
-> 此节保留作为历史经验。v0.2.0 起已迁移到 GitHub，不再使用 Gitee。
-
-**问题**：使用 Gitee API 上传附件返回 404。
-
-```bash
-curl -X POST "https://gitee.com/api/v5/repos/用户名/项目名/releases/xxx/assets" \
-  -F "access_token=xxx" \
-  -F "file=@installer.exe"
-# 返回：你所访问的页面不存在 (404)
-```
-
-**可能原因**：Token 权限不足 / API 接口限制 / 文件大小限制。
-
-**当时的替代方案**：gitee-release-cli、手动上传、或迁移到 GitHub Release（最终选择）。
-
-### 4.3 代码签名问题
-
-**问题**：下载安装包时浏览器提示"无法识别的应用"。
-
-**原因**：安装包未购买代码签名证书。
-
-**解决方案对比**：
-
-| 方案 | 成本 | 效果 |
-|------|------|------|
-| 购买证书 | 500-2000 元/年 | 无警告 |
-| 免费签名 | 免费，配置复杂 | 需要特定环境 |
-| 提示用户 | 免费 | 用户体验差 |
-
-**临时方案**：在 Release 说明中添加提示
-
-```markdown
-> Windows 可能提示"无法识别的应用"，这是因为安装包未购买代码签名证书。
-> 点击"更多信息" → "仍要运行"即可正常安装。
-```
-
-**免费签名方案**（仅限开源项目）：
-- SignPath + Azure Key Vault
-- 需要配置 Azure 账户
-- 配置复杂，适合有经验的开发者
-
-### 4.4 Release 描述模板
-
-```markdown
-**Sensend v0.1.0**
-
-首个正式发布版本
-
-**功能特性**
-- 悬浮记事本，一键发送到 Notion / FlowUs / 飞书 / 本地
-- 全局快捷键快速唤起
-- 极简、轻盈、优雅
-
-**平台支持**
-- Notion：支持数据库和页面
-- FlowUs：支持多维表和页面
-- 飞书：支持追加文档
-- 本地：创建 .md 文件
-
-**系统要求**
-- Windows 10/11 x64
-
-**安装说明**
-- 下载 `Sensend_0.1.0_x64-setup.exe` 双击安装
-- Windows 可能提示"无法识别的应用"，点击"更多信息" → "仍要运行"
-
-**致谢**
-送给儿子小柏
-```
-
----
-
-## 五、版本控制
-
-### 5.1 Git 路径配置
-
-**问题**：
-```
-git : The term 'git' is not recognized
-```
-
-**原因**：Git 安装在非标准路径（如 D:\Git），未添加到 PATH。
-
-**解决方案**：
-
-方式一：使用完整路径
-```bash
-D:\Git\bin\git.exe status
-```
-
-方式二：添加到 PATH（临时）
+**唯一正确方式**：
 ```powershell
-$env:PATH += ";D:\Git\bin"
-git status
+powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
 ```
 
-方式三：添加到 PATH（永久）
-1. 打开"系统属性" → "环境变量"
-2. 在"Path"中添加 `D:\Git\bin`
-3. 重启终端
+详见 `BUILD-ENV.md`。**报错 ≠ 环境坏**，环境本身完好，只是没加载。
 
-**记录 Git 路径**：
-- 将 Git 安装路径记录在项目文档中
-- 避免每次都要重新查找
+### ⚠️ 3. 飞书"能读不能写"——权限三扇门
 
-### 5.2 干净源码包制作（历史方法）
+飞书的权限模型是最容易卡住人的地方：
 
-> v0.2.0 起项目直接用 git 管理在 `F:\fzz-Project\sensend\sensend`，不再需要手动制作干净源码包。
-> 此节保留作为 robocopy 用法参考。
+| 门 | 在哪设置 | 最容易踩的坑 |
+|---|---|---|
+| ① API 权限 Scope | 开放平台 → 权限管理 | 加了权限但**没发布版本**，线上不生效 |
+| ② 版本发布 | 开放平台 → 版本管理与发布 | 改完权限忘了发版 = 白改 |
+| ③ 资源协作 | 飞书客户端，把应用加进文档协作者 | 有权限但没加协作者，连看都看不了 |
 
-**目标**：创建一个不包含构建产物、依赖、临时文件的干净源码包。
+**关键**：Sensend 的「测试连接」按钮**只测读取，不测写入**。测试通过 ≠ 能写入。详见 `FEISHU-GUIDE.md`。
 
-**方法**：使用 robocopy 复制，排除不需要的目录和文件。
+### ⚠️ 4. 飞书 wiki URL 需要两步解析
 
-```powershell
-# 删除旧目录
-Remove-Item "C:\Users\fzz198479\sensend-release" -Recurse -Force
+飞书 wiki 链接（含 `/wiki/`）不能直接当 document_id 用，需要先调 `/wiki/v2/spaces/get_node` 把 `node_token` 换成 `obj_token`（真正的 document_id）。代码在 `lark.rs` L220-L258。
 
-# 复制文件（路径为 v0.1.0 时期的示例，现已弃用）
-robocopy "F:\sensend" "C:\Users\fzz198479\sensend-release" /E `
-    /XD node_modules target dist .git .backup backup gen `
-    /XF *.txt *.log *.bak HANDOFF.md icon-source.png test-icon.ico `
-    /NFL /NDL /NJH /NJS
-```
+### ⚠️ 5. 飞书仅追加模式——不支持创建新文档
 
-**参数说明**：
-- `/E`：复制子目录，包括空目录
-- `/XD`：排除目录
-- `/XF`：排除文件
-- `/NFL /NDL /NJH /NJS`：减少输出
+飞书适配器是唯一不支持 `publish`（创建新页面）的适配器，只支持 `append_blocks`（追加到已有文档）。前端表单中飞书的写入模式选择被隐藏。
 
-### 5.3 排除文件清单
+### ⚠️ 6. 表格功能是半成品——前端无入口
 
-**必须排除**：
+后端四平台适配器都有表格转换逻辑，编辑器也注册了 TableKit，粘贴表格（HTML/GFM）能正常解析和显示。但**前端没有"插入表格"按钮**，用户无法手动创建表格。详见 `TODO.md`。
 
-| 类型 | 目录/文件 | 原因 |
-|------|-----------|------|
-| 依赖 | node_modules/ | 可通过 npm install 恢复 |
-| 构建产物 | target/, dist/ | 可通过构建命令生成 |
-| 缓存 | .git/, gen/ | 版本控制缓存 |
-| 临时文件 | *.txt, *.log, *.bak | 开发过程产生 |
-| 备份 | .backup/, backup/ | 本地备份，不需要发布 |
-| IDE 配置 | .vscode/, .idea/ | 个人开发环境配置 |
+### ⚠️ 7. Notion resolve_target 三步试探法
 
-**必须包含**：
+Notion 的目标可以是 Database 也可以是 Page，API 没有统一查询接口。代码用三步试探：
+1. 直接查 Database → 成功则按 Database 处理
+2. 查子块 child_database → 成功则按 Database 处理
+3. 兜底按 Page 处理
 
-| 类型 | 文件 | 原因 |
-|------|------|------|
-| 配置 | package.json, Cargo.toml, tauri.conf.json | 项目配置 |
-| 源码 | src/, src-tauri/src/ | 核心代码 |
-| 图标 | src-tauri/icons/ | 应用图标 |
-| 文档 | README.md, LICENSE | 项目说明 |
-| 忽略规则 | .gitignore | 版本控制配置 |
+**v0.4.0 修复**：探测失败（超时/权限）时不再静默降级为 Page，而是阻止发送并报错，防止弱网下多维表内容误写为独立文章。
+
+### ⚠️ 8. mention 唯一性约束
+
+文档中同时只允许一个 mention 节点。插入新 mention 前先删除所有旧 mention 并修正 range 偏移。底栏选择目标与编辑区 mention 双向同步。
 
 ---
 
-## 六、工具使用
+## 四、已知未修复问题
 
-### 6.1 Git 完整路径调用
+> 以下问题已识别但暂不修复，记录在此供后续处理。详见各格式调研报告和 TODO.md。
 
-当 Git 不在 PATH 中时：
+### Notion 侧
 
-```powershell
-# 查看版本
-& "D:\Git\bin\git.exe" --version
+| 问题 | 严重度 | 状态 | 详见 |
+|------|--------|------|------|
+| 429 限流无重试 | P3 | ❌ 未修复 | NOTION-FORMAT-SPEC.md §6.1 P3 |
+| 代码块语言映射缺失 | P1 | ❌ 未修复 | NOTION-FORMAT-SPEC.md §6.2 |
 
-# 克隆仓库
-& "D:\Git\bin\git.exe" clone https://gitee.com/user/repo.git
+### 飞书侧（维持当前设计，暂不深入修复）
 
-# 查看状态
-& "D:\Git\bin\git.exe" status
+| 问题 | 严重度 | 状态 | 详见 |
+|------|--------|------|------|
+| 429/99991400 限流无重试 | P1 | ❌ 未修复 | FEISHU-FORMAT-SPEC.md §6.1 P1-1 |
+| 表格降级为文本 | P1 | ❌ 设计决策 | FEISHU-FORMAT-SPEC.md §6.1 P1-2 |
+| 引用未用 quote_container 嵌套 | P1 | ❌ 未修复 | FEISHU-FORMAT-SPEC.md §6.1 P1-3 |
+| text_run 无长度上限检查 | P1 | ❌ 未修复 | FEISHU-FORMAT-SPEC.md §6.1 P1-4 |
 
-# 提交
-& "D:\Git\bin\git.exe" add .
-& "D:\Git\bin\git.exe" commit -m "message"
-& "D:\Git\bin\git.exe" push
-```
+### 前端侧
 
-### 6.2 robocopy 文件复制
-
-robocopy 是 Windows 内置的强大文件复制工具：
-
-```powershell
-# 基本用法
-robocopy "源目录" "目标目录" /E
-
-# 排除目录
-robocopy "源" "目标" /E /XD dir1 dir2
-
-# 排除文件
-robocopy "源" "目标" /E /XF *.log *.tmp
-
-# 镜像复制（删除目标中多余的文件）
-robocopy "源" "目标" /MIR
-
-# 仅复制新文件
-robocopy "源" "目标" /XO
-```
-
-**常用参数**：
-
-| 参数 | 说明 |
-|------|------|
-| /E | 复制子目录，包括空目录 |
-| /S | 复制子目录，不包括空目录 |
-| /MIR | 镜像复制 |
-| /XD | 排除目录 |
-| /XF | 排除文件 |
-| /XO | 排除较旧的文件 |
-| /NFL | 不记录文件名 |
-| /NDL | 不记录目录名 |
-| /NJH | 不显示作业头 |
-| /NJS | 不显示作业摘要 |
-
-### 6.3 PowerShell 常用命令
-
-```powershell
-# 文件操作
-Get-ChildItem "路径"                    # 列出文件
-Get-Content "文件路径"                  # 读取文件
-Copy-Item "源" "目标"                   # 复制文件
-Move-Item "源" "目标"                   # 移动文件
-Remove-Item "路径" -Recurse -Force      # 删除文件/目录
-
-# 目录操作
-New-Item -ItemType Directory -Path "路径"  # 创建目录
-Test-Path "路径"                           # 检查是否存在
-
-# 进程操作
-Get-Process                              # 查看进程
-Stop-Process -Name "进程名"              # 停止进程
-
-# 网络操作
-Invoke-WebRequest -Uri "URL" -OutFile "文件"  # 下载文件
-Invoke-RestMethod -Uri "URL" -Method POST     # API 请求
-
-# 环境变量
-$env:PATH                               # 查看 PATH
-$env:PATH += ";新路径"                   # 添加到 PATH
-```
+| 问题 | 严重度 | 状态 | 详见 |
+|------|--------|------|------|
+| 表格前端入口缺失 | 中 | ❌ 待实现 | TODO.md |
+| 空检查正则对带空格的 @实例名失效 | 低 | ❌ 记此备查 | TODO.md |
 
 ---
 
-## 七、问题排查
-
-### 7.1 构建失败排查清单
-
-| 错误信息 | 可能原因 | 解决方案 |
-|----------|----------|----------|
-| `NSIS directory contains mis-hashed files` | 插件版本不对 | 下载正确版本的 nsis_tauri_utils.dll |
-| `failed to bundle project` | NSIS 配置不完整 | 检查目录结构是否完整 |
-| `Connection refused` | 网络问题，无法下载依赖 | 手动下载并放到正确位置 |
-| `git is not recognized` | Git 不在 PATH | 使用完整路径或添加到 PATH |
-| `npm ERR!` | 依赖安装失败 | 删除 node_modules 重新安装 |
-
-**排查步骤**：
-
-1. 检查 NSIS 目录结构
-```powershell
-Get-ChildItem "$env:LOCALAPPDATA\tauri\NSIS" -Recurse
-```
-
-2. 检查插件是否存在
-```powershell
-Test-Path "$env:LOCALAPPDATA\tauri\NSIS\Plugins\x86-unicode\additional\nsis_tauri_utils.dll"
-```
-
-3. 检查 Rust 环境
-```bash
-rustc --version
-cargo --version
-```
-
-4. 检查 Node.js 环境
-```bash
-node --version
-npm --version
-```
-
-### 7.2 常见错误信息解读
-
-**错误 1**：
-```
-error: linking with `link.exe` failed
-```
-
-**原因**：缺少 Visual Studio Build Tools 或 Windows SDK。
-
-**解决方案**：安装 Visual Studio Build Tools，选择"使用 C++ 的桌面开发"。
-
----
-
-**错误 2**：
-```
-error: failed to run custom build command for `openssl-sys`
-```
-
-**原因**：缺少 OpenSSL。
-
-**解决方案**：
-- Windows：安装 OpenSSL for Windows
-- 或使用 `cargo install openssl` 安装
-
----
-
-**错误 3**：
-```
-npm ERR! EACCES: permission denied
-```
-
-**原因**：权限不足。
-
-**解决方案**：
-- Windows：以管理员身份运行
-- Linux/macOS：使用 `sudo npm install`
-
----
-
-**错误 4**：
-```
-Error: WebView2 not found
-```
-
-**原因**：缺少 WebView2 运行时。
-
-**解决方案**：
-- Windows 10/11 通常已内置
-- 手动下载安装：https://developer.microsoft.com/en-us/microsoft-edge/webview2/
-
----
-
-## 八、附录
-
-### 8.1 项目路径记录
+## 五、项目路径速查
 
 | 路径 | 用途 |
 |------|------|
@@ -659,50 +248,25 @@ Error: WebView2 not found
 
 > 历史：v0.1.0 时期主目录为 `F:\sensend`，沙箱目录为 `C:\Users\fzz198479\sensend-du`，已弃用。
 
-### 8.2 下载链接汇总
+---
 
-| 资源 | 链接 |
-|------|------|
-| NSIS 3.11 | https://github.com/tauri-apps/binary-releases/releases/download/nsis-3.11/nsis-3.11.zip |
-| nsis_tauri_utils v0.5.3 | https://github.com/tauri-apps/nsis-tauri-utils/releases/download/nsis_tauri_utils-v0.5.3/nsis_tauri_utils.dll |
-| Node.js | https://nodejs.org |
-| Rust | https://rustup.rs |
-| Git | https://git-scm.com |
-| Visual Studio Build Tools | https://visualstudio.microsoft.com/visual-cpp-build-tools/ |
+## 六、文档索引
 
-### 8.3 常用命令速查表
-
-```bash
-# === 开发 ===
-npm install                    # 安装依赖
-npm run tauri dev              # 开发模式运行
-npm run build                  # 构建前端
-npm run tauri build            # 构建发布版本
-
-# === Rust ===
-cargo build                    # 调试构建
-cargo build --release          # 发布构建
-cargo check                    # 快速检查
-cargo clippy                   # 代码检查
-
-# === Git ===
-git status                     # 查看状态
-git add .                      # 添加所有文件
-git commit -m "message"        # 提交
-git push                       # 推送
-git pull                       # 拉取
-git tag v0.1.0                 # 创建标签
-git push --tags                # 推送标签
-
-# === 清理 ===
-rm -rf node_modules            # 删除依赖
-rm -rf src-tauri/target        # 删除构建产物
-npm cache clean --force        # 清理 npm 缓存
-cargo clean                    # 清理 cargo 缓存
-```
+| 文档 | 定位 | 何时读 |
+|------|------|--------|
+| `CODE-WIKI.md` | 代码百科，系统全貌 | **第一个读**——了解架构、模块、数据流 |
+| `BUILD-ENV.md` | 构建环境速查 | 动手构建前读 |
+| `BUILD-GUIDE.md` | 打包发布手册 | 需要打包或发布时读 |
+| `FORMAT-FIXES.md` | 格式兼容性排查 | 遇到编辑器格式问题时读 |
+| `FEISHU-GUIDE.md` | 飞书对接指南 | 配置飞书或排查飞书问题时读 |
+| `NOTION-FORMAT-SPEC.md` | Notion 格式调研 | 改 Notion 适配器时读 |
+| `FEISHU-FORMAT-SPEC.md` | 飞书格式调研 | 改飞书适配器时读 |
+| `TODO.md` | 待办事项 | 规划下一步工作时读 |
+| `YOUDAO-MCP-FEASIBILITY.md` | 有道云笔记接入调研 | 需要接入有道云时读 |
+| 本文档 | 开发经验与重难点 | **第二个读**——掌握踩坑经验和关键约束 |
 
 ---
 
-> 本手册基于 Sensend 开发经验整理，最近一次更新对齐 v0.3.0（2026-07-31）
+> 本手册基于 Sensend 开发经验整理，最近一次更新对齐 v0.4.0（2026-08-18）
 > 记录人：简乐
 > 致谢：送给儿子小柏

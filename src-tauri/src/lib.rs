@@ -60,6 +60,10 @@ pub fn run() {
             // 注册全局唤醒快捷键
             commands::hotkey::init_hotkeys(&app.handle().clone());
 
+            // 窗口底色跟随已存主题（防启动闪色）
+            let bg = commands::platform::stored_window_bg(&app.handle());
+            commands::platform::apply_window_bg(&app.handle(), bg);
+
             // 系统托盘
             if app.tray_by_id("main").is_none() {
                 let show_item = MenuItemBuilder::with_id("show", "显示窗口").build(app)?;

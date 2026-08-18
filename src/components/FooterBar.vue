@@ -16,10 +16,26 @@ const emit = defineEmits<{
   'open-hotkey': []
   'open-data-dir': []
   'select-target': [instanceId: string]
+  'clear': []
 }>()
 
 const showMenu = ref(false)
 const showPicker = ref(false)
+
+// ── 清空笔记（两步确认防误触，3 秒无操作还原）──
+const confirmingClear = ref(false)
+let clearTimer: ReturnType<typeof setTimeout> | null = null
+function onClearClick() {
+  if (confirmingClear.value) {
+    emit('clear')
+    confirmingClear.value = false
+    if (clearTimer) { clearTimeout(clearTimer); clearTimer = null }
+  } else {
+    confirmingClear.value = true
+    if (clearTimer) clearTimeout(clearTimer)
+    clearTimer = setTimeout(() => { confirmingClear.value = false }, 3000)
+  }
+}
 
 function selectTarget(id: string) {
   emit('select-target', id)
@@ -62,6 +78,7 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   document.removeEventListener('click', onDocClick)
+  if (clearTimer) { clearTimeout(clearTimer); clearTimer = null }
 })
 function onDocClick(e: MouseEvent) {
   if (showMenu.value && !(e.target as HTMLElement).closest('.settings-group')) {
@@ -119,6 +136,18 @@ function onDocClick(e: MouseEvent) {
       </div>
     </div>
     <div class="footer-right">
+      <!-- 清空笔记（两步确认防误触） -->
+      <button class="footer-btn clear-btn" :class="{ confirming: confirmingClear }"
+        @click.stop="onClearClick"
+        :title="confirmingClear ? '再次点击确认清空' : '清空笔记'" aria-label="清空笔记">
+        <svg v-if="!confirmingClear" width="14" height="14" viewBox="0 0 24 24" fill="none"
+          stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"/>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+        </svg>
+        <span v-else class="clear-confirm-text">确认清空？</span>
+      </button>
       <!-- 设置按钮 + 下拉菜单 -->
       <div class="settings-group">
         <button class="footer-btn" @click.stop="toggleMenu" title="设置" aria-label="设置">
@@ -234,8 +263,8 @@ function onDocClick(e: MouseEvent) {
   display: inline-flex;
   align-items: center;
   color: var(--accent);
-  background: linear-gradient(135deg, var(--accent-light) 0%, rgba(44, 175, 104, 0.03) 100%);
-  border: 1px solid rgba(44, 175, 104, 0.15);
+  background: linear-gradient(135deg, var(--accent-light) 0%, color-mix(in srgb, var(--accent) 3%, transparent) 100%);
+  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
   border-radius: 5px;
   padding: 1px 6px;
   font-size: 12px;
@@ -245,8 +274,8 @@ function onDocClick(e: MouseEvent) {
   user-select: none;
 }
 .target-mention:hover {
-  background: linear-gradient(135deg, rgba(44, 175, 104, 0.12) 0%, rgba(44, 175, 104, 0.06) 100%);
-  border-color: rgba(44, 175, 104, 0.25);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, color-mix(in srgb, var(--accent) 6%, transparent) 100%);
+  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .target-mention.placeholder {
   color: var(--muted);
@@ -363,6 +392,20 @@ function onDocClick(e: MouseEvent) {
 .footer-btn:hover {
   background: var(--bg-hover);
   color: var(--fg);
+}
+
+/* 清空按钮（两步确认态） */
+.clear-btn { color: var(--fg-secondary); }
+.clear-btn.confirming {
+  width: auto;
+  padding: 0 10px;
+  color: var(--danger);
+  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
+}
+.clear-confirm-text {
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* 设置按钮组 */

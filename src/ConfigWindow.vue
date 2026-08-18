@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
-import { getColorForType } from './types/platform'
 import { useConfig } from './composables/useConfig'
 
 const {
@@ -146,7 +145,6 @@ onMounted(() => { loadData() })
       <div v-else class="instance-list">
         <div v-for="inst in instances" :key="inst.id" class="instance-card">
           <div class="instance-info">
-            <span class="instance-dot" :style="{ background: getColorForType(platformTypes, inst.platform_type) }"></span>
             <div class="instance-text">
               <span class="instance-name">{{ inst.name }}</span>
               <span class="instance-type">
@@ -345,7 +343,7 @@ onMounted(() => { loadData() })
   transition: border-color 0.15s;
   box-sizing: border-box;
 }
-.form-input:focus { border-color: var(--accent); background: white; }
+.form-input:focus { border-color: var(--accent); background: var(--bg); }
 .form-input::placeholder { color: var(--gray-placeholder); }
 
 .input-with-toggle {
@@ -455,12 +453,6 @@ onMounted(() => { loadData() })
   gap: 10px;
   min-width: 0;
 }
-.instance-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
 .instance-text {
   display: flex;
   flex-direction: column;
@@ -486,14 +478,14 @@ onMounted(() => { loadData() })
   font-size: 10px;
   font-weight: 600;
   color: var(--accent);
-  background: rgba(44, 175, 104, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
   padding: 0 5px;
   border-radius: 3px;
   line-height: 16px;
 }
 .mode-tag.page-tag {
   color: var(--accent);
-  background: rgba(44, 175, 104, 0.1);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
 }
 .instance-actions {
   display: flex;

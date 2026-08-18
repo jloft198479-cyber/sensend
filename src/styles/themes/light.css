@@ -1,0 +1,49 @@
+/* ═══ 浅色主题（默认）═══
+   主题只定义"颜色相关"变量；新增主题 = 复制本文件改色值 + 换 data-theme 选择器 + useTheme.ts 注册 */
+
+:root {
+  /* === Sensend 配色体系 V2 === */
+
+  /* 背景层 */
+  --bg: #ffffff;
+  --bg-page: #f8f9fa;
+
+  /* 文字层级 */
+  --fg: #333333;
+  --fg-secondary: #666666;
+  --muted: #737373;
+
+  /* 边框 & 分隔 */
+  --border-color: rgba(0, 0, 0, 0.06);
+
+  /* 主色 — 印象笔记风格绿 */
+  --accent: #2CAF68;
+  --accent-hover: #25a05c;
+  --accent-light: #eaf7ef;
+
+  /* 语义色 — 成功/错误 */
+  --danger: #DC2626;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --success-bg: #f0fdf4;
+  --success-text: #15803d;
+  --success-border: #bbf7d0;
+
+  /* 灰度色板（统一中性灰） */
+  --gray-border: #e4e4e7;
+  --gray-hover: #f4f4f5;
+  --gray-input-bg: #fafafa;
+  --gray-scrollbar: #d4d4d8;
+  --gray-placeholder: #a1a1aa;
+  --brand-muted: #999;
+
+  /* 交互状态 */
+  --bg-hover: rgba(0, 0, 0, 0.06);
+
+  /* 编辑器专用 */
+  --code-bg: #f5f5f5;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+}

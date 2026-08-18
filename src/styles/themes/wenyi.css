@@ -1,0 +1,47 @@
+/* ═══ 文艺风 — 暖纸书卷 ═══
+   iA Writer 哲学：暖白纸面、碳黑文字、驼色点缀，克制留白 */
+
+[data-theme="wenyi"] {
+  /* 背景层 */
+  --bg: #faf8f3;
+  --bg-page: #f3efe6;
+
+  /* 文字层级 */
+  --fg: #2c2822;
+  --fg-secondary: #6d6455;
+  --muted: #8b8172;
+
+  /* 边框 & 分隔 */
+  --border-color: rgba(90, 70, 40, 0.1);
+
+  /* 主色 — 驼褐（浅而轻盈，不取深金褐） */
+  --accent: #a17a45;
+  --accent-hover: #8d6a3a;
+  --accent-light: #f3ecdd;
+
+  /* 语义色 — 砖红/橄榄，柔化不刺眼 */
+  --danger: #b5443c;
+  --danger-bg: #faf1ee;
+  --danger-border: #eed6d0;
+  --success-bg: #f0f4e8;
+  --success-text: #5f7d46;
+  --success-border: #d9e2c8;
+
+  /* 灰度色板（暖调灰） */
+  --gray-border: #e6e0d3;
+  --gray-hover: #f2eee4;
+  --gray-input-bg: #f6f2e9;
+  --gray-scrollbar: #d6cfbf;
+  --gray-placeholder: #a99e8b;
+  --brand-muted: #a49a88;
+
+  /* 交互状态 */
+  --bg-hover: rgba(90, 70, 40, 0.06);
+
+  /* 编辑器专用 */
+  --code-bg: #f1ebdd;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(90, 70, 40, 0.12);
+  --scrollbar-thumb-hover: rgba(90, 70, 40, 0.22);
+}

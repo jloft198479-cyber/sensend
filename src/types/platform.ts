@@ -11,7 +11,6 @@ export interface PlatformInstance {
 export interface PlatformTypeInfo {
   key: string
   name: string
-  color: string
   fields: PlatformField[]
 }
 
@@ -30,11 +29,6 @@ export interface PublishResult {
   success: boolean
   message: string
   url: string | null
-}
-
-/** 根据平台类型 key 返回主题色，用于 UI 着色 */
-export function getColorForType(types: PlatformTypeInfo[], type: string): string {
-  return types.find(t => t.key === type)?.color || '#999'
 }
 
 /** 统一实例显示名称：实例名-平台类型（如“随心记-flowus”） */

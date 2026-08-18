@@ -1,7 +1,7 @@
 # Sensend 打包与发布手册
 
-> 作者：简乐  
-> 更新时间：2026-07-31
+> 作者：简乐
+> 更新时间：2026-08-18（对齐 v0.4.0）
 
 ---
 
@@ -171,33 +171,7 @@ D:\Git\bin\git.exe --version
 $env:PATH += ";D:\Git\bin"
 ```
 
-### 3.5 Gitee API 上传附件失败（历史记录）
-
-> v0.2.0 起已迁移到 GitHub，使用 `gh` CLI 上传 Release 附件，此节保留作为历史经验。
-
-**现象**：
-```
-你所访问的页面不存在 (404)
-```
-
-**原因**：Gitee API 上传 Release 附件可能需要特殊权限或 Token 配置。
-
-**解决方案**：
-
-方案一：使用官方命令行工具
-```bash
-npm install -g gitee-release-cli
-gitee-release config accessToken 你的令牌
-gitee-release assets upload /path/to/file.exe --target 0.1.0
-```
-
-方案二：手动上传
-1. 打开 https://gitee.com/用户名/项目名/releases
-2. 点击对应版本"编辑"
-3. 拖入安装包文件
-4. 点击"更新发行版"
-
-### 3.6 Windows 安全警告
+### 3.5 Windows 安全警告
 
 **现象**：下载安装包时浏览器提示"无法识别的应用"。
 
@@ -275,46 +249,7 @@ gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64
 
 ---
 
-## 五、文件清单
-
-### 5.1 必需文件
-
-```
-项目根目录/
-├── .gitignore
-├── index.html
-├── LICENSE
-├── package.json
-├── package-lock.json
-├── README.md
-├── tsconfig.json
-├── tsconfig.node.json
-├── vite.config.ts
-├── src/                    # 前端源码
-└── src-tauri/              # 后端源码
-    ├── Cargo.toml
-    ├── Cargo.lock
-    ├── tauri.conf.json
-    ├── build.rs
-    ├── capabilities/
-    ├── icons/
-    └── src/
-```
-
-### 5.2 排除文件
-
-| 类型 | 示例 |
-|------|------|
-| 依赖目录 | node_modules/, target/ |
-| 构建产物 | dist/, *.exe |
-| 缓存文件 | .git/, gen/ |
-| 临时文件 | *.txt, *.log, *.bak |
-| 备份目录 | .backup/, backup/ |
-| 开发笔记 | HANDOFF.md |
-
----
-
-## 六、常用命令速查
+## 五、常用命令速查
 
 ```bash
 # 开发
@@ -326,7 +261,7 @@ npm run tauri build
 # 仅构建前端
 npm run build
 
-# 仅构建后端
+# 仅构建后端（须先加载 MSVC 环境，或用 build-release.ps1）
 cd src-tauri && cargo build --release
 
 # 查看 Git 状态
@@ -345,17 +280,17 @@ gh release create v0.x.0 "src-tauri\target\release\bundle\nsis\Sensend_0.x.0_x64
 
 ---
 
-## 七、问题排查清单
+## 六、问题排查清单
 
 | 问题 | 检查项 | 解决方案 |
 |------|--------|----------|
 | 构建失败 | NSIS 目录结构 | 检查 `%LOCALAPPDATA%\tauri\NSIS\` |
 | 构建失败 | 插件版本 | 确认 nsis_tauri_utils.dll 为 v0.5.3 |
+| 构建失败 | MSVC 环境未加载 | 用 `scripts/build-release.ps1`，不要裸跑 `npm run tauri build` |
 | 无图标 | tauri.conf.json | 添加 windows.nsis 配置 |
 | Git 命令失败 | PATH 环境变量 | 使用完整路径或添加到 PATH |
-| 上传失败 | Token 权限 | 检查 Token 是否有 repo 权限 |
-| API 404 | 接口路径 | 确认 API 版本为 v5 |
+| 安全警告 | 未签名 | Release 说明中提示用户点击"仍可运行" |
 
 ---
 
-> 本手册基于 Sensend 打包发布经验整理，最近一次验证：v0.3.0（2026-07-31）
+> 本手册基于 Sensend 打包发布经验整理，最近一次验证：v0.4.0（2026-08-18）

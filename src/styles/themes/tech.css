@@ -1,0 +1,47 @@
+/* ═══ 科技风 — 冷白电光 ═══
+   浅色科技感：冷白底 + 电光蓝主色，冷静克制（深色系请用"暗夜"主题） */
+
+[data-theme="tech"] {
+  /* 背景层 */
+  --bg: #fbfcfe;
+  --bg-page: #f2f5f9;
+
+  /* 文字层级 */
+  --fg: #1f2937;
+  --fg-secondary: #4b5563;
+  --muted: #6b7280;
+
+  /* 边框 & 分隔 */
+  --border-color: rgba(30, 58, 138, 0.12);
+
+  /* 主色 — 电光蓝 */
+  --accent: #3b82f6;
+  --accent-hover: #2f6fe0;
+  --accent-light: #e6effd;
+
+  /* 语义色 */
+  --danger: #ef4444;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --success-bg: #ecfdf5;
+  --success-text: #059669;
+  --success-border: #a7f3d0;
+
+  /* 灰度色板（冷调灰蓝） */
+  --gray-border: #e5e7eb;
+  --gray-hover: #f1f4f8;
+  --gray-input-bg: #f8fafc;
+  --gray-scrollbar: #cbd5e1;
+  --gray-placeholder: #9ca3af;
+  --brand-muted: #8b95a5;
+
+  /* 交互状态 */
+  --bg-hover: rgba(30, 58, 138, 0.06);
+
+  /* 编辑器专用 */
+  --code-bg: #eef2f7;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(30, 58, 138, 0.12);
+  --scrollbar-thumb-hover: rgba(30, 58, 138, 0.22);
+}
