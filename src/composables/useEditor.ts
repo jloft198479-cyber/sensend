@@ -388,6 +388,8 @@ export function useSensendEditor(
 
   async function doSave() {
     if (!editor.value) return
+    // 防止并发保存：上一次保存仍在进行中时跳过
+    if (saveStatus.value === 'saving') return
 
     // [OPT] 内容差异检测：序列化后与上次保存比较，相同则跳过磁盘 I/O
     const content = JSON.stringify(editor.value.getJSON())
@@ -414,7 +416,8 @@ export function useSensendEditor(
   async function handleExitRequest() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
     if (wordCountTimer) { clearTimeout(wordCountTimer); wordCountTimer = null }
-    await doSave()
+    // 仅有未保存内容时才执行保存
+    if (saveStatus.value === 'unsaved') await doSave()
     await invoke('request_quit')
   }
 

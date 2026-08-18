@@ -9,7 +9,7 @@ static HTTP_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 pub fn http_client() -> &'static reqwest::Client {
     HTTP_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(30))
+            .timeout(std::time::Duration::from_secs(15))
             .build()
             .expect("Failed to build HTTP client")
     })
