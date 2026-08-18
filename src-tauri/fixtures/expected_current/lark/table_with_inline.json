@@ -1,54 +1,95 @@
 [
   {
-    "block_type": 2,
-    "text": {
-      "elements": [
-        {
-          "text_run": {
-            "content": "列名",
-            "text_element_style": {
-              "bold": true
+    "block_type": 31,
+    "children": [
+      {
+        "block_type": 32,
+        "children": [
+          {
+            "block_type": 2,
+            "text": {
+              "elements": [
+                {
+                  "text_run": {
+                    "content": "列名",
+                    "text_element_style": {
+                      "bold": true
+                    }
+                  }
+                }
+              ],
+              "style": {}
             }
           }
-        },
-        {
-          "text_run": {
-            "content": " | "
-          }
-        },
-        {
-          "text_run": {
-            "content": "说明"
-          }
-        }
-      ],
-      "style": {}
-    }
-  },
-  {
-    "block_type": 2,
-    "text": {
-      "elements": [
-        {
-          "text_run": {
-            "content": "值 1"
-          }
-        },
-        {
-          "text_run": {
-            "content": " | "
-          }
-        },
-        {
-          "text_run": {
-            "content": "值 2",
-            "text_element_style": {
-              "italic": true
+        ],
+        "table_cell": {}
+      },
+      {
+        "block_type": 32,
+        "children": [
+          {
+            "block_type": 2,
+            "text": {
+              "elements": [
+                {
+                  "text_run": {
+                    "content": "说明"
+                  }
+                }
+              ],
+              "style": {}
             }
           }
-        }
-      ],
-      "style": {}
+        ],
+        "table_cell": {}
+      },
+      {
+        "block_type": 32,
+        "children": [
+          {
+            "block_type": 2,
+            "text": {
+              "elements": [
+                {
+                  "text_run": {
+                    "content": "值 1"
+                  }
+                }
+              ],
+              "style": {}
+            }
+          }
+        ],
+        "table_cell": {}
+      },
+      {
+        "block_type": 32,
+        "children": [
+          {
+            "block_type": 2,
+            "text": {
+              "elements": [
+                {
+                  "text_run": {
+                    "content": "值 2",
+                    "text_element_style": {
+                      "italic": true
+                    }
+                  }
+                }
+              ],
+              "style": {}
+            }
+          }
+        ],
+        "table_cell": {}
+      }
+    ],
+    "table": {
+      "property": {
+        "column_size": 2,
+        "row_size": 2
+      }
     }
   }
 ]

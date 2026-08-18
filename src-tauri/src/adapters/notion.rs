@@ -5,6 +5,48 @@ use serde_json::{json, Value};
 const API_BASE: &str = "https://api.notion.com/v1";
 const NOTION_VERSION: &str = "2022-06-28";
 
+// ── Notion 代码块语言映射（common aliases → Notion 官方 language 枚举值）──
+// 未知语言回落 "plain text"（官方枚举成员，表示无高亮纯文本）
+const NOTION_LANG_MAP: &[(&str, &str)] = &[
+    ("plaintext", "plain text"), ("text", "plain text"), ("txt", "plain text"),
+    ("bash", "bash"), ("sh", "shell"), ("shell", "shell"), ("zsh", "shell"), ("console", "shell"),
+    ("csharp", "c#"), ("cs", "c#"), ("c#", "c#"),
+    ("cpp", "c++"), ("c++", "c++"), ("cxx", "c++"),
+    ("c", "c"),
+    ("css", "css"), ("scss", "css"), ("less", "css"),
+    ("dockerfile", "docker"),
+    ("go", "go"), ("golang", "go"),
+    ("html", "html"), ("xml", "xml"), ("svg", "xml"),
+    ("json", "json"),
+    ("java", "java"),
+    ("javascript", "javascript"), ("js", "javascript"),
+    ("jsx", "javascript"),
+    ("kotlin", "kotlin"), ("kt", "kotlin"),
+    ("lua", "lua"),
+    ("markdown", "markdown"), ("md", "markdown"),
+    ("php", "php"),
+    ("perl", "perl"),
+    ("python", "python"), ("py", "python"),
+    ("ruby", "ruby"), ("rb", "ruby"),
+    ("rust", "rust"), ("rs", "rust"),
+    ("scala", "scala"),
+    ("swift", "swift"),
+    ("typescript", "typescript"), ("ts", "typescript"), ("tsx", "typescript"),
+    ("yaml", "yaml"), ("yml", "yaml"),
+    ("sql", "sql"),
+    ("toml", "toml"), ("ini", "toml"),
+];
+
+/// 编辑器语言字符串 → Notion 官方 language 枚举值，未知回落 "plain text"
+fn map_language(lang: &str) -> &str {
+    let lower = lang.to_lowercase();
+    NOTION_LANG_MAP
+        .iter()
+        .find(|(k, _)| *k == lower)
+        .map(|(_, v)| *v)
+        .unwrap_or("plain text")
+}
+
 pub struct NotionAdapter;
 
 /// 从 Notion 数据库 schema 中提取的列名信息
@@ -117,17 +159,16 @@ impl NotionAdapter {
             }
             Block::List { kind, items } => {
                 for item in items {
-                    out.push(self.map_list_item(*kind, item));
+                    out.push(self.map_list_item(*kind, item, 1));
                 }
             }
             Block::CodeBlock { language, code } => {
-                let lang = if language.is_empty() { "plain text" } else { language.as_str() };
                 out.push(json!({
                     "object": "block",
                     "type": "code",
                     "code": {
                         "rich_text": [{ "type": "text", "text": { "content": code } }],
-                        "language": lang
+                        "language": map_language(language)
                     }
                 }));
             }
@@ -185,8 +226,9 @@ impl NotionAdapter {
     }
 
     /// 列表项 → Notion block（嵌套子列表进 children，修复 #2）
-    /// 注意：Notion 单请求 children 仅支持两层嵌套
-    fn map_list_item(&self, kind: super::ir::ListKind, item: &super::ir::ListItem) -> Value {
+    /// depth 从 1 计：Notion 单请求 children 嵌套上限 2 层，第 3 层起子项文本
+    /// 以 \n 拼进父项 rich_text（保文本，层级降级），避免 API validation_error
+    fn map_list_item(&self, kind: super::ir::ListKind, item: &super::ir::ListItem, depth: usize) -> Value {
         let (block_type, checked) = match kind {
             super::ir::ListKind::Bullet => ("bulleted_list_item", None),
             super::ir::ListKind::Ordered => ("numbered_list_item", None),
@@ -206,20 +248,39 @@ impl NotionAdapter {
         if let Some(checked) = checked {
             data.insert("checked".into(), json!(checked));
         }
-        // 嵌套子列表：映射为 children（仅一层，多层由 Notion API 限制）
+
+        let can_nest = depth < 2;
+        let mut overflow_texts: Vec<String> = Vec::new();
+
         let children: Vec<Value> = item
             .children
             .iter()
             .filter_map(|c| match c {
                 super::ir::Block::List { items: sub_items, kind: sub_kind } => {
-                    Some(sub_items.iter().map(|it| self.map_list_item(*sub_kind, it)).collect::<Vec<Value>>())
+                    Some(sub_items.iter().map(|it| {
+                        if can_nest {
+                            self.map_list_item(*sub_kind, it, depth + 1)
+                        } else {
+                            // 超过 2 层：收集文本稍后拼进父项（collect_list_texts 复用多段逻辑）
+                            collect_list_texts(*sub_kind, it, &mut overflow_texts);
+                            Value::Null
+                        }
+                    }).collect::<Vec<Value>>())
                 }
                 _ => None,
             })
             .flatten()
+            .filter(|v| !v.is_null())
             .collect();
         if !children.is_empty() {
             data.insert("children".into(), json!(children));
+        }
+        // 溢出文本拼进父项 rich_text（缩进保留层级语义）
+        for text in overflow_texts {
+            let rt_arr = data.get_mut("rich_text").and_then(|v| v.as_array_mut());
+            if let Some(arr) = rt_arr {
+                arr.push(json!({"type": "text", "text": {"content": format!("\n  {}", text)}}));
+            }
         }
 
         json!({
@@ -534,6 +595,39 @@ impl PlatformAdapter for NotionAdapter {
     }
 }
 
+/// 超深子列表 → 纯文本收集（Notion 嵌套上限 2 层，溢出文本拼进父项 rich_text 防丢失）
+/// 前缀保留层级语义：无序 - / 有序 1. / 待办 [x]
+fn collect_list_texts(kind: super::ir::ListKind, item: &super::ir::ListItem, out: &mut Vec<String>) {
+    use super::ir::{Inline, ListKind};
+
+    let text = item.inlines.iter()
+        .chain(item.extra_paras.iter().flatten())
+        .map(|inline| match inline {
+            Inline::Text { text, .. } => text.clone(),
+            Inline::Break => "\n".to_string(),
+            Inline::Mention(label) => format!("@{}", label),
+        })
+        .collect::<String>();
+    let prefix = match kind {
+        ListKind::Bullet => "- ",
+        ListKind::Ordered => "1. ",
+        ListKind::Task => {
+            if item.checked.unwrap_or(false) { "[x] " } else { "[ ] " }
+        }
+    };
+    let line = if text.trim().is_empty() { String::new() } else { format!("{}{}", prefix, text) };
+    if !line.is_empty() {
+        out.push(line);
+    }
+    for child in &item.children {
+        if let super::ir::Block::List { items: sub_items, kind: sub_kind } = child {
+            for sub in sub_items {
+                collect_list_texts(*sub_kind, sub, out);
+            }
+        }
+    }
+}
+
 /// IR 行内内容 → Notion rich_text 数组
 /// hardBreak → 换行文本（修复 #1）；mention → "@标签" 文本（防数据丢失）；
 /// text.content 上限 2000 字符（Notion API 限制），超长按字符切片，每片携带相同的 anno/link；
@@ -674,5 +768,80 @@ mod tests {
             .filter_map(|t| t.get("text").and_then(|t| t.get("content")).and_then(|c| c.as_str()))
             .collect();
         assert_eq!(first_text, title);
+    }
+
+    #[test]
+    fn fix_p1_language_mapping() {
+        // 别名 → Notion 官方枚举
+        assert_eq!(map_language("plaintext"), "plain text");
+        assert_eq!(map_language("text"), "plain text");
+        assert_eq!(map_language("cpp"), "c++");
+        assert_eq!(map_language("CSharp"), "c#");
+        assert_eq!(map_language("js"), "javascript");
+        assert_eq!(map_language("ts"), "typescript");
+        assert_eq!(map_language("py"), "python");
+        assert_eq!(map_language("rs"), "rust");
+        assert_eq!(map_language("sh"), "shell");
+        // 本身即枚举值的直传
+        assert_eq!(map_language("rust"), "rust");
+        assert_eq!(map_language("python"), "python");
+        // 未知/空 → plain text
+        assert_eq!(map_language("brainfuck"), "plain text");
+        assert_eq!(map_language(""), "plain text");
+    }
+
+    #[test]
+    fn fix_p1_list_depth_capped_at_two() {
+        // 3 层嵌套：第 3 层文本应拼进第 2 层 rich_text，不再产生孙 children
+        let doc = serde_json::json!({
+            "type": "doc",
+            "content": [
+                {
+                    "type": "bulletList",
+                    "content": [
+                        {
+                            "type": "listItem",
+                            "content": [
+                                { "type": "paragraph", "content": [{ "type": "text", "text": "L1" }] },
+                                {
+                                    "type": "bulletList",
+                                    "content": [
+                                        {
+                                            "type": "listItem",
+                                            "content": [
+                                                { "type": "paragraph", "content": [{ "type": "text", "text": "L2" }] },
+                                                {
+                                                    "type": "bulletList",
+                                                    "content": [
+                                                        {
+                                                            "type": "listItem",
+                                                            "content": [
+                                                                { "type": "paragraph", "content": [{ "type": "text", "text": "L3" }] }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        });
+        let blocks = convert(&doc);
+        let l1 = &blocks[0];
+        let l2 = &l1["bulleted_list_item"]["children"][0];
+        let l2_obj = &l2["bulleted_list_item"];
+        // L2 的 rich_text 应含 L3 溢出文本
+        let l2_text: String = l2_obj["rich_text"].as_array().unwrap().iter()
+            .filter_map(|t| t["text"]["content"].as_str())
+            .collect();
+        assert!(l2_text.contains("L3"), "第 3 层文本应拼进第 2 层: {}", l2_text);
+        // L2 不应有孙 children（Notion 上限 2 层）
+        let has_children = l2_obj.get("children").is_some();
+        assert!(!has_children, "第 2 层不应再有 children");
     }
 }

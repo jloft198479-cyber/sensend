@@ -19,6 +19,8 @@ const BLOCK_CODE: i64 = 14;
 const BLOCK_QUOTE: i64 = 15;
 const BLOCK_TODO: i64 = 17;
 const BLOCK_DIVIDER: i64 = 22;
+const BLOCK_TABLE: i64 = 31;
+const BLOCK_TABLE_CELL: i64 = 32;
 
 // ── 飞书代码块语言映射（枚举值源自飞书官方 CodeLanguage 枚举）──
 // 未知语言回落 1（PlainText）
@@ -264,6 +266,42 @@ impl LarkAdapter {
         document_id: &str,
         blocks: Vec<Value>,
     ) -> Result<(), String> {
+        // 按文档顺序分段发送：普通块走 children API，带 children 的嵌套块（表格）走 descendant API
+        let mut flat_batch: Vec<Value> = Vec::new();
+
+        for block in blocks {
+            let has_children = block
+                .get("children")
+                .and_then(|c| c.as_array())
+                .map(|a| !a.is_empty())
+                .unwrap_or(false);
+
+            if has_children {
+                // 先冲刷平铺批次，保证内容顺序
+                if !flat_batch.is_empty() {
+                    self.append_flat_batch(client, token, document_id, &flat_batch).await?;
+                    flat_batch.clear();
+                }
+                self.append_nested_block(client, token, document_id, &block).await?;
+            } else {
+                flat_batch.push(block);
+            }
+        }
+        if !flat_batch.is_empty() {
+            self.append_flat_batch(client, token, document_id, &flat_batch).await?;
+        }
+
+        Ok(())
+    }
+
+    /// 平铺块：children API，单次上限 50
+    async fn append_flat_batch(
+        &self,
+        client: &reqwest::Client,
+        token: &str,
+        document_id: &str,
+        blocks: &[Value],
+    ) -> Result<(), String> {
         for (chunk_idx, chunk) in blocks.chunks(50).enumerate() {
             log::debug!("[Lark] append chunk {} 共 {} 个 block", chunk_idx, chunk.len());
 
@@ -275,7 +313,43 @@ impl LarkAdapter {
                 Some(json!({ "children": chunk })),
             ).await?;
         }
+        Ok(())
+    }
 
+    /// 嵌套块（表格）：descendant API，一次请求建整棵树，单次上限 1000 块
+    async fn append_nested_block(
+        &self,
+        client: &reqwest::Client,
+        token: &str,
+        document_id: &str,
+        root: &Value,
+    ) -> Result<(), String> {
+        let mut descendants: Vec<Value> = Vec::new();
+        let root_id = flatten_to_descendants(root, &mut 0usize, &mut descendants);
+
+        if descendants.len() > 1000 {
+            return Err(format!(
+                "表格过大（{} 个块，飞书单次上限 1000），请拆分表格后重试",
+                descendants.len()
+            ));
+        }
+
+        log::debug!("[Lark] descendant 写入 {} 个嵌套块", descendants.len());
+
+        self.request(
+            client,
+            "POST",
+            &format!(
+                "/docx/v1/documents/{}/blocks/{}/descendant?document_revision_id=-1",
+                document_id, document_id
+            ),
+            token,
+            Some(json!({
+                "index": -1,
+                "children_id": [root_id],
+                "descendants": descendants
+            })),
+        ).await?;
         Ok(())
     }
 
@@ -352,6 +426,30 @@ fn make_text_run(text: &str, marks: &[super::ir::Mark]) -> Value {
     json!({ "text_run": Value::Object(text_run) })
 }
 
+/// 嵌套块树 → descendant API 的 descendants 拍平数组（自增临时 ID，请求内唯一即可）
+/// 返回当前节点的临时 ID
+fn flatten_to_descendants(block: &Value, counter: &mut usize, descendants: &mut Vec<Value>) -> String {
+    let id = format!("t{}", counter);
+    *counter += 1;
+
+    let child_ids: Vec<String> = block
+        .get("children")
+        .and_then(|c| c.as_array())
+        .map(|arr| {
+            arr.iter()
+                .map(|child| flatten_to_descendants(child, counter, descendants))
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let mut node = block.clone();
+    let obj = node.as_object_mut().unwrap();
+    obj.insert("block_id".into(), json!(id));
+    obj.insert("children".into(), json!(child_ids));
+    descendants.push(node);
+    id
+}
+
 /// 空的 text_run（飞书要求 elements 非空）
 fn empty_element() -> Value {
     json!({ "text_run": { "content": "" } })
@@ -416,23 +514,40 @@ fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
                 }
             }
             Block::Table(table) => {
-                // 飞书无原生表格，降级为逐行文本（保留行内格式，修复 #5）
-                for row in &table.rows {
-                    let mut elements: Vec<Value> = Vec::new();
-                    for (ci, cell) in row.iter().enumerate() {
-                        if ci > 0 {
-                            elements.push(make_text_run(" | ", &[]));
-                        }
-                        elements.extend(inlines_to_elements(cell));
-                    }
-                    if elements.is_empty() {
-                        continue;
-                    }
-                    out.push(json!({
-                        "block_type": BLOCK_TEXT,
-                        "text": { "elements": elements, "style": {} }
-                    }));
+                // 飞书原生表格：table(31) → table_cell(32) → text(2)（官方 FAQ「创建含内容的表格」）
+                // children API 无法创建嵌套结构，发送层对带 children 的块自动改走 descendant API
+                let row_size = table.rows.len();
+                let col_size = table.rows.first().map(|r| r.len()).unwrap_or(0);
+                if row_size == 0 || col_size == 0 {
+                    continue;
                 }
+
+                let mut cells = Vec::new();
+                for row in &table.rows {
+                    // 参差行按首行列数补空，保证 cells 数量 = row_size * col_size
+                    for ci in 0..col_size {
+                        let empty: Vec<super::ir::Inline> = Vec::new();
+                        let cell = row.get(ci).unwrap_or(&empty);
+                        let mut elements = inlines_to_elements(cell);
+                        if elements.is_empty() {
+                            // 官方要求：table_cell 必须至少含一个子块，空内容填空 text 块
+                            elements.push(empty_element());
+                        }
+                        cells.push(json!({
+                            "block_type": BLOCK_TABLE_CELL,
+                            "table_cell": {},
+                            "children": [{
+                                "block_type": BLOCK_TEXT,
+                                "text": { "elements": elements, "style": {} }
+                            }]
+                        }));
+                    }
+                }
+                out.push(json!({
+                    "block_type": BLOCK_TABLE,
+                    "table": { "property": { "row_size": row_size, "column_size": col_size } },
+                    "children": cells
+                }));
             }
             Block::HorizontalRule => {
                 out.push(json!({
@@ -638,6 +753,57 @@ mod tests {
             .filter_map(|e| e["text_run"]["content"].as_str())
             .collect();
         assert_eq!(content, "首段\n次段", "列表项多段落应保留（\\n 分隔）");
+    }
+
+    #[test]
+    fn fix_table_native_block_not_degraded_text() {
+        let fixture = test_helpers::load_fixture("table_with_inline");
+        let blocks = convert(&fixture);
+        // 表格应为原生 table 块（block_type 31），不是降级的 text 块（block_type 2）
+        assert_eq!(blocks.len(), 1, "fixture 只含一个表格");
+        assert_eq!(blocks[0]["block_type"], json!(BLOCK_TABLE), "应使用原生 table 块");
+
+        let prop = &blocks[0]["table"]["property"];
+        assert_eq!(prop["row_size"], json!(2));
+        assert_eq!(prop["column_size"], json!(2));
+
+        // 单元格数量 = 行 × 列，每个 cell 都含至少一个 text 子块（官方要求）
+        let cells = blocks[0]["children"].as_array().unwrap();
+        assert_eq!(cells.len(), 4);
+        for (i, cell) in cells.iter().enumerate() {
+            assert_eq!(cell["block_type"], json!(BLOCK_TABLE_CELL), "cell[{}] 应为 table_cell", i);
+            assert!(!cell["children"].as_array().unwrap().is_empty(), "cell[{}] 必须含子块", i);
+        }
+
+        // 行内格式保留在单元格 text 块中
+        let first_text = &cells[0]["children"][0]["text"]["elements"];
+        assert!(first_text.as_array().unwrap().len() > 0);
+    }
+
+    #[test]
+    fn fix_table_flatten_descendants_shape() {
+        // descendant API 结构：拍平后每块带 block_id/children(ID 数组)，树根在 children_id
+        let fixture = test_helpers::load_fixture("table_with_inline");
+        let blocks = convert(&fixture);
+        let mut descendants = Vec::new();
+        let root_id = flatten_to_descendants(&blocks[0], &mut 0usize, &mut descendants);
+
+        // 1 table + 4 cell + 4 text = 9 块
+        assert_eq!(descendants.len(), 9);
+        let root = descendants.iter().find(|d| d["block_id"] == json!(root_id)).unwrap();
+        assert_eq!(root["block_type"], json!(BLOCK_TABLE));
+        let root_children = root["children"].as_array().unwrap();
+        assert_eq!(root_children.len(), 4, "table 的 children 应为 cell ID 数组");
+        // 子 ID 均存在于 descendants 中
+        for cid in root_children {
+            assert!(
+                descendants.iter().any(|d| d["block_id"] == *cid),
+                "子 ID {} 应存在于 descendants",
+                cid
+            );
+        }
+        // 所有块都带 block_id（descendant API 必填）
+        assert!(descendants.iter().all(|d| d.get("block_id").is_some()));
     }
 
     #[test]

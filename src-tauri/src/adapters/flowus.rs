@@ -148,13 +148,13 @@ impl FlowUsAdapter {
                 for row in &table.rows {
                     let mut row_cells: Vec<Value> = Vec::new();
                     for cell in row {
-                        // 单元格保留行内格式（修复 #5）
+                        // 单元格保留完整多段 rich_text（对齐 Notion d2d8909 修复，不再只取 rt[0]）
                         let rt = map_rich_text(cell);
-                        row_cells.push(if rt.is_empty() {
-                            json!({"type": "text", "text": {"content": "", "link": null}})
+                        if rt.is_empty() {
+                            row_cells.push(json!({"type": "text", "text": {"content": "", "link": null}}));
                         } else {
-                            rt[0].clone()
-                        });
+                            row_cells.extend(rt);
+                        }
                     }
                     while row_cells.len() < col_count {
                         row_cells.push(json!({"type": "text", "text": {"content": "", "link": null }}));
@@ -578,5 +578,38 @@ mod tests {
         let blocks = convert(&fixture);
         let cell = &blocks[0]["data"]["cells"][0];
         assert_eq!(cell["annotations"]["bold"], json!(true), "表头第一格粗体应保留");
+    }
+
+    #[test]
+    fn fix_p1_table_cell_keeps_all_rich_text_segments() {
+        // 混合样式单元格（粗体+普通）应输出多段 rich_text，不再只取 rt[0]
+        let doc = serde_json::json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "attrs": { "col_count": 1 },
+                "content": [{
+                    "type": "tableRow",
+                    "content": [{
+                        "type": "tableCell",
+                        "attrs": { "colspan": 1, "colwidth": 100 },
+                        "content": [{
+                            "type": "paragraph",
+                            "content": [
+                                { "type": "text", "text": "粗体", "marks": [{ "type": "bold" }] },
+                                { "type": "text", "text": "普通" }
+                            ]
+                        }]
+                    }]
+                }]
+            }]
+        });
+        let blocks = convert(&doc);
+        let cells = blocks[0]["data"]["cells"].as_array().unwrap();
+        // 单元格应为多段 rich_text（2 段），不是 1 段
+        assert_eq!(cells.len(), 2, "混合样式单元格应保留全部段落: {:?}", cells);
+        assert_eq!(cells[0]["text"]["content"], json!("粗体"));
+        assert_eq!(cells[0]["annotations"]["bold"], json!(true));
+        assert_eq!(cells[1]["text"]["content"], json!("普通"));
     }
 }

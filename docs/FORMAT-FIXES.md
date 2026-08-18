@@ -1,7 +1,7 @@
 # Sensend 编辑器格式兼容性排查手册
 
-> 作者：简乐 ｜ 最近更新：2026-08-17
-> 项目：Sensend（v0.3.0 → 0.4.0 升级期）
+> 作者：简乐 ｜ 最近更新：2026-08-18
+> 项目：Sensend v0.4.0
 > 定位：专门记录"编辑器格式进站/出站"类问题的现象、根因、修复与排查套路，方便后续快速定位同类 bug。
 
 ---
@@ -92,7 +92,7 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
    onMounted(() => { (window as any).__sensendEditor = editor.value })
    ```
    然后 `npm run dev`，在浏览器 console 里调 `__sensendEditor.storage.markdown.manager.parse(...)`、`getJSON()`、`view.dom.querySelector(...)` 实测。测完删掉。
-4. **改完必测三样**：`npm run build`（类型+打包）、`run-tests.bat`（62+ 后端黄金测试）、浏览器实测（渲染+粘贴）。任何一边红都不算修完。
+4. **改完必测三样**：`npm run build`（类型+打包）、`powershell -File scripts/run-tests.ps1`（30 个后端黄金测试）、浏览器实测（渲染+粘贴）。任何一边红都不算修完。
 
 ---
 

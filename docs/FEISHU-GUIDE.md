@@ -21,7 +21,7 @@
 - 用它们换来的 `tenant_access_token` 相当于「临时通行证」，**2 小时有效**。
 - 通行证代表「应用自己」，不是某个员工。所以 sensend 干的每件事，飞书都理解为「这个应用在操作」。
 
-一次完整流程（对应 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L472-L498)）：
+一次完整流程（对应 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L499-L543)）：
 
 ```
 App ID + App Secret
@@ -57,7 +57,7 @@ tenant_access_token（2 小时，进程内缓存）
 - 读文档只需要权限 A；写文档（追加块）需要权限 A + 写权限 B。
 - 2026-08-17 实测：**读正常，写返回 `403 / code=1770032 / forBidden`**，连最普通的 text 块都被拒。
 - 说明该应用只有读权限，没有写权限（或写了权限但没发布）。
-- **注意**：sensend 配置窗口的「测试连接」按钮只做了**读取**验证（拿 token → 解析 wiki → 读文档，见 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L455-L470)），**从不测写入**。所以「测试连接显示正常」≠「能写入」。真正的写入验证 = 实际发一条内容。
+- **注意**：sensend 配置窗口的「测试连接」按钮只做了**读取**验证（拿 token → 解析 wiki → 读文档，见 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L499-L514)），**从不测写入**。所以「测试连接显示正常」≠「能写入」。真正的写入验证 = 实际发一条内容。
 
 ### 1.4 几个名词别搞混
 
@@ -70,7 +70,7 @@ tenant_access_token（2 小时，进程内缓存）
 | document_id / obj_token | 真正文档的「身份证号」 | 写入文档时用 |
 | Block | 文档里一段一段的内容块 | sensend 把笔记转成 block 再追加 |
 
-wiki 链接解析流程（[lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L176-L214)）：
+wiki 链接解析流程（[lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L220-L258)）：
 
 ```
 粘贴的 wiki 链接: https://xxx.feishu.cn/wiki/GydowmeXUiXRWIk3vFicLtHVngd
