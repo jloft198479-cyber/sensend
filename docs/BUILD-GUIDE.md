@@ -265,7 +265,7 @@ $env:PATH += ";D:\Git\bin"
 
 ```powershell
 # ① 版本号：记下它，后面 tag / Release 标题 / 安装包名全部要跟它一致
-npm pkg get version            # 期望输出如 "0.4.0"
+npm pkg get version            # 期望输出如 "0.5.0"
 
 # ② gh 已登录（发布必须走 gh CLI，别用网页手动，网页无法验证）
 gh auth status                 # 期望：Logged in to github.com account xxx
@@ -287,7 +287,7 @@ git tag | Select-String "^v"
 ```powershell
 cd F:\fzz-Project\sensend\sensend
 git add <本次改动的文件/目录>        # 明确列出，不用 git add .
-git commit -m "feat(v0.4.0): 本次发布内容说明"
+git commit -m "feat(v0.5.0): 本次发布内容说明"
 git log --oneline -1                 # 验证提交成功
 ```
 
@@ -302,18 +302,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
 构建成功后校验产物存在（路径里的版本号替换成 4.0 记下的）：
 
 ```powershell
-Test-Path "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64-setup.exe"   # 期望 True
+Test-Path "src-tauri\target\release\bundle\nsis\Sensend_0.5.0_x64-setup.exe"   # 期望 True
 ```
 
 ### 4.3 打 tag 并推送
 
-> tag 名必须与版本号一致（`v0.4.0`），与 package.json 的 `0.4.0` 对应。推送 = main + tag 两个都推。
+> tag 名必须与版本号一致（`v0.5.0`），与 package.json 的 `0.5.0` 对应。推送 = main + tag 两个都推。
 
 ```powershell
-git tag v0.4.0                         # 若提示已存在：说明发过，停下来核对版本号
+git tag v0.5.0                         # 若提示已存在：说明发过，停下来核对版本号
 git push origin main
-git push origin v0.4.0
-git ls-remote --tags origin | Select-String "v0.4.0"   # 验证 tag 已上远端
+git push origin v0.5.0
+git ls-remote --tags origin | Select-String "v0.5.0"   # 验证 tag 已上远端
 ```
 
 ### 4.4 创建 GitHub Release
@@ -325,20 +325,20 @@ git ls-remote --tags origin | Select-String "v0.4.0"   # 验证 tag 已上远端
 #    在项目根目录创建 release-notes.md（完成后删除）
 
 # ② 创建 Release（asset 用 4.2 校验过存在的安装包路径）
-gh release create v0.4.0 "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64-setup.exe" `
-  --title "Sensend v0.4.0" `
+gh release create v0.5.0 "src-tauri\target\release\bundle\nsis\Sensend_0.5.0_x64-setup.exe" `
+  --title "Sensend v0.5.0" `
   --notes-file release-notes.md
 
 # ③ 清理临时说明文件
 Remove-Item release-notes.md
 ```
 
-> 若 `gh release create` 报「already exists」：该 tag 已有 Release，通常是上次半途而废，先 `gh release view v0.4.0` 看状态再决定补传还是清理。
+> 若 `gh release create` 报「already exists」：该 tag 已有 Release，通常是上次半途而废，先 `gh release view v0.5.0` 看状态再决定补传还是清理。
 
 ### 4.5 Release 描述模板
 
 ```markdown
-**Sensend v0.4.0**
+**Sensend v0.5.0**
 
 **更新内容**
 - 更新点 1
@@ -354,7 +354,7 @@ Remove-Item release-notes.md
 - Windows 10/11 x64
 
 **安装说明**
-- 下载 `Sensend_0.4.0_x64-setup.exe` 双击安装
+- 下载 `Sensend_0.5.0_x64-setup.exe` 双击安装
 - Windows 可能提示"无法识别的应用"，点击"更多信息" → "仍要运行"
 
 **致谢**
@@ -364,8 +364,8 @@ Remove-Item release-notes.md
 ### 4.6 发布后验证（必须做，缺一不算发完）
 
 ```powershell
-gh release view v0.4.0                # 期望看到标题、tag、asset 列表含 setup.exe
-git ls-remote --tags origin | Select-String "v0.4.0"   # 远端 tag 存在
+gh release view v0.5.0                # 期望看到标题、tag、asset 列表含 setup.exe
+git ls-remote --tags origin | Select-String "v0.5.0"   # 远端 tag 存在
 git log origin/main --oneline -1      # main 已含最新提交
 ```
 
@@ -386,7 +386,7 @@ git log origin/main --oneline -1      # main 已含最新提交
 ### 4.8 回滚
 
 - **代码已推、Release 未发**：`git revert` 或提交修复，正常再发下一版。
-- **Release 发错了**：`gh release delete v0.4.0 --cleanup-tag`（会同时删远端 tag），本地 `git tag -d v0.4.0` 后重来。
+- **Release 发错了**：`gh release delete v0.5.0 --cleanup-tag`（会同时删远端 tag），本地 `git tag -d v0.5.0` 后重来。
 - 回滚仅限发错的当次，历史发布（v0.1.0~v0.3.0）一律不动。
 
 ---
@@ -413,12 +413,12 @@ git status
 git push origin main
 
 # 创建标签并推送（vX.Y.Z 替换为实际版本号）
-git tag v0.4.0
-git push origin v0.4.0
+git tag v0.5.0
+git push origin v0.5.0
 
 # 创建 Release 并上传安装包（gh CLI，完整流程见 §四）
 # 注意：说明文字用 --notes-file 读文件，避免中文转义乱码
-gh release create v0.4.0 "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64-setup.exe" --title "Sensend v0.4.0" --notes-file release-notes.md
+gh release create v0.5.0 "src-tauri\target\release\bundle\nsis\Sensend_0.5.0_x64-setup.exe" --title "Sensend v0.5.0" --notes-file release-notes.md
 ```
 
 ---
@@ -436,4 +436,4 @@ gh release create v0.4.0 "src-tauri\target\release\bundle\nsis\Sensend_0.4.0_x64
 
 ---
 
-> 本手册基于 Sensend 打包发布经验整理，最近一次验证：v0.4.0（2026-08-18）；环境加载链路修复验证：run-tests.ps1 75 测试全过（2026-08-19）
+> 本手册基于 Sensend 打包发布经验整理，最近一次验证：v0.4.0（2026-08-18，已发布）；环境加载链路修复验证：run-tests.ps1 75 测试全过（2026-08-19）
