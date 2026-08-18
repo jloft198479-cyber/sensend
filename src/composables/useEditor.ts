@@ -389,6 +389,9 @@ export function useSensendEditor(
     saveTimer = setTimeout(() => doSave(), 800)
   }
 
+  // 在途保存的 Promise：退出前必须等它完成，防止 app.exit 截断原子写丢数据
+  let inFlightSave: Promise<void> | null = null
+
   async function doSave() {
     if (!editor.value) return
     // 防止并发保存：上一次保存仍在进行中时跳过
@@ -402,15 +405,20 @@ export function useSensendEditor(
     }
 
     saveStatus.value = 'saving'
-    try {
-      await invoke('save_note', { content })
-      lastSavedContent = content
-      saveStatus.value = 'saved'
-      setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'idle' }, 2000)
-    } catch (e) {
-      console.error('保存失败:', e)
-      saveStatus.value = 'unsaved'
-    }
+    inFlightSave = (async () => {
+      try {
+        await invoke('save_note', { content })
+        lastSavedContent = content
+        saveStatus.value = 'saved'
+        setTimeout(() => { if (saveStatus.value === 'saved') saveStatus.value = 'idle' }, 2000)
+      } catch (e) {
+        console.error('保存失败:', e)
+        saveStatus.value = 'unsaved'
+      } finally {
+        inFlightSave = null
+      }
+    })()
+    await inFlightSave
   }
 
   // ── 退出前强制保存 ──
@@ -421,6 +429,8 @@ export function useSensendEditor(
     if (wordCountTimer) { clearTimeout(wordCountTimer); wordCountTimer = null }
     // 仅有未保存内容时才执行保存
     if (saveStatus.value === 'unsaved') await doSave()
+    // 等在途保存完成：saving 状态下退出，app.exit(0) 会截断原子写（tmp 未 rename），丢最后一次编辑
+    if (inFlightSave) await inFlightSave
     await invoke('request_quit')
   }
 

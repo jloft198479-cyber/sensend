@@ -39,7 +39,7 @@ Write-Host "[2/4] Building frontend..." -ForegroundColor Cyan
 npm run build
 if ($LASTEXITCODE -ne 0) { Write-Host "FRONTEND BUILD FAILED" -ForegroundColor Red; exit 1 }
 
-Write-Host "[3/4] Building Rust (release, 完整侧载 WebView2)..." -ForegroundColor Cyan
+Write-Host "[3/4] Building Rust (release, WebView2 full sidecar)..." -ForegroundColor Cyan
 npm run tauri build -- --no-bundle
 if ($LASTEXITCODE -ne 0) { Write-Host "RUST BUILD FAILED" -ForegroundColor Red; exit 1 }
 
