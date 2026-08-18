@@ -67,7 +67,8 @@ impl NotionAdapter {
             let default_msg = format!("HTTP 错误 ({})", status);
             let msg = body.get("message").and_then(|m| m.as_str())
                 .unwrap_or(&default_msg);
-            return Err(format!("Notion API: {}", msg));
+            // 错误消息统一带状态码：resolve_target 依赖它区分 404 与网络错误
+            return Err(format!("Notion API ({}): {}", status, msg));
         }
 
         Ok(body)
@@ -142,22 +143,24 @@ impl NotionAdapter {
             Block::Table(table) => {
                 // 列数取各行最大值
                 let col_count = table.rows.iter().map(|r| r.len()).max().unwrap_or(1).max(1);
-                let mut table_rows: Vec<Value> = Vec::new();
+                // 官方结构：table 的 children 必须是 table_row 块数组；
+                // 每个 table_row 的 cells 是二维 rich_text 数组——
+                // 每格本身是一个 rich_text 数组（可含多段格式），不再只取 rt[0]
+                let mut table_row_blocks: Vec<Value> = Vec::new();
                 for row in &table.rows {
-                    let mut row_cells: Vec<Value> = Vec::new();
+                    let mut cells: Vec<Value> = Vec::new();
                     for cell in row {
-                        // 单元格保留行内格式（修复 #5：表格内联丢失）
                         let rt = map_rich_text(cell);
-                        row_cells.push(if rt.is_empty() {
-                            json!({"type": "text", "text": {"content": ""}})
-                        } else {
-                            rt[0].clone()
-                        });
+                        cells.push(json!(rt));
                     }
-                    while row_cells.len() < col_count {
-                        row_cells.push(json!({ "type": "text", "text": { "content": "" } }));
+                    while cells.len() < col_count {
+                        cells.push(json!([{ "type": "text", "text": { "content": "" } }]));
                     }
-                    table_rows.push(json!(row_cells));
+                    table_row_blocks.push(json!({
+                        "object": "block",
+                        "type": "table_row",
+                        "table_row": { "cells": cells }
+                    }));
                 }
                 out.push(json!({
                     "object": "block",
@@ -166,7 +169,7 @@ impl NotionAdapter {
                         "table_width": col_count,
                         "has_column_header": false,
                         "has_row_header": false,
-                        "children": table_rows
+                        "children": table_row_blocks
                     }
                 }));
             }
@@ -191,13 +194,11 @@ impl NotionAdapter {
         };
 
         // rich_text：首段 + 后续段落（\n 分隔，修复列表项多段落丢失）
+        // 空兜底已在 map_rich_text 内部统一处理
         let mut rt = map_rich_text(&item.inlines);
         for para in &item.extra_paras {
             rt.push(json!({"type": "text", "text": {"content": "\n"}}));
             rt.extend(map_rich_text(para));
-        }
-        if rt.is_empty() {
-            rt.push(json!({"type":"text","text":{"content":""}}));
         }
 
         let mut data = serde_json::Map::new();
@@ -254,13 +255,16 @@ impl NotionAdapter {
     // ── 目标类型判断 ──
 
     /// 三步试探法：确定 target_id 的类型
+    /// children 探测失败时不能静默降级为 Page——弱网下多维表目标会被误判为页面，
+    /// 内容作为独立文章追加到容器页末尾（多维表下方），且全程"发送成功"无报错。
+    /// 仅当目标确实不存在（404）时才降级 Page，其他错误（超时/401/403）向上传递。
     async fn resolve_target(
         &self,
         token: &str,
         target_id: &str,
     ) -> Result<TargetType, String> {
         // 两个独立探测并行发起：database 直查 + 页面 children 拆查
-        // 用 join! 而非 try_join! —— 一个 404 是预期内，我们要的是两个结果都看
+        // 用 join! 而非 try_join! —— db 查询对页面目标返回 400 是预期内，只需看 children 结果
         let db_url = format!("/databases/{}", target_id);
         let children_url = format!("/blocks/{}/children?page_size=100", target_id);
         let (db_res, children_res) = tokio::join!(
@@ -282,30 +286,39 @@ impl NotionAdapter {
             }
         }
 
-        // 再判：页面内嵌 child_database（依赖 children 结果，无法并行，保持串行）
-        if let Ok(body) = children_res {
-            if let Some(arr) = body.get("results").and_then(|r| r.as_array()) {
-                for block in arr {
-                    if block.get("type").and_then(|t| t.as_str()) == Some("child_database") {
-                        let db_id = block.get("id").and_then(|id| id.as_str())
-                            .ok_or("child_database 缺少 id")?
-                            .to_string();
+        // 再判：页面内嵌 child_database（children 是类型判断的关键探测，失败必须区分原因）
+        match children_res {
+            Ok(body) => {
+                if let Some(arr) = body.get("results").and_then(|r| r.as_array()) {
+                    for block in arr {
+                        if block.get("type").and_then(|t| t.as_str()) == Some("child_database") {
+                            let db_id = block.get("id").and_then(|id| id.as_str())
+                                .ok_or("child_database 缺少 id")?
+                                .to_string();
 
-                        // 获取数据库 schema
-                        let schema_body = self.request("GET", &format!("/databases/{}", db_id), token, None).await?;
-                        let properties = schema_body.get("properties")
-                            .and_then(|p| p.as_object())
-                            .ok_or("数据库 schema 中找不到 properties")?;
+                            // 获取数据库 schema
+                            let schema_body = self.request("GET", &format!("/databases/{}", db_id), token, None).await?;
+                            let properties = schema_body.get("properties")
+                                .and_then(|p| p.as_object())
+                                .ok_or("数据库 schema 中找不到 properties")?;
 
-                        let schema = Self::extract_schema_from_properties(properties)?;
-                        return Ok(TargetType::Database { db_id, schema });
+                            let schema = Self::extract_schema_from_properties(properties)?;
+                            return Ok(TargetType::Database { db_id, schema });
+                        }
                     }
+                }
+                // children 拉取成功但无 child_database → 真普通页面
+                Ok(TargetType::Page)
+            }
+            Err(e) => {
+                // 仅当目标不存在（404）时降级为 Page；网络/权限错误必须报错
+                if e.contains("404") || e.to_lowercase().contains("not found") {
+                    Ok(TargetType::Page)
+                } else {
+                    Err(format!("无法确认目标类型（网络或权限异常），已阻止发送以防内容写错位置：{}", e))
                 }
             }
         }
-
-        // 兜底为普通页面
-        Ok(TargetType::Page)
     }
 
     // ── 创建页面 ──
@@ -522,7 +535,9 @@ impl PlatformAdapter for NotionAdapter {
 }
 
 /// IR 行内内容 → Notion rich_text 数组
-/// hardBreak → 换行文本（修复 #1）；mention → "@标签" 文本（防数据丢失）
+/// hardBreak → 换行文本（修复 #1）；mention → "@标签" 文本（防数据丢失）；
+/// text.content 上限 2000 字符（Notion API 限制），超长按字符切片，每片携带相同的 anno/link；
+/// 空行内内容兜底返回一个空 text 对象（Notion rich_text 数组不能为空）
 fn map_rich_text(inlines: &[super::ir::Inline]) -> Vec<Value> {
     use super::ir::{Inline, Mark};
     let mut rt = Vec::new();
@@ -542,19 +557,23 @@ fn map_rich_text(inlines: &[super::ir::Inline]) -> Vec<Value> {
                     }
                 }
 
-                let mut text_obj = serde_json::Map::new();
-                text_obj.insert("content".into(), json!(text));
-                if let Some(url) = link_url {
-                    text_obj.insert("link".into(), json!({ "url": url }));
+                // Notion text.content 上限 2000 字符，按 Unicode scalar 切片
+                let chars: Vec<char> = text.chars().collect();
+                for chunk in chars.chunks(2000) {
+                    let content: String = chunk.iter().collect();
+                    let mut text_obj = serde_json::Map::new();
+                    text_obj.insert("content".into(), json!(content));
+                    if let Some(url) = &link_url {
+                        text_obj.insert("link".into(), json!({ "url": url }));
+                    }
+                    let mut obj = serde_json::Map::new();
+                    obj.insert("type".into(), json!("text"));
+                    obj.insert("text".into(), Value::Object(text_obj));
+                    if !anno.is_empty() {
+                        obj.insert("annotations".into(), Value::Object(anno.clone()));
+                    }
+                    rt.push(Value::Object(obj));
                 }
-
-                let mut obj = serde_json::Map::new();
-                obj.insert("type".into(), json!("text"));
-                obj.insert("text".into(), Value::Object(text_obj));
-                if !anno.is_empty() {
-                    obj.insert("annotations".into(), Value::Object(anno));
-                }
-                rt.push(Value::Object(obj));
             }
             Inline::Break => {
                 rt.push(json!({ "type": "text", "text": { "content": "\n" } }));
@@ -563,6 +582,10 @@ fn map_rich_text(inlines: &[super::ir::Inline]) -> Vec<Value> {
                 rt.push(json!({ "type": "text", "text": { "content": format!("@{}", label) } }));
             }
         }
+    }
+    // 空兜底：空段落/空标题/空列表项也保证 rich_text 数组非空
+    if rt.is_empty() {
+        rt.push(json!({ "type": "text", "text": { "content": "" } }));
     }
     rt
 }
@@ -631,9 +654,12 @@ mod tests {
     fn fix5_table_cell_keeps_annotations() {
         let fixture = test_helpers::load_fixture("table_with_inline");
         let blocks = convert(&fixture);
-        let cell = &blocks[0]["table"]["children"][0][0];
+        // 官方结构：table.children → table_row 块 → table_row.cells → 二维 rich_text 数组
+        let row0_cells = &blocks[0]["table"]["children"][0]["table_row"]["cells"];
+        let cell = &row0_cells[0][0];
         assert_eq!(cell["annotations"]["bold"], json!(true), "表头第一格粗体应保留");
-        let cell2 = &blocks[0]["table"]["children"][1][1];
+        let row1_cells = &blocks[0]["table"]["children"][1]["table_row"]["cells"];
+        let cell2 = &row1_cells[1][0];
         assert_eq!(cell2["annotations"]["italic"], json!(true), "数据行斜体应保留");
     }
 
