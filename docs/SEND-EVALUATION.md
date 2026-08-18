@@ -1,8 +1,23 @@
 # Sensend 发送质量评估报告
 
-> 版本：v0.4.0 ｜ 评估日期：2026-08-18
+> 版本：v0.4.0 ｜ 评估日期：2026-08-18 ｜ 状态更新：2026-08-19
 > 评估范围：IR 出站格式保真度 + 发送链路速度与稳定性
-> 实证基线：`cargo test` 72 个测试全部通过（0 失败）
+> 实证基线：`cargo test` 75 个测试全部通过（0 失败）
+
+---
+
+## 〇、修复状态更新（2026-08-19）
+
+本报告发布后，格式 P1 三连修已全部落地（提交 d09a413），相关段落的"未修"表述已过时，同步订正如下：
+
+| 原报告结论 | 现状 |
+|------|------|
+| FlowUs 表格单元格多 rich_text 丢失（P1 未修） | ✅ 已修复：`rt[0]` → `row_cells.extend(rt)`（flowus.rs L156），配套测试 `fix_p1_table_cell_keeps_all_rich_text_segments` |
+| Notion 代码块语言映射缺失（P1 未修） | ✅ 已修复：`NOTION_LANG_MAP`（notion.rs L10-48），40 个别名、大小写不敏感、兜底纯文本，配套测试 `fix_p1_language_mapping` |
+| Notion 嵌套列表递归深度无限制（新发现） | ✅ 已修复：`map_list_item` 加 `depth` 参数，上限 2 层，第 3 层起并入父项（notion.rs L229-262），配套测试 `fix_p1_list_depth_capped_at_two` |
+| 飞书原生表格"文档滞后于代码" | ✅ 已订正：格式规范并入 `FEISHU-GUIDE.md` §5，表格已标注原生实现 |
+
+**仍待处理**（已并入 `docs/TODO.md` 统一排队）：全平台 429 限流无重试、飞书引用无 quote_container、飞书 text_run 无长度上限、前端表格插入入口缺失、@实例名空格正则缺陷。
 
 ---
 
@@ -37,31 +52,28 @@ IR（中间表示）是出站格式的唯一遍历点。`ir::parse()` 将 TipTap
 - link 与粗体叠加时，`render_inlines` 中 link 匹配后立即 `break`，后续 mark 被忽略。如果用户写了一个加粗的链接文本，粗体标记会丢失。
 - 下划线用 `<u>` HTML 标签兜底（Markdown 无原生下划线语法），部分渲染器（如 GitHub）不识别 HTML 标签。
 
-#### Notion —— 90 分
+#### Notion —— 92 分
 
-annotations 完整（bold/italic/strikethrough/underline/code/link）、2000 字符自动切片（P2 已修）、表格单元格保留完整二维 rich_text 数组（P1 已修，d2d8909）、嵌套列表进 children（P2 已修）。
+annotations 完整（bold/italic/strikethrough/underline/code/link）、2000 字符自动切片（P2 已修）、表格单元格保留完整二维 rich_text 数组（P1 已修，d2d8909）、嵌套列表进 children（P2 已修）、代码块语言映射表 `NOTION_LANG_MAP`（P1 已修，d09a413）、嵌套列表深度截断上限 2 层（P1 已修，d09a413）。
 
 遗留问题：
 
-- **代码块语言映射缺失**（P1 未修）：TipTap 的 language 值直传给 Notion，但 Notion 要求特定格式（如 `plain text` 而非 `plaintext`、`c++` 而非 `cpp`）。飞书已有 `LARK_LANG_MAP`（30 种语言），Notion 侧缺同款映射表。
-- **嵌套列表递归深度无限制**（新发现）：`map_list_item` 递归构建 children 时没有深度截断，而 Notion API 单请求嵌套上限为 2 层。三层及以上的嵌套列表会触发 `validation_error`。
 - **429 限流无重试**（P3 未修）：连续快速发送可能触发 Notion 的 429 限流。
 
-#### FlowUs —— 85 分
+#### FlowUs —— 90 分
 
-annotations 全字段输出（含 `plain_text`、`href`、`color`），结构与 Notion 对齐。
+annotations 全字段输出（含 `plain_text`、`href`、`color`），结构与 Notion 对齐；表格单元格多 rich_text 已修复（P1 已修，d09a413）。
 
 遗留问题：
 
-- **表格单元格多 rich_text 丢失**（新发现）：`flowus.rs` L152-158 的表格单元格映射仍用 `rt[0].clone()` 只取第一段。这正是 Notion 侧 d2d8909 已修的"多 rich_text 丢失"缺陷，FlowUs 同款未修。当单元格内文本有混合样式时（如"粗体+普通+斜体"），后续段的格式或内容会丢失。
 - **嵌套列表 children 未真机验证**：代码注释标注"FlowUs 嵌套结构真机验证点；若不支持改为拍平输出"，说明该路径尚未经过真机验证。
 - **429 限流无重试**。
 
-#### 飞书 —— 75 分
+#### 飞书 —— 78 分
 
-亮点：原生 todo 块（block_type 17 + style.done）、原生表格走 descendant API（代码已实现，但 FEISHU-FORMAT-SPEC.md P1-2 仍写着"降级为文本"——**文档滞后于代码**）、30 种代码块语言映射表（`LARK_LANG_MAP`）、tenant_access_token 缓存。
+亮点：原生 todo 块（block_type 17 + style.done）、原生表格走 descendant API（已实现并已在 FEISHU-GUIDE.md §5 中标注原生）、30 种代码块语言映射表（`LARK_LANG_MAP`）、tenant_access_token 缓存。
 
-遗留问题（FEISHU-FORMAT-SPEC.md 已记录）：
+遗留问题（FEISHU-GUIDE.md §5 已记录，详见 TODO）：
 
 - **429/99991400 限流无重试**（P1 未修）：飞书单文档 3 并发/s、单应用 3 req/s，大文档多批次容易触发。
 - **引用未使用 quote_container 嵌套**（P1 未修）：每段拆为独立 quote block，段落间失去引用归属关系。
@@ -83,9 +95,9 @@ annotations 全字段输出（含 `plain_text`、`href`、`color`），结构与
 | 平台 | 评分 | 核心优势 | 最大缺口 |
 |------|:---:|------|------|
 | Markdown | 95 | 全要素覆盖，GFM 标准 | link+粗体叠加丢 mark |
-| Notion | 90 | annotations 完整，2000 字符切片 | 代码块语言映射缺失 |
-| FlowUs | 85 | annotations 全字段 | 表格单元格多 rich_text 丢失 |
-| 飞书 | 75 | 原生表格+todo，语言映射表 | 限流无重试，引用无容器 |
+| Notion | 92 | annotations 完整，语言映射表，列表深度截断 | 429 限流无重试 |
+| FlowUs | 90 | annotations 全字段，表格单元格已修 | 嵌套列表未真机验证 |
+| 飞书 | 78 | 原生表格+todo，语言映射表 | 限流无重试，引用无容器 |
 
 ---
 
@@ -123,7 +135,7 @@ annotations 全字段输出（含 `plain_text`、`href`、`color`），结构与
 
 **S1 — 全平台无重试（最大缺口）**
 
-四个适配器的 `request()` 函数遇到 429 限流、瞬时网络抖动、5xx 服务端错误一律直接返回 Err，不重试。飞书大文档多批次天然容易触发限流（单文档 3 并发/s、单应用 3 req/s），两份格式调研文档（NOTION-FORMAT-SPEC.md §6.1 P3、FEISHU-FORMAT-SPEC.md §6.1 P1-1）都把这条列为 P1 未修。
+四个适配器的 `request()` 函数遇到 429 限流、瞬时网络抖动、5xx 服务端错误一律直接返回 Err，不重试。飞书大文档多批次天然容易触发限流（单文档 3 并发/s、单应用 3 req/s），两份格式调研文档（NOTION-FORMAT-SPEC.md §6.1 P3、FEISHU-GUIDE.md §5.6）都把这条列为未修。
 
 **S2 — 无幂等/防重**
 
@@ -162,14 +174,15 @@ Notion `create_page` 的部分失败处理得好（报"页面已创建，但 N �
 
 ### 4.1 格式规范性优先修复项
 
-| 优先级 | 项目 | 平台 | 预估工作量 |
+> 三个 P1 已全部落地（d09a413），保留表格仅作历史记录。
+
+| 优先级 | 项目 | 平台 | 状态 |
 |:---:|------|------|:---:|
-| P1 | FlowUs 表格单元格多 rich_text 丢失（对齐 Notion d2d8909 修复） | FlowUs | 小 |
-| P1 | Notion 代码块语言映射表（参照飞书 LARK_LANG_MAP） | Notion | 小 |
-| P1 | Notion 嵌套列表递归深度截断（上限 2 层） | Notion | 小 |
-| P2 | 飞书引用使用 quote_container 嵌套 | 飞书 | 中 |
-| P2 | 飞书嵌套列表层级保留（不拍平） | 飞书 | 中 |
-| P3 | FEISHU-FORMAT-SPEC.md P1-2 更新（代码已实现原生表格，文档仍写"降级为文本"） | 文档 | 小 |
+| P1 | FlowUs 表格单元格多 rich_text 丢失（对齐 Notion d2d8909 修复） | FlowUs | ✅ 已修复（d09a413） |
+| P1 | Notion 代码块语言映射表（参照飞书 LARK_LANG_MAP） | Notion | ✅ 已修复（d09a413） |
+| P1 | Notion 嵌套列表递归深度截断（上限 2 层） | Notion | ✅ 已修复（d09a413） |
+| P2 | 飞书引用使用 quote_container 嵌套 | 飞书 | ❌ 排队（TODO） |
+| P2 | 飞书嵌套列表层级保留（不拍平） | 飞书 | ❌ 排队（TODO） |
 
 ### 4.2 发送稳定性优先修复项
 

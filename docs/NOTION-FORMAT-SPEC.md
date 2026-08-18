@@ -1,7 +1,7 @@
 # Notion 平台格式规范与适配调研
 
 > 调研目标：基于 Notion API 的格式展示要求和规范，对比 Sensend 当前的 TipTap→Notion 转换链路，找出差异和缺失项，为后续优化提供依据。
-> 调研时间：2026-08-18
+> 调研时间：2026-08-18 ｜ 状态更新：2026-08-19
 > 版本基线：Sensend v0.4.0
 > Notion API 版本：2022-06-28（Sensend 代码中 `NOTION_VERSION` 常量）
 
@@ -10,9 +10,8 @@
 ## 〇、结论先行
 
 1. **核心格式覆盖完整**：Sensend 当前支持的全部 TipTap 节点类型（段落、标题、列表、代码块、引用、表格、分割线）均有 Notion block 对应，行内样式（粗体/斜体/删除线/下划线/行内码/链接）也全部映射到 Notion annotations。
-2. **三个潜在缺陷**：①rich_text 文本超 2000 字符未分段 — **✅ 已修复（d2d8909）**；②无 429 限流重试机制 — ❌ 未修复；③表格单元格只取 rich_text 首元素，多段格式可能丢失 — **✅ 已修复（d2d8909）**。
+2. **四个潜在缺陷的状态**：①rich_text 文本超 2000 字符未分段 — **✅ 已修复（d2d8909）**；②无 429 限流重试机制 — ❌ 未修复；③表格单元格只取 rich_text 首元素，多段格式可能丢失 — **✅ 已修复（d2d8909）**；④代码块语言映射缺失（原值直传，部分语言不被识别）— **✅ 已修复（d09a413，新增 `NOTION_LANG_MAP`）**。另 ⑤嵌套列表递归无深度截断（超 API 2 层上限报 400）— **✅ 已修复（d09a413，上限 2 层）**。
 3. **Notion 有大量能力 Sensend 尚未利用**：callout（提示框）、toggle（折叠块）、bookmark（书签）、颜色标注、可折叠标题、行内公式、真正 @提及——这些是未来增强方向，但不影响当前基本功能。
-4. **代码块语言映射需对齐**：TipTap 的 language 标识与 Notion 的 60+ 语言枚举存在命名差异（如 `typescript` vs `typescript`、`plaintext` vs `plain text`），当前代码用原始值直传，部分语言可能不被 Notion 识别。
 
 ---
 
@@ -256,7 +255,7 @@ pub enum Block {
 | `List { Bullet }` | `bulleted_list_item` | L117-121 | 逐项映射 |
 | `List { Ordered }` | `numbered_list_item` | L117-121 | 逐项映射 |
 | `List { Task }` | `to_do` | L117-121 | 带 checked 属性 |
-| `CodeBlock` | `code` | L122-132 | language 直传，空则 "plain text" |
+| `CodeBlock` | `code` | L122-132 | language 经 `NOTION_LANG_MAP` 映射（d09a413），空则 "plain text" |
 | `BlockQuote` | `quote` | L133-141 | 多段 → 多个 quote block |
 | `Table` | `table` + `table_row` | L142-172 | has_column_header/has_row_header 均为 false |
 | `HorizontalRule` | `divider` | L173-179 | |
@@ -283,7 +282,9 @@ pub enum Block {
 - 创建页面时 children 最多 100 个，超出部分追加
 - 追加也按 100 个一批分块
 
-### 3.4 表格单元格的处理
+### 3.4 表格单元格的处理（✅ 已修复 d2d8909）
+
+> 本节描述修复前的旧代码，作为调研记录保留；当前实现已改为传入完整 `rt` 数组。
 
 当前代码（L146-161）：
 
@@ -447,29 +448,13 @@ if status == 429 || status == 529 {
 }
 ```
 
-### 6.2 代码块语言映射对齐
+### 6.2 代码块语言映射对齐 ✅ 已修复（d09a413）
 
-**位置**：`notion.rs:123`
+**位置**：`notion.rs` L10-48（`NOTION_LANG_MAP`）
 
-**问题**：TipTap 的 language 值直传给 Notion，部分值可能不匹配。最常见的不匹配是 `plaintext` / `text` / `txt` → Notion 要求 `plain text`（有空格）。
+**问题**：TipTap 的 language 值直传给 Notion，部分值不匹配，最常见是 `plaintext` / `text` / `txt` → Notion 要求 `plain text`（有空格）。
 
-**修复方案**：建立映射表，类似飞书的 `LARK_LANG_MAP`（`lark.rs` 中已有）：
-
-```rust
-fn map_notion_lang(lang: &str) -> &str {
-    match lang.to_lowercase().as_str() {
-        "" | "text" | "txt" | "plaintext" => "plain text",
-        "cpp" => "c++",
-        "csharp" => "c#",
-        "ts" => "typescript",
-        "js" => "javascript",
-        "py" => "python",
-        "sh" | "shell" => "bash",
-        // 其他直接返回原值（大部分已匹配）
-        other => other,
-    }
-}
-```
+**修复**：新增 `NOTION_LANG_MAP` 常量表，覆盖 40 个常见语言别名（如 `js→javascript`、`ts→typescript`、`cpp→c++`、`csharp→c#`、`sh/shell→bash`、`py→python`、`md→markdown` 等），查找时 `to_lowercase()` 大小写不敏感；未命中语言回落 `plain text`（Notion 纯文本枚举），不会因非法枚举被 API 拒绝。配套测试：`fix_p1_language_mapping`。实现采用常量表查表（而非 match 函数），便于后续扩展别名。
 
 ### 6.3 未来增强方向（非缺陷，按需实施）
 
@@ -490,7 +475,8 @@ fn map_notion_lang(lang: &str) -> &str {
 P1（应尽快修复）：
   ├── ✅ 表格单元格多 rich_text 丢失      ← 已修复（d2d8909）
   ├── ✅ rich_text 2000 字符分段          ← 已修复（d2d8909）
-  └── ❌ 代码块语言映射表                 ← 未修复，小改动收益明确
+  ├── ✅ 代码块语言映射表                 ← 已修复（d09a413）
+  └── ✅ 嵌套列表深度截断（上限 2 层）     ← 已修复（d09a413）
 
 P2（建议实施）：
   ├── 429 限流重试                       ← 提升健壮性
@@ -506,7 +492,7 @@ P3（按需实施）：
 
 ## 七、测试覆盖现状
 
-Notion adapter 当前有 11 个 golden test（快照测试）和 4 个目标断言测试：
+Notion adapter 当前有 11 个 golden test（快照测试）、4 个目标断言测试 + 2 个 P1 回归测试（d09a413 新增）：
 
 | 测试名 | 覆盖场景 |
 |--------|---------|
@@ -525,12 +511,14 @@ Notion adapter 当前有 11 个 golden test（快照测试）和 4 个目标断�
 | `fix2_nested_list_children` | 嵌套→children 断言 |
 | `fix5_table_cell_keeps_annotations` | 表格格式断言 |
 | `fix7_long_title_dedup_full_text` | 标题去重断言 |
+| `fix_p1_language_mapping` | 语言别名映射断言（d09a413） |
+| `fix_p1_list_depth_capped_at_two` | 嵌套列表深度截断断言（d09a413） |
 
 **测试缺口**：
 - ❌ 超长文本（2000+ 字符）的 rich_text 分段（代码已修复，缺专项测试）
 - ❌ 429 限流场景
-- ❌ 表格单元格多段混合样式（golden 快照已更新，缺独立回归测试）
-- ❌ 代码块语言映射（`plaintext` → `plain text`）
+- ❌ 表格单元格多段混合样式（Notion 侧无独立回归；FlowUs 侧已有 `fix_p1_table_cell_keeps_all_rich_text_segments`，逻辑同源可参照）
+- ✅ 代码块语言映射（`plaintext` → `plain text` 等，`fix_p1_language_mapping` 已覆盖）
 - ❌ 100+ blocks 的分批追加
 
 ---

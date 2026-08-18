@@ -1,8 +1,23 @@
 # Sensend 用户体验与性能评估报告
 
-> 版本：v0.4.0 ｜ 评估日期：2026-08-18
+> 版本：v0.4.0 ｜ 评估日期：2026-08-18 ｜ 状态更新：2026-08-19
 > 评估范围：UI 设计 / 交互设计 / 内存控制 / 响应速度与性能
 > 配套报告：SEND-EVALUATION.md（发送格式保真度 + 发送链路质量）
+
+---
+
+## 〇、修复状态更新（2026-08-19）
+
+报告发布后，主题组件化重构与两大 P1 修复已落地（提交 12f1517），本报告相关结论同步订正：
+
+| 原报告结论 | 现状 |
+|------|------|
+| P1 暗夜模式弹窗白色硬编码（IX-1：HotkeyModal L123/L165、ConfigWindow L348 三处 `background: white`） | ✅ 已修复：全部改为 `var(--bg)` 跟随主题 |
+| P1 暗夜模式窗口底色（UI-1：tauri.conf.json `backgroundColor: "#f5f5f5"` 硬编码，唤起闪亮帧） | ✅ 已修复：窗口底色按主题动态设置，防闪帧 |
+| 双主题（浅色/暗夜，`[data-theme="dark"]` 覆盖） | ✅ 扩展为四主题：草绿 / 暗夜 / 秋珀 / 魅蓝，`vars.css` 拆分为 `base.css` + `themes/{light,dark,wenyi,tech}.css`，新增 `useTheme.ts` 注册表做 SSOT（后端只按表存值/涂色，不重复维护颜色） |
+| 报告范围外新增交互 | 「清空笔记」按钮（FooterBar 两步确认防误触 + App.vue 撤销按钮/Ctrl+Z 还原） |
+
+**仍排队**（已并入 `docs/TODO.md`）：UI-2/UI-3 弹出菜单 max-height、IX-2 带操作 Toast 时长、IX-3 浮层 Esc 关闭、UI-4 z-index 刻度、UI-5 focus-visible、IX-5 发送进度反馈、PERF-1 `get_theme` 去重、PERF-2/3 字体瘦身。详见 `docs/TODO.md`。
 
 ---
 

@@ -1,7 +1,8 @@
 # 飞书对接指南（Sensend）
 
-> 给"明天就忘"的自己：飞书这套机制不需要背，知道往哪查就行。本文按「逻辑 → 配置 → 排查」三段写，重点把最容易晕的**权限模型**讲透。
+> 给"明天就忘"的自己：飞书这套机制不需要背，知道往哪查就行。本文按「逻辑 → 配置 → 排查 → 格式规范」四段写，重点把最容易晕的**权限模型**和**格式映射**讲透。
 > 适用场景：sensend 通过「企业自建应用」把笔记追加（Append）到指定的飞书文档 / 知识库页面。
+> 本文已并入原 `FEISHU-FORMAT-SPEC.md`（格式规范调研，2026-08-18）全部内容。
 
 ---
 
@@ -52,7 +53,7 @@ tenant_access_token（2 小时，进程内缓存）
 
 三样缺一不可。
 
-### 1.3 为什么「能读不能写」？（今天踩的坑）
+### 1.3 为什么「能读不能写」？（2026-08-17 踩的坑）
 
 - 读文档只需要权限 A；写文档（追加块）需要权限 A + 写权限 B。
 - 2026-08-17 实测：**读正常，写返回 `403 / code=1770032 / forBidden`**，连最普通的 text 块都被拒。
@@ -186,10 +187,253 @@ Invoke-RestMethod -Uri "https://open.feishu.cn/open-apis/docx/v1/documents/$doc/
 - 调用流程：
   1. `get_tenant_token` — App ID+Secret 换 token，**进程内缓存 2 小时**（提前 5 分钟刷新）
   2. `resolve_document_id` — 识别 wiki 链接 → `get_node` 解析出 document_id
-  3. `append_blocks` — 追加块，**每批最多 50 个 block**（`chunks(50)` 分批）
+  3. `append_blocks` — 追加块，**每批最多 50 个 block**（`chunks(50)` 分批）；含表格时走 `descendant` 嵌套块 API（单次上限 1000 块）
   4. `get_file_url` — 取文档链接用于跳转
 - 错误语义（后端回传给前端）：
   - `飞书认证失败 (code=...)` → token 获取环节出错
   - `飞书 API 错误 (code=...): msg` → 业务接口报错（如 1770032 = 权限不足）
   - `HTTP 错误 (403)` → 接口级 403
 - 前端错误翻译在 [usePlatform.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/usePlatform.ts#L66-L72)：401→「Token 过期」、403/forbidden→「无权限访问目标」、429→「请求频繁」、网络→「网络失败」。**注意 403 类信息会被翻译成「无权限」，不代表 token 失效**。
+
+---
+
+## 五、飞书格式规范（并入原 FEISHU-FORMAT-SPEC.md）
+
+> 本节基于飞书开放平台文档 API 的格式展示要求，对照 Sensend 的 TipTap→飞书转换链路，列出差异、缺陷与改进方向。
+> 飞书 API 基线：`open.feishu.cn/open-apis/docx/v1`（代码中 `FEISHU_BASE` 常量）。
+> 飞书 API 文档：https://open.feishu.cn/document/server-docs/docs/docs/docx-v1/document-block/create
+
+**结论先行**：
+1. **核心格式覆盖完整**：Sensend 支持的 TipTap 节点（段落、标题1-9、无序/有序/待办列表、代码块、引用、分割线、表格）和行内样式（粗/斜/删/下划线/行内码/链接）全部映射到飞书 block；代码块语言映射表覆盖 34 个别名、75 种飞书枚举语言中的常用 30+ 种。
+2. **已修复**：表格曾降级为文本 → 现已用原生 `table(31)` + `table_cell(32)` 块 + `descendant` API 创建（d09a413）。
+3. **未修复缺陷**：无 429 限流重试、引用未用 quote_container、text_run 无长度上限、Mention 降级纯文本、嵌套列表拍平丢层级、代码块 wrap 未设置——见 [§5.6](#56-已知缺陷与改进)。
+4. **飞书 vs Notion 差异显著**：飞书支持 9 级标题（Notion 仅 3 级）、原生表格走嵌套块 API、块级背景色 14 种；但飞书无 toggle / bookmark。
+
+### 5.1 Block 类型体系
+
+#### 5.1.1 完整 Block 类型清单
+
+飞书 docx API 支持以下 block 类型（`/docx/v1/documents/:document_id/blocks/:block_id/children`）：
+
+| block_type | 类型名 | 支持 API 创建 | 支持 rich_text | Sensend 是否使用 |
+|:---:|---|:---:|:---:|:---:|
+| 1 | Page（页面根块） | ❌ | ✅ | —（根块，不可创建） |
+| 2 | Text（文本段落） | ✅ | ✅ | ✅ `BLOCK_TEXT` |
+| 3~11 | Heading 1~9 | ✅ | ✅ | ✅ `BLOCK_HEADING1`+ |
+| 12 | Bullet（无序列表） | ✅ | ✅ | ✅ `BLOCK_BULLET` |
+| 13 | Ordered（有序列表） | ✅ | ✅ | ✅ `BLOCK_ORDERED` |
+| 14 | Code（代码块） | ✅ | ✅ | ✅ `BLOCK_CODE` |
+| 15 | Quote（引用） | ✅ | ✅ | ✅ `BLOCK_QUOTE` |
+| 17 | Todo（待办） | ✅ | ✅ | ✅ `BLOCK_TODO` |
+| 18-20, 23-29, 35-52 | Bitable/Callout/Diagram/Grid/Iframe/Image/Sheet/表格/View 等 | 多数"开发中" | — | ❌ |
+| 22 | Divider（分割线） | ✅ | — | ✅ `BLOCK_DIVIDER` |
+| 30 | Sheet（电子表格） | ✅（单次≤5） | — | ❌ |
+| 31 | Table（表格） | ✅（需嵌套块 API） | — | ✅（descendant API 原生创建） |
+| 32 | Table Cell（单元格） | ✅（需嵌套块 API） | ✅ | ✅（随表格创建） |
+| 34 | Quote Container（引用容器） | ✅ | — | ❌ |
+
+> 完整枚举见飞书官方 BlockType 枚举。Callout(19)、分栏(24)、内嵌网页(26)、图片(27) 等 API 创建多为"开发中"，Sensend 未使用。
+
+#### 5.1.2 Block 级 style（text_style）字段
+
+所有支持 rich_text 的 block 共享一个 `style` 对象：
+
+| 字段 | 类型 | 说明 | Sensend 是否使用 |
+|---|---|---|:---:|
+| `align` | int | 对齐：1=左、2=居中、3=右 | ❌ |
+| `done` | boolean | Todo 勾选态 | ✅ `map_list_item` |
+| `folded` | boolean | 折叠状态 | ❌ |
+| `language` | int | 代码块语言枚举 1-75 | ✅ `map_language` |
+| `wrap` | boolean | 代码块自动换行 | ❌ |
+| `background_color` | string | 块级背景色（14 种 string 枚举） | ❌ |
+| `indentation_level` | string | 首行缩进 | ❌ |
+
+#### 5.1.3 代码块语言枚举（1-75）
+
+`LARK_LANG_MAP`（lark.rs L25-54）已覆盖：plaintext/text/(空)→1 PlainText、bash/sh→7、csharp/cs/c#→8、cpp/c++→9、c→10、css→12、dockerfile→18、go/golang→22、html→24、json→28、java→29、javascript/js→30、kotlin→32、lua→36、markdown/md→39、php→43、perl→44、python/py→49、ruby/rb→52、rust/rs→53、scala→57、shell/console→60、swift→61、typescript/ts→63、yaml/yml→67、sql→56、xml→66、toml→75。
+
+未覆盖但飞书支持的常见语言：Dart(15)、Delphi(16)、Erlang(19)、Fortran(20)、Groovy(23)、Haskell(27)、Julia(31)、MATLAB(37)、Makefile(38)、Nginx(40)、Objective-C(41)、PowerShell(46)、Prolog(47)、R(50)、Scheme(58)、VBScript(64)、VisualBasic(65)、CMake(68)、Diff(69)、GraphQL(71) 等。未知语言统一回落 1（PlainText），不会报错。
+
+### 5.2 飞书富文本规范
+
+#### 5.2.1 text_element 类型体系
+
+`elements` 数组每个元素是一种 `text_element`，共 7 种：
+
+| 类型 | 说明 | 支持 API 创建 | Sensend 是否使用 |
+|---|---|:---:|:---:|
+| `text_run` | 普通文本 | ✅ | ✅ `make_text_run` |
+| `mention_user` | @用户 | ✅ | ❌（降级为 "@标签" 文本） |
+| `mention_doc` | @文档 | ✅ | ❌ |
+| `reminder` | 日期提醒 | ✅ | ❌ |
+| `equation` | 行内公式（KaTeX） | ✅ | ❌ |
+| `inline_file` / `inline_block` | 内联文件/块 | ❌（只读） | ❌ |
+
+#### 5.2.2 text_run 结构
+
+```json
+{
+  "text_run": {
+    "content": "文本内容",
+    "text_element_style": {
+      "bold": true, "italic": false, "strikethrough": false,
+      "underline": true, "inline_code": false,
+      "text_color": 5, "background_color": 3,
+      "link": { "url": "https%3A%2F%2Fexample.com" }
+    }
+  }
+}
+```
+
+#### 5.2.3 text_element_style 完整字段
+
+| 字段 | 类型 | 说明 | Sensend 是否使用 |
+|---|---|---|:---:|
+| `bold` / `italic` / `strikethrough` / `underline` / `inline_code` | boolean | 粗/斜/删/下划线/行内码 | ✅ |
+| `link` | object `{ url }`（url 需 url_encode） | 超链接 | ✅ |
+| `text_color` | int 1-7 | 文字颜色 | ❌ |
+| `background_color` | int 1-15 | 行内背景色（与块级 string 枚举不同） | ❌ |
+| `comment_ids` | string[] | 评论 ID（创建时不支持传入） | — |
+
+#### 5.2.4 软换行与硬换行
+
+飞书 `text_run.content` 支持 `\n` 实现软换行（等同 Shift+Enter），但官方注明"软换行在渲染时可能被忽略"。硬换行需创建新的 Text Block。Sensend 列表项多段落使用 `\n` 拼接（软换行，飞书渲染中可能不总生效）。
+
+### 5.3 Sensend 转换链路分析
+
+```
+TipTap JSON → ir.rs::parse()（唯一遍历点）→ IR Block 序列 → lark.rs::map_blocks() → 飞书 block 数组 → LarkAdapter::publish()
+```
+
+| 函数 | 位置 | 职责 |
+|---|---|---|
+| `tiptap_to_lark_blocks` | lark.rs | 入口：`ir::parse` + `map_blocks` |
+| `map_blocks` | lark.rs | IR Block → 飞书 block JSON 逐类型映射 |
+| `map_list_item` | lark.rs | 列表项 → bullet/ordered/todo block |
+| `inlines_to_elements` | lark.rs | IR Inline → 飞书 text_element 数组 |
+| `make_text_run` | lark.rs | 构造单个 text_run（marks → text_element_style） |
+| `map_language` | lark.rs | 编辑器语言 → 飞书 CodeLanguage 枚举 |
+| `append_blocks` | lark.rs | 分块（chunks(50)）发送；含表格走 descendant API |
+| `get_tenant_token` | lark.rs | 获取 tenant_access_token（缓存 2h，提前 5min 刷新） |
+| `resolve_document_id` | lark.rs | wiki URL → document_id 解析 |
+| `publish` | lark.rs | 发布主流程：认证→解析→转换→追加→获取链接 |
+
+各 IR Block 类型映射要点：
+- **Paragraph**：空段落兜底为 `empty_element()`（飞书要求 elements 非空）；`style` 固定 `{}`。
+- **Heading**：支持 1-9 级，超限截断为 9 级；动态构造 `heading1..heading9` key。
+- **List**：Task 用原生 todo(17) + `style.done`；嵌套子列表拍平为同级 block（丢层级，见 §5.6 P2）。
+- **CodeBlock**：语言映射完整；`style.wrap` 未设置（默认不换行）。
+- **BlockQuote**：多段落拆为多个 quote(15) block，未用 quote_container(34)。
+- **Table**（已重写 d09a413）：`table(31)` → `table_cell(32)` → `text(2)` 三层，发送层走 descendant API；空单元格填空 text 块（官方要求 cell 至少一个子块）；参差行按首行列数补空；空表格跳过；行内格式保留。
+- **HorizontalRule**：→ divider(22)。
+- **Inline**：Text+marks → text_run + style；hardBreak → `\n` 软换行；Mention 降级为纯文本 `@标签`。
+
+### 5.4 工程约束（API 限制）
+
+#### 5.4.1 频率限制
+
+| 限制维度 | 上限 | 超限响应 | Sensend 处理 |
+|---|---|---|:---:|
+| 应用频率 | 3 req/s（单应用） | HTTP 400 + 99991400 | ❌ 无重试 |
+| 文档频率 | 3 并发编辑/s（单文档） | HTTP 429 | ❌ 无重试 |
+| 获取文档信息 | 5 qps | HTTP 400 + 99991400 | — |
+
+飞书官方建议使用指数退避算法处理限频。
+
+#### 5.4.2 批量创建限制
+
+| 限制项 | 上限 | Sensend 处理 |
+|---|---|:---:|
+| children 数组长度 | 1-50 个 block/请求 | ✅ `chunks(50)` 分块 |
+| Sheet block | 单次≤5 | —（未使用） |
+| 表格创建 | 需"创建嵌套块"API（descendant） | ✅ 已使用 |
+
+#### 5.4.3 鉴权机制
+
+| 项 | 说明 |
+|---|---|
+| Token 类型 | `tenant_access_token`（应用身份） |
+| 获取 | POST `/auth/v3/tenant_access_token/internal`，传 app_id + app_secret |
+| 有效期 | 2 小时 |
+| Sensend 缓存 | 进程内 `OnceLock<Mutex<HashMap>>`，提前 5min 刷新 |
+| 请求头 | `Authorization: Bearer {token}` |
+
+#### 5.4.4 wiki 链接解析
+
+飞书知识库 URL 的 token 是 `node_token`，不是 `document_id`。需先调 `/wiki/v2/spaces/get_node?token={node_token}` 拿 `obj_token`（真正的 document_id）和 `obj_type`。Sensend 已实现（`resolve_document_id`），支持 wiki URL 和普通文档 URL 两种输入。
+
+### 5.5 格式映射对照表
+
+#### 5.5.1 TipTap 节点 → 飞书 Block
+
+| TipTap 节点 | IR Block | 飞书 block_type | 飞书 key | 状态 |
+|---|---|:---:|---|:---:|
+| paragraph | Paragraph | 2 | `text` | ✅ |
+| heading (level=1-9) | Heading{level} | 3-11 | `heading1`-`heading9` | ✅ |
+| bulletList | List{Bullet} | 12 | `bullet` | ✅ |
+| orderedList | List{Ordered} | 13 | `ordered` | ✅ |
+| taskList | List{Task} | 17 | `todo` | ✅ |
+| codeBlock | CodeBlock | 14 | `code` | ✅ |
+| blockquote | BlockQuote | 15 | `quote` | ✅（未用 quote_container） |
+| table | Table | 31 + 32 | `table` + `table_cell` | ✅（原生创建） |
+| horizontalRule | HorizontalRule | 22 | `divider` | ✅ |
+
+#### 5.5.2 TipTap Marks / Inline → 飞书 text_element
+
+| TipTap Mark | IR Mark | 飞书 text_element_style | 状态 |
+|---|---|---|:---:|
+| bold | Bold | `bold: true` | ✅ |
+| italic | Italic | `italic: true` | ✅ |
+| strike | Strike | `strikethrough: true` | ✅ |
+| underline | Underline | `underline: true` | ✅ |
+| code | Code | `inline_code: true` | ✅ |
+| link (href) | Link(String) | `link: { url: href }` | ✅ |
+| — | — | `text_color` / `background_color` | ❌ 未利用 |
+| hardBreak | Break | `text_run`（content="\n"） | ✅（软换行） |
+| mention | Mention(String) | `text_run`（content="@标签"） | ⚠️ 降级为纯文本 |
+
+### 5.6 已知缺陷与改进
+
+> 状态基准：2026-08-18 调研 + 2026-08-19 P1 修复提交（d09a413）后。
+
+| 编号 | 缺陷 | 严重度 | 状态 |
+|---|---|---|:---:|
+| P1-1 | 无 429/99991400 限流重试（`request()` 直接返回 Err） | P1 | ❌ 未修复 |
+| P1-2 | 表格降级为文本 | P1 | ✅ 已修复（原生 table + descendant，d09a413） |
+| P1-3 | 引用未用 quote_container(34) 嵌套 | P1 | ❌ 未修复 |
+| P1-4 | text_run 无长度上限检查（经验值约 50000 字符/block） | P1 | ❌ 未修复 |
+| P2-1 | Mention 降级为纯文本（需 IR 扩展 user_id） | P2 | ❌ 未修复 |
+| P2-2 | 嵌套列表拍平丢层级 | P2 | ❌ 未修复 |
+| P2-3 | 代码块 wrap 未设置（长行不换行） | P2 | ❌ 未修复 |
+| P3 | Callout/折叠/对齐/行内颜色/公式/@提及/分栏/图片等能力未利用 | P3 | ❌ 未来增强 |
+
+### 5.7 与 Notion 平台对比
+
+| 维度 | 飞书 | Notion | Sensend 适配差异 |
+|---|---|---|---|
+| 标题层级 | 9 级 | 3 级 | 飞书多 6 级，Sensend 全支持 |
+| 代码块语言 | 75 种（int 枚举） | 60+ 种（string 枚举） | 两套映射表分别实现 |
+| 原生表格 | Table(31) 需嵌套块 API | 直接 children API | 均已支持 |
+| 行内颜色 | 7 文字色 + 15 背景色 | 19+19 | 均未利用 |
+| 折叠 | folded 属性 | is_toggleable / toggle | 飞书覆盖更多类型 |
+| @提及 | mention_user + mention_doc | mention（user/page/db） | 均降级纯文本 |
+| 限流 | 3 req/s + 3 并发/s/文档 | 3 req/s | 均无重试 |
+| 批量上限 | 50 blocks/请求 | 100 blocks/请求 | 飞书更严格 |
+| 鉴权 | app_id+secret → tenant_token | API Key | 飞书多一步 token 获取 |
+| 文档模式 | 仅追加 | 追加 + 创建页面 | 飞书不支持创建新文档 |
+
+### 5.8 测试覆盖现状
+
+飞书适配器（lark.rs）测试：
+
+**Golden Tests（快照）**：`simple_paragraph` / `headings` / `nested_list` / `table_with_inline` / `hardbreak` / `tasklist` / `codeblock` / `blockquote` / `long_title` / `underline_link` / `combined`。
+
+**目标断言测试**：
+| 测试名 | 验证点 |
+|---|---|
+| `fix_s3_todo_uses_native_block` | 待办用原生 todo(17) + style.done |
+| `fix2_nested_list_flattened_not_dropped` | 嵌套子项拍平输出不丢失 |
+| `fix3_list_item_multi_paragraph_kept` | 列表项多段落用 \n 保留 |
+| `b2_language_mapping` | 语言映射大小写不敏感 + 未知回落 PlainText |
+
+**未覆盖场景**：429 限流重试（无 mock server）、超长 text_run 分段、quote_container 嵌套引用、mention_user/mention_doc 原生提及、wiki URL 解析（需 mock API）。

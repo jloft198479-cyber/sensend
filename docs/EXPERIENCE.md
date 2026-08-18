@@ -1,7 +1,7 @@
 # Sensend 开发经验手册
 
 > 作者：简乐
-> 最近更新：2026-08-18（对齐 v0.4.0 发布状态）
+> 最近更新：2026-08-19（文档同步：格式 P1 三连修状态归档、飞书格式规范并入 FEISHU-GUIDE、已知未修复问题并入 TODO、索引去死链）
 > 项目：Sensend v0.4.0
 > 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
 
@@ -40,9 +40,10 @@ Sensend 的核心设计理念：
 
 **当前工作流程**：
 1. 在 `F:\fzz-Project\sensend\sensend` 直接修改代码
-2. `npm run tauri dev` 运行测试
-3. 测试通过后用 `scripts/build-release.ps1` 打包
-4. 提交并推送到 GitHub，打 tag，创建 Release
+2. 后端测试：`powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run-tests.ps1"`
+3. 看效果：`scripts\run-app.ps1`（自动加载 Rust/MSVC 环境）
+4. 打包：`scripts\build-release.ps1`（唯一正确构建方式，见 BUILD-GUIDE §〇）
+5. 提交并推送到 GitHub，打 tag，创建 Release
 
 ### 1.3 需求理解：修改前先确认
 
@@ -165,7 +166,7 @@ let headers = vec![
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
 ```
 
-详见 `BUILD-ENV.md`。**报错 ≠ 环境坏**，环境本身完好，只是没加载。
+详见 `docs/BUILD-GUIDE.md` §〇（构建环境速查，已并入原 BUILD-ENV.md）。**报错 ≠ 环境坏**，环境本身完好，只是没加载。
 
 ### ⚠️ 3. 飞书"能读不能写"——权限三扇门
 
@@ -208,30 +209,8 @@ Notion 的目标可以是 Database 也可以是 Page，API 没有统一查询接
 
 ## 四、已知未修复问题
 
-> 以下问题已识别但暂不修复，记录在此供后续处理。详见各格式调研报告和 TODO.md。
-
-### Notion 侧
-
-| 问题 | 严重度 | 状态 | 详见 |
-|------|--------|------|------|
-| 429 限流无重试 | P3 | ❌ 未修复 | NOTION-FORMAT-SPEC.md §6.1 P3 |
-| 代码块语言映射缺失 | P1 | ❌ 未修复 | NOTION-FORMAT-SPEC.md §6.2 |
-
-### 飞书侧（维持当前设计，暂不深入修复）
-
-| 问题 | 严重度 | 状态 | 详见 |
-|------|--------|------|------|
-| 429/99991400 限流无重试 | P1 | ❌ 未修复 | FEISHU-FORMAT-SPEC.md §6.1 P1-1 |
-| 表格降级为文本 | P1 | ❌ 设计决策 | FEISHU-FORMAT-SPEC.md §6.1 P1-2 |
-| 引用未用 quote_container 嵌套 | P1 | ❌ 未修复 | FEISHU-FORMAT-SPEC.md §6.1 P1-3 |
-| text_run 无长度上限检查 | P1 | ❌ 未修复 | FEISHU-FORMAT-SPEC.md §6.1 P1-4 |
-
-### 前端侧
-
-| 问题 | 严重度 | 状态 | 详见 |
-|------|--------|------|------|
-| 表格前端入口缺失 | 中 | ❌ 待实现 | TODO.md |
-| 空检查正则对带空格的 @实例名失效 | 低 | ❌ 记此备查 | TODO.md |
+> 已并入 `docs/TODO.md`（平台发送健壮性）+ 各格式调研文档，不再在本手册重复维护，避免多份拷贝失同步。
+> 涉及：Notion 429 限流无重试、飞书 429 限流无重试 / 引用无容器 / text_run 无上限 / 嵌套列表拍平 / 代码块 wrap、前端表格插入入口缺失、@实例名空格正则缺陷。
 
 ---
 
@@ -255,13 +234,13 @@ Notion 的目标可以是 Database 也可以是 Page，API 没有统一查询接
 | 文档 | 定位 | 何时读 |
 |------|------|--------|
 | `CODE-WIKI.md` | 代码百科，系统全貌 | **第一个读**——了解架构、模块、数据流 |
-| `BUILD-ENV.md` | 构建环境速查 | 动手构建前读 |
-| `BUILD-GUIDE.md` | 打包发布手册 | 需要打包或发布时读 |
+| `BUILD-GUIDE.md` | 构建环境速查 + 打包发布手册（已并入原 BUILD-ENV） | 动手构建/发布前读 |
 | `FORMAT-FIXES.md` | 格式兼容性排查 | 遇到编辑器格式问题时读 |
-| `FEISHU-GUIDE.md` | 飞书对接指南 | 配置飞书或排查飞书问题时读 |
+| `FEISHU-GUIDE.md` | 飞书对接指南 + 格式规范（已并入原 FEISHU-FORMAT-SPEC） | 配置飞书或排查飞书问题时读 |
 | `NOTION-FORMAT-SPEC.md` | Notion 格式调研 | 改 Notion 适配器时读 |
-| `FEISHU-FORMAT-SPEC.md` | 飞书格式调研 | 改飞书适配器时读 |
-| `TODO.md` | 待办事项 | 规划下一步工作时读 |
+| `SEND-EVALUATION.md` | 发送质量评估报告 | 想了解格式保真度/稳定性全貌时读 |
+| `UX-PERFORMANCE-EVALUATION.md` | 体验与性能评估报告 | 想了解 UI/性能现状时读 |
+| `TODO.md` | 待办事项（含已知未修复问题队列） | 规划下一步工作时读 |
 | `YOUDAO-MCP-FEASIBILITY.md` | 有道云笔记接入调研 | 需要接入有道云时读 |
 | 本文档 | 开发经验与重难点 | **第二个读**——掌握踩坑经验和关键约束 |
 

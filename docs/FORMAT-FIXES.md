@@ -79,6 +79,27 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 - **修复位置**：[scripts/run-app.ps1](file:///f:/fzz-Project/sensend/sensend/scripts/run-app.ps1) 构建前自动 `Get-Process -Name "sensend"` 并 `Stop-Process -Force`。
 - **排查要点**：报 os error 5 时先查 `Get-Process sensend`，有进程就杀掉再构建；一键脚本已内置，双击 run-app.bat 不会再踩。
 
+### 1.7 出站：FlowUs 表格单元格多 rich_text 丢失（P1，d09a413）
+
+- **现象**：FlowUs 表格单元格内文本有混合样式（如"**粗体**+普通+*斜体*"）时，只保留了第一段，后续格式或内容丢失。
+- **根因**：`flowus.rs` 表格单元格映射用 `rt[0].clone()` 只取 rich_text 数组首元素，而单元格实际接受整个数组。
+- **修复位置**：[flowus.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/flowus.rs) 改为 `row_cells.extend(rt)` 传入完整数组。这是 Notion 侧 d2d8909 同款缺陷在 FlowUs 的复现，两处现在对齐。
+- **测试**：`fix_p1_table_cell_keeps_all_rich_text_segments`（flowus.rs）。
+
+### 1.8 出站：Notion 代码块语言映射缺失（P1，d09a413）
+
+- **现象**：代码块语言用 TipTap 原始值直传（如 `cpp`、`plaintext`），Notion 只认官方枚举（如 `c++`、`plain text`），部分语言不被识别。
+- **根因**：`notion.rs` 直接把 `language` 属性透传，无映射表。
+- **修复位置**：[notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs) 新增 `NOTION_LANG_MAP` 常量表，覆盖 40 个别名、大小写不敏感，未知语言回落 `plain text`。
+- **测试**：`fix_p1_language_mapping`（notion.rs）。
+
+### 1.9 出站：Notion 嵌套列表深度超限（P1，d09a413）
+
+- **现象**：三层及以上嵌套列表触发 Notion `validation_error`（单请求 children 嵌套上限 2 层）。
+- **根因**：`map_list_item` 递归构建 children 无深度截断。
+- **修复位置**：[notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs) 给 `map_list_item` 加 `depth` 参数（从 1 计），`depth < 2` 才允许继续嵌套，第 3 层起子项文本并入父项 rich_text（带层级前缀），内容不丢。
+- **测试**：`fix_p1_list_depth_capped_at_two`（notion.rs）。
+
 ---
 
 ## 2. 排查套路（遇到新的格式问题怎么查）
