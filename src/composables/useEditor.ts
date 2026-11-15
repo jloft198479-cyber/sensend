@@ -388,8 +388,10 @@ export function useSensendEditor(
 
   async function doSave() {
     if (!editor.value) return
-    // 防止并发保存：上一次保存仍在进行中时跳过
-    if (saveStatus.value === 'saving') return
+    // 防止并发保存（数据损坏级）：在途保存必须先串行等待落地。
+    // 不能只看 saveStatus==='saving' 守卫——打字的 onUpdate 会把状态改回 'unsaved'，
+    // 使下一次防抖到点绕过守卫；而 save_note 共用同一临时文件，并发写会交错损坏 note.json。
+    if (inFlightSave) await inFlightSave.catch(() => {})
 
     // [OPT] 内容差异检测：序列化后与上次保存比较，相同则跳过磁盘 I/O
     const content = JSON.stringify(editor.value.getJSON())
@@ -397,6 +399,9 @@ export function useSensendEditor(
       saveStatus.value = 'idle'
       return
     }
+
+    // 等待期间已有更晚触发的保存启动（多等待者排队），让位——最新内容由防抖链的后续保存兜底
+    if (inFlightSave) return
 
     saveStatus.value = 'saving'
     inFlightSave = (async () => {
