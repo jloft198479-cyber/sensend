@@ -2,6 +2,7 @@
 import { ref, onMounted } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useConfig } from './composables/useConfig'
+import ToastLayer from './components/ToastLayer.vue'
 
 const {
   instances,
@@ -198,6 +199,8 @@ onMounted(() => {
       </div>
     </div>
     </Transition>
+    <!-- 配置窗是独立 webview（独立 JS 上下文），useToast 的队列必须由本窗口内的 ToastLayer 渲染 -->
+    <ToastLayer />
   </div>
 </template>
 

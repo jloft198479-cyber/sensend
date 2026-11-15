@@ -426,8 +426,10 @@ export function useSensendEditor(
   async function handleExitRequest() {
     if (saveTimer) { clearTimeout(saveTimer); saveTimer = null }
     if (wordCountTimer) { clearTimeout(wordCountTimer); wordCountTimer = null }
-    // 仅有未保存内容时才执行保存
-    if (saveStatus.value === 'unsaved') await doSave()
+    // 无条件走 doSave：保存完成会无条件置 'saved'，可能顶掉在途期间打字置的 'unsaved'，
+    // 若按状态判断会漏掉末次编辑（防抖定时器已被上面 clearTimeout 杀掉，再不存就永久丢）。
+    // 差异检测使无变化时零成本跳过
+    await doSave()
     // 等在途保存完成：saving 状态下退出，app.exit(0) 会截断原子写（tmp 未 rename），丢最后一次编辑
     if (inFlightSave) await inFlightSave
     await invoke('request_quit')

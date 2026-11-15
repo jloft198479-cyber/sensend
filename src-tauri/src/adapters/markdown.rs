@@ -197,8 +197,8 @@ fn render_table(table: &Table, out: &mut String) {
     let header = &table_rows[0];
     out.push('|');
     for cell in header {
-        // 竖线是表格列分隔符，正文里的 | 必须转义，否则列错位
-        out.push_str(&format!(" {} |", cell.replace('|', "\\|")));
+        // 先转义反斜杠再转义竖线：原文含字面 \| 时若只转义 |，产出 \\| 会被 GFM 当列分隔符
+        out.push_str(&format!(" {} |", cell.replace('\\', "\\\\").replace('|', "\\|")));
     }
     out.push('\n');
 
@@ -213,7 +213,7 @@ fn render_table(table: &Table, out: &mut String) {
     for cells in table_rows.iter().skip(1) {
         out.push('|');
         for cell in cells {
-            out.push_str(&format!(" {} |", cell.replace('|', "\\|")));
+            out.push_str(&format!(" {} |", cell.replace('\\', "\\\\").replace('|', "\\|")));
         }
         out.push('\n');
     }
@@ -314,6 +314,26 @@ mod tests {
         let md = tiptap_to_markdown(&doc);
         assert!(md.contains("a\\|b"), "单元格内的 | 必须转义为 \\|: {}", md);
         assert!(!md.contains("a|b"), "未转义的 | 会造成列错位: {}", md);
+    }
+
+    #[test]
+    fn table_cell_backslash_pipe_escaped() {
+        // 角案：原文含字面反斜杠+竖线（a\|b）。须先转义 \ 再转义 |，
+        // 否则产出 \\| 的偶数反斜杠让 GFM 把 | 当列分隔符，仍然错位
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "content": [{
+                    "type": "tableRow",
+                    "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "a\\|b" }] }] }
+                    ]
+                }]
+            }]
+        });
+        let md = tiptap_to_markdown(&doc);
+        assert!(md.contains("a\\\\\\|b"), "应输出 \\\\ + \\|（字面反斜杠+字面竖线）: {}", md);
     }
 
     // ── extract_title（#7 超长标题）──
