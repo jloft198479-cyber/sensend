@@ -16,7 +16,7 @@ set RUSTUP_HOME=M:\rust\.rustup
 set PATH=M:\rust\.cargo\bin;%PATH%
 
 REM -- run tests --
-cd /d F:\fzz-Project\sensend\sensend\src-tauri
+cd /d F:\fzz-Project\2-sensend\sensend\src-tauri
 call cargo test 2>&1
 
 echo.

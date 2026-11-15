@@ -30,7 +30,7 @@ if (Test-Path $vcvars) {
     $env:PATH = "M:\rust\.cargo\bin;$env:PATH"
 }
 
-Set-Location "F:\fzz-Project\sensend\sensend"
+Set-Location "F:\fzz-Project\2-sensend\sensend"
 Write-Host "=== Sensend Build & Run ===" -ForegroundColor Green
 Write-Host "cargo: $((Get-Command cargo -ErrorAction SilentlyContinue).Source)"
 Write-Host "rustc: $(rustc --version)"

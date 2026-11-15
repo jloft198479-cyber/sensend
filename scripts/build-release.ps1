@@ -35,7 +35,7 @@ if (Test-Path $vcvars) {
 }
 
 # ── 切到项目根目录并打包 ──
-Set-Location "F:\fzz-Project\sensend\sensend"
+Set-Location "F:\fzz-Project\2-sensend\sensend"
 Write-Host ""
 Write-Host "=== Sensend Build ===" -ForegroundColor Green
 Write-Host "Rust: $(rustc --version)" -ForegroundColor Cyan
