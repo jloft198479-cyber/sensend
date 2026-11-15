@@ -517,14 +517,16 @@ fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
                 // 飞书原生表格：table(31) → table_cell(32) → text(2)（官方 FAQ「创建含内容的表格」）
                 // children API 无法创建嵌套结构，发送层对带 children 的块自动改走 descendant API
                 let row_size = table.rows.len();
-                let col_size = table.rows.first().map(|r| r.len()).unwrap_or(0);
+                // 列数取各行最大值：首行含合并单元格（colspan）或短行时，
+                // 按首行取会把后续行的多出单元格静默截断（丢内容）——与 notion/flowus 对齐
+                let col_size = table.rows.iter().map(|r| r.len()).max().unwrap_or(0);
                 if row_size == 0 || col_size == 0 {
                     continue;
                 }
 
                 let mut cells = Vec::new();
                 for row in &table.rows {
-                    // 参差行按首行列数补空，保证 cells 数量 = row_size * col_size
+                    // 参差行按最大列数补空，保证 cells 数量 = row_size * col_size
                     for ci in 0..col_size {
                         let empty: Vec<super::ir::Inline> = Vec::new();
                         let cell = row.get(ci).unwrap_or(&empty);
@@ -753,6 +755,34 @@ mod tests {
             .filter_map(|e| e["text_run"]["content"].as_str())
             .collect();
         assert_eq!(content, "首段\n次段", "列表项多段落应保留（\\n 分隔）");
+    }
+
+    #[test]
+    fn fix_p1_table_col_size_takes_max_row() {
+        // 首行含合并单元格（colspan）或短行时，列数若按首行取，后续行多出的单元格会被静默截断（丢内容）
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "content": [
+                    { "type": "tableRow", "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "合并宽列" }] }] }
+                    ]},
+                    { "type": "tableRow", "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "a" }] }] },
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "b" }] }] }
+                    ]}
+                ]
+            }]
+        });
+        let blocks = convert(&doc);
+        let prop = &blocks[0]["table"]["property"];
+        assert_eq!(prop["column_size"], json!(2), "列数应取各行最大值，不能用首行");
+        let cells = blocks[0]["children"].as_array().unwrap();
+        assert_eq!(cells.len(), 4, "cells = row_size × col_size（首行按最大列数补空）");
+        // 第二行第二个单元格内容必须保留
+        let last = &cells[3]["children"][0]["text"]["elements"][0]["text_run"]["content"];
+        assert_eq!(last.as_str().unwrap(), "b", "参差表格不得丢单元格");
     }
 
     #[test]

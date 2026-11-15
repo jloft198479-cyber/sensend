@@ -189,10 +189,12 @@ fn resolve_notion_id(raw: &str) -> String {
     raw.to_string()
 }
 
-/// FlowUs URL → 页面 ID（取最后一个路径段）
+/// FlowUs URL → 页面 ID（先剥 query/hash，再取最后一个路径段）
 /// 例如: https://flowus.cn/weimabbs/640e8519-4ee1-44f9-97ec-ce3dd9788fb5 → 640e8519-4ee1-44f9-97ec-ce3dd9788fb5
+/// 带参分享链接: https://flowus.cn/xxx/640e...?from=share → 640e...
 fn resolve_flowus_id(raw: &str) -> String {
-    let without_trailing = raw.trim_end_matches('/');
+    let cleaned = raw.split(['?', '#']).next().unwrap_or(raw);
+    let without_trailing = cleaned.trim_end_matches('/');
     let segments: Vec<&str> = without_trailing.split('/').filter(|s| !s.is_empty()).collect();
     if let Some(&last) = segments.last() {
         return last.to_string();
@@ -206,4 +208,26 @@ fn is_uuid(s: &str) -> bool {
     if parts.len() != 5 { return false; }
     let hex = |s: &str| s.len() > 0 && s.chars().all(|c| c.is_ascii_hexdigit());
     hex(parts[0]) && hex(parts[1]) && hex(parts[2]) && hex(parts[3]) && hex(parts[4])
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_flowus_id_strips_query_and_hash() {
+        // 带参分享链接：query/hash 不能混进 target_id，否则 API 400
+        assert_eq!(
+            resolve_flowus_id("https://flowus.cn/xxx/640e8519-4ee1-44f9-97ec-ce3dd9788fb5?from=share"),
+            "640e8519-4ee1-44f9-97ec-ce3dd9788fb5"
+        );
+        assert_eq!(
+            resolve_flowus_id("https://flowus.cn/xxx/640e8519-4ee1-44f9-97ec-ce3dd9788fb5#anchor"),
+            "640e8519-4ee1-44f9-97ec-ce3dd9788fb5"
+        );
+        assert_eq!(
+            resolve_flowus_id("https://flowus.cn/xxx/640e8519-4ee1-44f9-97ec-ce3dd9788fb5"),
+            "640e8519-4ee1-44f9-97ec-ce3dd9788fb5"
+        );
+    }
 }

@@ -197,7 +197,8 @@ fn render_table(table: &Table, out: &mut String) {
     let header = &table_rows[0];
     out.push('|');
     for cell in header {
-        out.push_str(&format!(" {} |", cell));
+        // 竖线是表格列分隔符，正文里的 | 必须转义，否则列错位
+        out.push_str(&format!(" {} |", cell.replace('|', "\\|")));
     }
     out.push('\n');
 
@@ -212,7 +213,7 @@ fn render_table(table: &Table, out: &mut String) {
     for cells in table_rows.iter().skip(1) {
         out.push('|');
         for cell in cells {
-            out.push_str(&format!(" {} |", cell));
+            out.push_str(&format!(" {} |", cell.replace('|', "\\|")));
         }
         out.push('\n');
     }
@@ -292,6 +293,28 @@ mod tests {
         underline_link,
         combined
     );
+
+    // ── 表格竖线转义（单元格含 | 时列不得错位）──
+
+    #[test]
+    fn table_cell_pipe_escaped() {
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "content": [{
+                    "type": "tableRow",
+                    "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "a|b" }] }] },
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "c" }] }] }
+                    ]
+                }]
+            }]
+        });
+        let md = tiptap_to_markdown(&doc);
+        assert!(md.contains("a\\|b"), "单元格内的 | 必须转义为 \\|: {}", md);
+        assert!(!md.contains("a|b"), "未转义的 | 会造成列错位: {}", md);
+    }
 
     // ── extract_title（#7 超长标题）──
 

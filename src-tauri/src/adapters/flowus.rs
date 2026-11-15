@@ -58,7 +58,9 @@ impl FlowUsAdapter {
             let default_msg = format!("HTTP 错误 ({})", status);
             let msg = body.get("message").and_then(|m| m.as_str())
                 .unwrap_or(&default_msg);
-            return Err(format!("FlowUs API: {}", msg));
+            // 状态码必须始终入串：resolve_target 的 404 降级判定依赖 contains("404")，
+            // 平台自定义 message（可能是中文）不能顶掉它（对齐 notion.rs 同款约定）
+            return Err(format!("FlowUs API (HTTP {}): {}", status.as_str(), msg));
         }
         
         Ok(body)
