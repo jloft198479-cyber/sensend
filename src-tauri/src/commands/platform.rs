@@ -5,20 +5,69 @@ use serde_json::Value;
 use std::collections::HashMap;
 
 use crate::adapters::{self, PlatformAdapter, PlatformInstance, PlatformTypeInfo, ProbeResult, PublishResult};
+use crate::security;
 
 // ── Store 辅助 ──
 
+/// 读取实例列表并解密凭证（旧版明文兼容：无 enc1: 前缀原样返回）
 fn get_instances_from_store(app: &AppHandle) -> Result<Vec<PlatformInstance>, String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     match store.get("platform_instances") {
-        Some(value) => serde_json::from_value(value).map_err(|e| e.to_string()),
+        Some(value) => {
+            let mut instances: Vec<PlatformInstance> =
+                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            for inst in &mut instances {
+                inst.token = security::unprotect(&inst.token)?;
+                inst.token2 = security::unprotect(&inst.token2)?;
+            }
+            Ok(instances)
+        }
         None => Ok(vec![]),
     }
 }
 
+/// 递归检查存储原始值里是否还有未加密的 token/token2 字段。
+/// 注意：判据是盘上原始值（未解密），不是内存明文——内存值经解密后
+/// 全为明文形态，若用它判断会导致每次保存都触发备份。
+fn value_has_plaintext_secret(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Object(map) => map.iter().any(|(k, v)| {
+            if (k == "token" || k == "token2") && v.is_string() {
+                let s = v.as_str().unwrap_or_default();
+                !s.is_empty() && !security::is_encrypted(s)
+            } else {
+                value_has_plaintext_secret(v)
+            }
+        }),
+        serde_json::Value::Array(items) => items.iter().any(value_has_plaintext_secret),
+        _ => false,
+    }
+}
+
+/// 明文→密文首次落盘前，把 config.json 复制为 config.json.bak（可回滚）。
+/// 备份失败则中止写入，避免"没留底就覆盖明文"。
+fn backup_config_before_migration(app: &AppHandle) -> Result<(), String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    let src = dir.join("config.json");
+    if src.exists() {
+        std::fs::copy(&src, dir.join("config.json.bak"))
+            .map_err(|e| format!("迁移前备份 config.json 失败: {e}"))?;
+    }
+    Ok(())
+}
+
+/// 保存实例列表：凭证加密落盘；盘上仍是明文（迁移未完成）时先备份再覆盖
 fn save_instances_to_store(app: &AppHandle, instances: &[PlatformInstance]) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
-    store.set("platform_instances", serde_json::to_value(instances).map_err(|e| e.to_string())?);
+    if store.get("platform_instances").map_or(false, |v| value_has_plaintext_secret(&v)) {
+        backup_config_before_migration(app)?;
+    }
+    let mut secured = instances.to_vec();
+    for inst in &mut secured {
+        inst.token = security::protect(&inst.token)?;
+        inst.token2 = security::protect(&inst.token2)?;
+    }
+    store.set("platform_instances", serde_json::to_value(&secured).map_err(|e| e.to_string())?);
     store.save().map_err(|e| e.to_string())
 }
 
@@ -166,7 +215,12 @@ pub async fn get_token_memory(app: AppHandle, platform_type: String) -> Result<O
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     match store.get("token_memory") {
         Some(value) => {
-            let map: HashMap<String, TokenMemory> = serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let mut map: HashMap<String, TokenMemory> =
+                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            if let Some(tm) = map.get_mut(&platform_type) {
+                tm.token = security::unprotect(&tm.token)?;
+                tm.token2 = security::unprotect(&tm.token2)?;
+            }
             Ok(map.get(&platform_type).cloned())
         }
         None => Ok(None),
@@ -181,13 +235,89 @@ pub async fn set_token_memory(
     token2: String,
 ) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
+    // 盘上仍是明文（迁移未完成）→ 先备份再覆盖
+    if store.get("token_memory").map_or(false, |v| value_has_plaintext_secret(&v)) {
+        backup_config_before_migration(&app)?;
+    }
     let mut map: HashMap<String, TokenMemory> = store
         .get("token_memory")
         .and_then(|v| serde_json::from_value(v).ok())
         .unwrap_or_default();
+    // 新值并入，全量统一为明文再加密落盘（顺带升级残留旧明文）
     map.insert(platform_type, TokenMemory { token, token2 });
+    for tm in map.values_mut() {
+        tm.token = security::unprotect(&tm.token)?;
+        tm.token2 = security::unprotect(&tm.token2)?;
+    }
+    for tm in map.values_mut() {
+        tm.token = security::protect(&tm.token)?;
+        tm.token2 = security::protect(&tm.token2)?;
+    }
     store.set("token_memory", serde_json::to_value(map).map_err(|e| e.to_string())?);
     store.save().map_err(|e| e.to_string())
+}
+
+// ── 启动迁移：把残留的明文凭证一次性加密落盘（幂等，无明文不写盘） ──
+
+pub fn migrate_credentials_at_startup(app: &AppHandle) {
+    let result = (|| -> Result<(), String> {
+        let store = app.store("config.json").map_err(|e| e.to_string())?;
+        let mut changed = false;
+
+        // 1) platform_instances
+        if let Some(value) = store.get("platform_instances") {
+            let mut instances: Vec<PlatformInstance> =
+                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let mut touched = false;
+            for inst in &mut instances {
+                if !inst.token.is_empty() && !security::is_encrypted(&inst.token) {
+                    inst.token = security::protect(&inst.token)?;
+                    touched = true;
+                }
+                if !inst.token2.is_empty() && !security::is_encrypted(&inst.token2) {
+                    inst.token2 = security::protect(&inst.token2)?;
+                    touched = true;
+                }
+            }
+            if touched {
+                changed = true;
+                store.set("platform_instances", serde_json::to_value(&instances).map_err(|e| e.to_string())?);
+            }
+        }
+
+        // 2) token_memory
+        if let Some(value) = store.get("token_memory") {
+            let mut map: HashMap<String, TokenMemory> =
+                serde_json::from_value(value).map_err(|e| e.to_string())?;
+            let mut touched = false;
+            for tm in map.values_mut() {
+                if !tm.token.is_empty() && !security::is_encrypted(&tm.token) {
+                    tm.token = security::protect(&tm.token)?;
+                    touched = true;
+                }
+                if !tm.token2.is_empty() && !security::is_encrypted(&tm.token2) {
+                    tm.token2 = security::protect(&tm.token2)?;
+                    touched = true;
+                }
+            }
+            if touched {
+                changed = true;
+                store.set("token_memory", serde_json::to_value(&map).map_err(|e| e.to_string())?);
+            }
+        }
+
+        if changed {
+            // 备份当前盘上的旧文件（此刻仍是明文），再落密文
+            backup_config_before_migration(app)?;
+            store.save().map_err(|e| e.to_string())?;
+            log::info!("明文凭证已迁移为 DPAPI 密文（原文件备份为 config.json.bak）");
+        }
+        Ok(())
+    })();
+    if let Err(e) = result {
+        // 迁移失败不阻塞启动：下次保存实例/启动时再试
+        log::warn!("凭证加密迁移跳过: {e}");
+    }
 }
 
 // ── 主题色（存 config.json，两窗口同步 + 窗口底色跟随）──

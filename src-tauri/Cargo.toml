@@ -30,3 +30,8 @@ chrono = "0.4"
 tauri-plugin-dialog = "2.7.0"
 tauri-plugin-global-shortcut = "2.3.1"
 log = "0.4"
+base64 = "0.21"
+
+# 凭证加密（security.rs）：Windows DPAPI，版本对齐依赖树已有 windows-sys 0.52，不新增体积
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Security_Cryptography"] }

@@ -6,6 +6,7 @@ use tauri::tray::{TrayIconBuilder, MouseButton, MouseButtonState, TrayIconEvent}
 mod adapters;
 mod commands;
 mod memory_trim;
+mod security;
 
 /// 唤起主窗的统一入口（单实例 / 托盘菜单 / 托盘点击 / 快捷键共用）
 /// S5 悬浮球上线后，在此追加隐藏悬浮球的逻辑，四处调用点无需再改
@@ -80,6 +81,9 @@ pub fn run() {
 
             // 注册全局唤醒快捷键
             commands::hotkey::init_hotkeys(&app.handle().clone());
+
+            // 一次性把残留的明文凭证加密落盘（幂等；旧文件备份为 config.json.bak）
+            commands::platform::migrate_credentials_at_startup(&app.handle());
 
             // 窗口底色跟随已存主题（防启动闪色）
             let bg = commands::platform::stored_window_bg(&app.handle());

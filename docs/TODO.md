@@ -67,15 +67,16 @@
 - **它是什么**：多平台知识库批量导入导出搬迁工具（飞书 / 语雀 / Notion / 印象笔记等），Tauri 2 + HTML/JS + Python sidecar，1.4.x
 - **与 sensend 关系**：方向相反 —— 它是「批量搬迁」，我们是「单条速记分发」。仅局部可借鉴，不可整体照抄
 
-**待办清单**（按价值排序，均未启动）：
+**待办清单**（按价值排序）：
 
 | # | 待办 | 落点 | 严重度 | 参考实现 |
 |---|------|------|:---:|---------|
-| 1 | 平台凭证明文存储 → 加密 | `src-tauri/src/commands/platform.rs`：`token_memory`、`platform_instances` 经 tauri-plugin-store **明文写入** `config.json`（Notion token、飞书 App ID/Secret 全在里面） | P1 | wandao `src-tauri/src/security.rs` 的 `protect_bytes` / `unprotect_bytes`（Windows 用户级 DPAPI / macOS 钥匙串，含旧密文兼容迁移） |
-| 2 | 缺应用内自动更新 | `src-tauri/tauri.conf.json`（无 `plugins.updater`）、`src-tauri/Cargo.toml`（无 tauri-plugin-updater）；当前用户只能手动下载 exe | P2 | wandao `tauri.conf.json` 的 `plugins.updater`：minisign 公钥 + `latest.json` 端点 + 强制签名校验 |
-| 3 | CSP 过松 | `src-tauri/tauri.conf.json` 的 `app.security.csp`：`script-src` 含 `unsafe-eval`、`connect-src` 对全网 `https:` 放行、缺 `object-src` / `base-uri` / `form-action` | P2 | wandao 同字段：无 unsafe-eval、补齐三项限制、另加 `freezePrototype: true` |
-| 4 | 配置写入非原子 | `note.json` 800ms 防抖直写，崩溃可能留半截文件 | P3 | wandao `security.rs` 的 `write_json_atomic` / `write_private_atomic`（临时文件 + rename） |
-| 5 | 本地文件名边界未覆盖 | `src-tauri/src/adapters/local.rs#L13` `safe_title` 仅替换 `\/:*?"<>\|` | P3 | wandao `security.rs::safe_relative_path`：长度上限（Windows 260）、结尾空格/点、保留名（con/nul/aux/com1 等） |
+| 1 | 缺应用内自动更新 | `src-tauri/tauri.conf.json`（无 `plugins.updater`）、`src-tauri/Cargo.toml`（无 tauri-plugin-updater）；当前用户只能手动下载 exe | P2 | wandao `tauri.conf.json` 的 `plugins.updater`：minisign 公钥 + `latest.json` 端点 + 强制签名校验 |
+| 2 | CSP 过松 | `src-tauri/tauri.conf.json` 的 `app.security.csp`：`script-src` 含 `unsafe-eval`、`connect-src` 对全网 `https:` 放行、缺 `object-src` / `base-uri` / `form-action` | P2 | wandao 同字段：无 unsafe-eval、补齐三项限制、另加 `freezePrototype: true` |
+| 3 | 配置写入非原子 | `note.json` 800ms 防抖直写，崩溃可能留半截文件 | P3 | wandao `security.rs` 的 `write_json_atomic` / `write_private_atomic`（临时文件 + rename） |
+| 4 | 本地文件名边界未覆盖 | `src-tauri/src/adapters/local.rs#L13` `safe_title` 仅替换 `\/:*?"<>\|` | P3 | wandao `security.rs::safe_relative_path`：长度上限（Windows 260）、结尾空格/点、保留名（con/nul/aux/com1 等） |
+
+> 注：wandao 参考源 `G:\skills\wandao-main` 已不在原位置（2026-11-16 实测），其思路记录仍有效；如需再对照实现须先重新定位源码。
 
 **明确不做**（记此防下次重提）：
 
@@ -88,6 +89,14 @@
 ---
 
 ## 已处理（归档）
+
+### 平台凭证 DPAPI 加密（2026-11-16 修复，出处：wandao 借鉴项 #1）
+
+- **现象**：`config.json` 中 `platform_instances` 的 token/token2 与 `token_memory` 全部**明文存储**（Notion token、飞书 App Secret 可直接读）
+- **修复**：新增 `src-tauri/src/security.rs`——Windows DPAPI 用户级加密 + 应用熵，密文 `enc1:` 前缀 + base64 标记
+- **兼容**：读取兼容旧明文（无前缀原样返回）；启动时 `migrate_credentials_at_startup` 自动迁移残留明文，迁移前备份 `config.json` → `config.json.bak`
+- **边界**：加解密只发生在 platform.rs 存/读 store 处，业务层与前端零改动；仅借鉴 wandao 思路自行实现（规避 AGPL）
+- **诚实边界**：DPAPI + 熵可挡「拷文件到别的机器」与「同机程序空熵盲扫」，**挡不住**以同账户运行且专门逆向本应用的恶意程序
 
 ### 格式 P1 三连修（2026-08-19 提交 d09a413）
 

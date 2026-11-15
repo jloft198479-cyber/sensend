@@ -205,6 +205,14 @@ Notion 的目标可以是 Database 也可以是 Page，API 没有统一查询接
 
 文档中同时只允许一个 mention 节点。插入新 mention 前先删除所有旧 mention 并修正 range 偏移。底栏选择目标与编辑区 mention 双向同步。
 
+### ⚠️ 9. 凭证加密（DPAPI）——备份触发判据必须看盘上原始值
+
+`security.rs` 用 Windows DPAPI 加密 config.json 里的 token/token2 与 token_memory，`enc1:` 前缀 + base64 标记密文，无前缀按旧明文兼容读取。三个坑：
+
+1. **"是否需要迁移备份"的判据是盘上原始存储值**（`value_has_plaintext_secret` 递归查 JSON 里的 token/token2），不是内存值——内存值经解密后全是明文形态，用它判断会导致每次保存都重复备份。
+2. **DPAPI 密钥绑死本机 + 当前 Windows 账户**：config.json 拷到别的机器解密必然失败。解密失败时报错文案要引导"重新填写授权码"，而不是裸抛系统错误。
+3. **启动迁移幂等**：`migrate_credentials_at_startup` 只在有残留明文时写盘，失败仅 log 不阻塞启动，下次启动/保存再试。加应用熵（固定常量）防同机其他程序空熵盲扫，但挡不住专门逆向本应用的恶意程序——文档里要写清楚这个诚实边界。
+
 ---
 
 ## 四、已知未修复问题
@@ -218,7 +226,7 @@ Notion 的目标可以是 Database 也可以是 Page，API 没有统一查询接
 
 | 路径 | 用途 |
 |------|------|
-| `F:\fzz-Project\sensend\sensend` | 主项目目录（v0.3.0 起） |
+| `F:\fzz-Project\2-sensend\sensend` | 主项目目录（2026-11 从 `F:\fzz-Project\sensend` 迁入） |
 | `M:\rust\.cargo` | Rust CARGO_HOME（自定义位置）|
 | `M:\rust\.rustup` | Rust RUSTUP_HOME（自定义位置）|
 | `M:\VS\BuildTools\VC\Auxiliary\Build\vcvars64.bat` | MSVC 环境加载脚本 |

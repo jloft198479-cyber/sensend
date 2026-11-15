@@ -121,7 +121,7 @@ Sensend 使用 Tauri 2 的标准 IPC 通信模型：
 - **主窗口（`main`）**：无边框、置顶、跳过任务栏、`visibleOnAllWorkspaces`，承载编辑器。关闭按钮被拦截为隐藏。
 - **配置窗口（`config`）**：有边框、置顶、`420×580`，承载平台管理界面。由主窗口触发 `open_config_window` 命令创建。
 
-入口判定见 [src/main.ts](file:///f:/fzz-Project/sensend/sensend/src/main.ts)：
+入口判定见 [src/main.ts](file:///f:/fzz-Project/2-sensend/sensend/src/main.ts)：
 
 ```typescript
 const page = params.get('page')
@@ -217,6 +217,7 @@ sensend/
     └── src/
         ├── main.rs             # 二进制入口
         ├── lib.rs              # 应用主体（插件注册/托盘/窗口事件）
+        ├── security.rs         # 凭证加解密（DPAPI 用户级，enc1: 前缀密文，v0.5.x 安全加固）
         │
         ├── commands/           # ── Tauri 命令层 ──
         │   ├── mod.rs
@@ -278,12 +279,12 @@ sensend/
 
 | 组件 | 文件 | 职责 |
 |------|------|------|
-| TitleBar | [src/components/TitleBar.vue](file:///f:/fzz-Project/sensend/sensend/src/components/TitleBar.vue) | 自定义标题栏；递归标记拖拽区域（`data-tauri-drag-region`）；主题菜单（数据来自 useTheme 注册表）、字体菜单、置顶、发送、隐藏按钮 |
-| FooterBar | [src/components/FooterBar.vue](file:///f:/fzz-Project/sensend/sensend/src/components/FooterBar.vue) | 底栏；目标选择器（picker）、设置菜单（配置/快捷键/数据目录）、清空笔记（两步确认 + 撤销）、字数统计 |
-| HotkeyModal | [src/components/HotkeyModal.vue](file:///f:/fzz-Project/sensend/sensend/src/components/HotkeyModal.vue) | 快捷键设置弹窗；焦点陷阱（Tab 循环）、焦点恢复 |
-| FontManager | [src/components/FontManager.vue](file:///f:/fzz-Project/sensend/sensend/src/components/FontManager.vue) | 字体管理弹窗；列出用户字体、删除、打开字体目录 |
-| MentionList | [src/components/MentionList.vue](file:///f:/fzz-Project/sensend/sensend/src/components/MentionList.vue) | `@提及` 下拉项；键盘上下选择、自动滚动、hover 态 |
-| ToastLayer | [src/components/ToastLayer.vue](file:///f:/fzz-Project/sensend/sensend/src/components/ToastLayer.vue) | 全局 Toast 浮层（Teleport 到 body）；success/error/info 三类 |
+| TitleBar | [src/components/TitleBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/TitleBar.vue) | 自定义标题栏；递归标记拖拽区域（`data-tauri-drag-region`）；主题菜单（数据来自 useTheme 注册表）、字体菜单、置顶、发送、隐藏按钮 |
+| FooterBar | [src/components/FooterBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/FooterBar.vue) | 底栏；目标选择器（picker）、设置菜单（配置/快捷键/数据目录）、清空笔记（两步确认 + 撤销）、字数统计 |
+| HotkeyModal | [src/components/HotkeyModal.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/HotkeyModal.vue) | 快捷键设置弹窗；焦点陷阱（Tab 循环）、焦点恢复 |
+| FontManager | [src/components/FontManager.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/FontManager.vue) | 字体管理弹窗；列出用户字体、删除、打开字体目录 |
+| MentionList | [src/components/MentionList.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/MentionList.vue) | `@提及` 下拉项；键盘上下选择、自动滚动、hover 态 |
+| ToastLayer | [src/components/ToastLayer.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/ToastLayer.vue) | 全局 Toast 浮层（Teleport 到 body）；success/error/info 三类 |
 
 ### 4.5 Composables 层
 
@@ -407,10 +408,10 @@ IR → Markdown 文本转换，供 `local.rs` 等适配器复用（TipTap 解析
 
 | 适配器 | 文件 | 关键能力 |
 |--------|------|---------|
-| `LocalAdapter` | [local.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/local.rs) | 写入 `标题_时间戳.md`（UTF-8 BOM）；`test_connection` 通过写测试文件验证权限 |
-| `NotionAdapter` | [notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs) | `resolve_target` 三步试探法判断 Database/Page；`extract_schema_from_properties` 提取 title/date 列；IR→Notion blocks；分块追加（每批 100）|
-| `FlowUsAdapter` | [flowus.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/flowus.rs) | `resolve_target` 检测 child_database；IR→FlowUs blocks（带完整 annotations）；创建页面后追加内容 |
-| `LarkAdapter` | [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs) | App ID+Secret 换 `tenant_access_token`；wiki URL 解析 `node_token`→`document_id`；IR→飞书 blocks（block_type 常量）；仅追加模式 |
+| `LocalAdapter` | [local.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/local.rs) | 写入 `标题_时间戳.md`（UTF-8 BOM）；`test_connection` 通过写测试文件验证权限 |
+| `NotionAdapter` | [notion.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/notion.rs) | `resolve_target` 三步试探法判断 Database/Page；`extract_schema_from_properties` 提取 title/date 列；IR→Notion blocks；分块追加（每批 100）|
+| `FlowUsAdapter` | [flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) | `resolve_target` 检测 child_database；IR→FlowUs blocks（带完整 annotations）；创建页面后追加内容 |
+| `LarkAdapter` | [lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs) | App ID+Secret 换 `tenant_access_token`；wiki URL 解析 `node_token`→`document_id`；IR→飞书 blocks（block_type 常量）；仅追加模式 |
 
 ---
 
@@ -418,7 +419,7 @@ IR → Markdown 文本转换，供 `local.rs` 等适配器复用（TipTap 解析
 
 ### 6.1 `PlatformAdapter` trait
 
-[adapters/mod.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/mod.rs#L116-L130) 定义统一接口：
+[adapters/mod.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/mod.rs#L116-L130) 定义统一接口：
 
 ```rust
 #[async_trait]
@@ -439,7 +440,7 @@ pub trait PlatformAdapter: Send + Sync {
 
 ### 6.2 前端 Composables
 
-#### `useSensendEditor(instances, platformTypes)` — [useEditor.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useEditor.ts)
+#### `useSensendEditor(instances, platformTypes)` — [useEditor.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditor.ts)
 
 编辑器核心。返回 `editor/saveStatus/wordCount/charCount/getMentionId/setMention/setOnMentionChange/markSent`。
 
@@ -451,7 +452,7 @@ pub trait PlatformAdapter: Send + Sync {
 - **退出前保存**：监听 `app-exit-request` 事件，仅在 `saveStatus === 'unsaved'` 时执行 `doSave`（v0.4.0 优化，避免重复写入）。
 - **字数统计**：中文按字符计、英文按单词计。
 
-#### `usePlatform()` — [usePlatform.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/usePlatform.ts)
+#### `usePlatform()` — [usePlatform.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/usePlatform.ts)
 
 平台实例管理与发送。返回 `instances/activeInstanceId/platformTypes/isSending/selectTarget/openConfigWindow/publishNote/reloadInstances`。
 
@@ -460,27 +461,27 @@ pub trait PlatformAdapter: Send + Sync {
 - `friendlyError(raw)`：仅做网络断开兜底判断，其余错误消息原样透传（v0.4.0 简化，后端错误消息已包含足够上下文）。
 - 监听 `instances-updated` 事件自动刷新。
 
-#### `useConfig()` — [useConfig.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useConfig.ts)
+#### `useConfig()` — [useConfig.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useConfig.ts)
 
 配置窗口状态机。返回表单状态、`canSave` 计算属性、`loadData/openAddModal/openEditModal/browseFolder/testConnection/saveInstance/deleteInstance`。
 
 `canSave`：名称非空且所有非可选非隐藏字段已填。
 
-#### `useEditorFormat(editor)` — [useEditorFormat.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useEditorFormat.ts)
+#### `useEditorFormat(editor)` — [useEditorFormat.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditorFormat.ts)
 
 纯函数集合，封装 TipTap chain 操作（toggleBold/toggleH1/toggleBulletList…）与 `isActive` 判定。
 
-#### `useEditorFont()` — [useEditorFont.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useEditorFont.ts)
+#### `useEditorFont()` — [useEditorFont.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditorFont.ts)
 
 字体切换与加载。`applyUserFonts` 动态注入 `@font-face` style，更新 `--font-editor` CSS 变量；当前字体被删除时回退到默认。
 
-#### `useHotkey(publishNote, editorRef, isSending)` — [useHotkey.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useHotkey.ts)
+#### `useHotkey(publishNote, editorRef, isSending)` — [useHotkey.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useHotkey.ts)
 
 - `handleSendHotkey`：document 级 keydown 监听，匹配发送快捷键时调用 `publishNote`（仅编辑器聚焦且非发送中）。
 - `onKeyDownForHotkey`：弹窗内快捷键录制，组装 `Control+Alt+Shift+Key` 格式串。
 - `saveHotkeys`：调用后端 `save_hotkeys`。
 
-#### `useToast()` — [useToast.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useToast.ts)
+#### `useToast()` — [useToast.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useToast.ts)
 
 模块级单例 Toast 队列，提供 `success/error/info/remove`，自动定时移除。
 
@@ -488,14 +489,14 @@ pub trait PlatformAdapter: Send + Sync {
 
 | 函数 | 位置 | 说明 |
 |------|------|------|
-| `resolve_target_id` | [mod.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/mod.rs#L143) | 平台 ID 解析分发 |
-| `resolve_notion_id` | [mod.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/mod.rs#L160) | 从右向左扫描 32 位 hex，兼容 UUID 格式 |
-| `NotionAdapter::resolve_target` | [notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs#L261) | 三步试探：直接查 Database → 查子块 child_database → 兜底 Page |
-| `NotionAdapter::extract_schema_from_properties` | [notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs#L234) | 提取 title 列与 date 列名 |
-| `LarkAdapter::get_tenant_token` | [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L92) | App ID+Secret 换租户 token |
-| `LarkAdapter::resolve_document_id` | [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L220) | wiki URL → document_id（调用 `/wiki/v2/spaces/get_node`）|
-| `tiptap_to_markdown` | [markdown.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/markdown.rs#L9) | TipTap JSON → Markdown 文本 |
-| `extract_title` | [markdown.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/markdown.rs#L24) | 提取文档标题（前 18 字）|
+| `resolve_target_id` | [mod.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/mod.rs#L143) | 平台 ID 解析分发 |
+| `resolve_notion_id` | [mod.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/mod.rs#L160) | 从右向左扫描 32 位 hex，兼容 UUID 格式 |
+| `NotionAdapter::resolve_target` | [notion.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/notion.rs#L261) | 三步试探：直接查 Database → 查子块 child_database → 兜底 Page |
+| `NotionAdapter::extract_schema_from_properties` | [notion.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/notion.rs#L234) | 提取 title 列与 date 列名 |
+| `LarkAdapter::get_tenant_token` | [lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs#L92) | App ID+Secret 换租户 token |
+| `LarkAdapter::resolve_document_id` | [lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs#L220) | wiki URL → document_id（调用 `/wiki/v2/spaces/get_node`）|
+| `tiptap_to_markdown` | [markdown.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/markdown.rs#L9) | TipTap JSON → Markdown 文本 |
+| `extract_title` | [markdown.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/markdown.rs#L24) | 提取文档标题（前 18 字）|
 
 ---
 
@@ -740,11 +741,14 @@ npm run tauri build
 
 由 `tauri-plugin-store` 管理，键值：
 
-- `platform_instances`：`PlatformInstance[]`。
+- `platform_instances`：`PlatformInstance[]`。其中 `token` / `token2` 为 **DPAPI 加密密文**（`enc1:` 前缀 + base64，见 `security.rs`；v0.5.x 起替代明文）。
+- `token_memory`：各平台最近填写的授权码记忆，同样 DPAPI 加密。
 - `hotkey_show`：唤醒快捷键字符串。
 - `hotkey_send`：发送快捷键字符串。
 - `default_target`：上次发送/选择的平台实例 ID，用于启动时恢复默认目标（v0.3.0 起从 localStorage 迁移至此）。
 - `theme`：主题 ID（`light`/`dark`/`wenyi`/`tech`），默认 `light`（v0.4.0 新增）。
+
+> **凭证加密（v0.5.x 安全加固）**：加解密只发生在 `commands/platform.rs` 的存/读边界——保存实例或授权码时加密落盘，读取时解密，业务层与前端全程拿明文内存值。旧明文兼容读取；启动时 `migrate_credentials_at_startup` 幂等迁移残留明文，首次迁移前备份整份 `config.json` → `config.json.bak`（可回滚）。密文绑死「本机 + 当前 Windows 账户」，拷到别处无法解密（错误提示引导重新填写授权码）。
 
 ### 10.3 前端 localStorage
 
@@ -763,9 +767,9 @@ npm run tauri build
    - `impl YuqueAdapter` 实现内部 HTTP 请求、TipTap→平台 blocks 转换、目标解析等。
    - `#[async_trait] impl PlatformAdapter for YuqueAdapter`：实现 `publish`、`test_connection`，按需实现 `probe_type`、`append_blocks`。
 
-2. **注册模块**：在 [adapters/mod.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/mod.rs) 末尾 `pub mod yuque;`，并在 `get_platform_types()` 中添加 `PlatformTypeInfo`（定义 `key/name/color/fields`）。
+2. **注册模块**：在 [adapters/mod.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/mod.rs) 末尾 `pub mod yuque;`，并在 `get_platform_types()` 中添加 `PlatformTypeInfo`（定义 `key/name/color/fields`）。
 
-3. **工厂分发**：在 [commands/platform.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/commands/platform.rs#L25) 的 `get_adapter` 中添加 `"yuque" => Ok(Box::new(adapters::yuque::YuqueAdapter::new()))`。
+3. **工厂分发**：在 [commands/platform.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/commands/platform.rs#L25) 的 `get_adapter` 中添加 `"yuque" => Ok(Box::new(adapters::yuque::YuqueAdapter::new()))`。
 
 4. **ID 解析**（可选）：若平台 URL 需特殊解析，在 `resolve_target_id` 中增加分支。
 
