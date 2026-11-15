@@ -189,7 +189,7 @@ onMounted(() => {
   gap: 8px;
 }
 .title {
-  font-family: var(--font-mono);
+  font-family: var(--font-brand);
   font-size: 17px;
   font-weight: 700;
   font-style: italic;
@@ -281,7 +281,7 @@ onMounted(() => {
   height: var(--btn-size);
   border: none;
   background: var(--accent);
-  color: white;
+  color: var(--fg-on-accent);
   cursor: pointer;
   border-radius: var(--btn-radius);
   margin-left: 4px;
@@ -318,12 +318,12 @@ onMounted(() => {
   margin-top: 6px;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--btn-radius);
   box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  padding: 6px;
+  padding: 5px;
   min-width: 150px;
-  z-index: 100;
-  font-family: var(--font-ui, 'DM Sans', system-ui, sans-serif);
+  z-index: var(--z-dropdown);
+  font-family: var(--font-sans);
 }
 .font-menu-title {
   font-size: 11px;
@@ -336,11 +336,13 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 6px 8px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--btn-radius);
   background: none;
-  font-size: 13px;
+  /* button 不继承父级字体（UA 行为），显式拉回菜单声明的 --font-sans */
+  font-family: inherit;
+  font-size: 12.5px;
   font-weight: 500;
   color: var(--fg);
   cursor: pointer;

@@ -112,12 +112,12 @@ function onPanelKeydown(e: KeyboardEvent) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.25);
+  background: var(--overlay-bg);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  z-index: var(--z-modal);
 }
 .modal-panel {
   background: var(--bg);
@@ -160,6 +160,8 @@ function onPanelKeydown(e: KeyboardEvent) {
   display: flex; align-items: center; justify-content: center;
   padding: 8px 12px; border: 1px solid var(--gray-border); border-radius: 8px;
   background: var(--gray-input-bg); cursor: pointer; transition: all 0.15s;
+  /* button 不继承父级字体（UA 行为），显式拉回 */
+  font-family: inherit;
   min-height: 36px;
 }
 .hotkey-record-btn:hover { border-color: var(--accent); background: var(--bg); }
@@ -189,10 +191,12 @@ function onPanelKeydown(e: KeyboardEvent) {
 .config-btn {
   flex: 1; padding: 11px 0; border: none; border-radius: 8px;
   font-size: 12.5px; font-weight: 600; cursor: pointer;
+  /* button 不继承父级字体（UA 行为），显式拉回 */
+  font-family: inherit;
   transition: all 0.15s ease; display: flex; align-items: center;
   justify-content: center; gap: 6px; width: 100%;
 }
 .config-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.save-btn { background: var(--accent); color: white; }
+.save-btn { background: var(--accent); color: var(--fg-on-accent); }
 .save-btn:hover:not(:disabled) { background: var(--accent-hover); }
 </style>

@@ -133,11 +133,11 @@ onMounted(loadFonts)
 .font-manager-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.3);
+  background: var(--overlay-bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 200;
+  z-index: var(--z-overlay);
   backdrop-filter: blur(2px);
 }
 .font-manager {

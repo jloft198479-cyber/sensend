@@ -170,7 +170,7 @@ onMounted(() => {
               <span class="instance-type">
                 {{ platformTypes.find(t => t.key === inst.platform_type)?.name }}
                 <span v-if="inst.publish_mode === 'block'" class="mode-tag">追加</span>
-                <span v-else-if="inst.publish_mode === 'page'" class="mode-tag page-tag">子页面</span>
+                <span v-else-if="inst.publish_mode === 'page'" class="mode-tag">子页面</span>
               </span>
             </div>
           </div>
@@ -253,7 +253,7 @@ onMounted(() => {
 .title-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .add-new-btn {
   background: var(--accent);
-  color: white;
+  color: var(--fg-on-accent);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .add-new-btn:hover:not(:disabled) {
@@ -273,8 +273,8 @@ onMounted(() => {
 }
 /* 关闭按钮（无边框窗口自绘） */
 .close-win-btn {
-  width: 28px;
-  height: 28px;
+  width: var(--btn-size);
+  height: var(--btn-size);
   border: none;
   background: transparent;
   color: var(--muted);
@@ -398,8 +398,8 @@ onMounted(() => {
 .toggle-visibility {
   position: absolute;
   right: 4px;
-  width: 28px;
-  height: 28px;
+  width: var(--btn-size);
+  height: var(--btn-size);
   border: none;
   background: transparent;
   color: var(--muted);
@@ -439,7 +439,7 @@ onMounted(() => {
 .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .test-btn { background: var(--gray-hover); color: var(--fg); }
 .test-btn:hover:not(:disabled) { background: var(--gray-border); }
-.save-btn { background: var(--accent); color: white; }
+.save-btn { background: var(--accent); color: var(--fg-on-accent); }
 .save-btn:hover:not(:disabled) { background: var(--accent-hover); }
 
 /* ═══ 实例列表 ═══ */
@@ -524,10 +524,6 @@ onMounted(() => {
   border-radius: 3px;
   line-height: 16px;
 }
-.mode-tag.page-tag {
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-}
 .instance-actions {
   display: flex;
   align-items: center;
@@ -535,8 +531,8 @@ onMounted(() => {
   flex-shrink: 0;
 }
 .icon-btn {
-  width: 28px;
-  height: 28px;
+  width: var(--btn-size);
+  height: var(--btn-size);
   border: none;
   background: transparent;
   color: var(--muted);

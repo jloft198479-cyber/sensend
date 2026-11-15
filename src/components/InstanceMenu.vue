@@ -126,7 +126,7 @@ defineExpose({ onKeyDown })
   padding: 5px;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04);
   font-family: var(--font-editor);
-  z-index: 99999;
+  z-index: var(--z-dropdown);
 }
 .inst-empty {
   padding: 8px 10px;

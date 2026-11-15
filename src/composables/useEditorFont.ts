@@ -5,11 +5,22 @@ import { invoke } from '@tauri-apps/api/core'
  * 编辑器字体管理 composable
  * 负责字体切换、用户字体加载、字体菜单/管理器状态
  */
+
+// 默认字体栈唯一真源 = styles/base.css 的 --font-editor；此处运行时读取，避免多份字符串副本漂移
+let _defaultStack: string | null = null
+function getDefaultFontStack(): string {
+  if (_defaultStack === null) {
+    _defaultStack = getComputedStyle(document.documentElement).getPropertyValue('--font-editor').trim()
+      || "'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif" // 兜底：CSS 未就绪时与 base.css 保持一致
+  }
+  return _defaultStack
+}
+
 export function useEditorFont() {
   const fontOptions = ref([
-    { value: "'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif", label: '系统默认' },
+    { value: getDefaultFontStack(), label: '系统默认' },
   ])
-  const currentFont = ref("'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif")
+  const currentFont = ref(getDefaultFontStack())
   const currentFontLabel = ref('系统默认')
   const showFontMenu = ref(false)
   const showFontManager = ref(false)
@@ -47,7 +58,7 @@ export function useEditorFont() {
     }
 
     fontOptions.value = [
-      { value: "'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif", label: '系统默认' },
+      { value: getDefaultFontStack(), label: '系统默认' },
       ...userFonts.map(f => ({
         value: `'${escapeCss(f.name)}', 'Microsoft YaHei UI', Georgia, serif`,
         label: f.name,

@@ -183,7 +183,7 @@ async function onSaveHotkeys() {
 
     <!-- ═══ 编辑区 ═══ -->
     <div class="editor-wrapper">
-      <BubbleMenu v-if="editor" :editor="editor" :tippy-options="{ duration: 150 }">
+      <BubbleMenu v-if="editor" :editor="editor">
         <div class="bubble-menu">
           <button class="bm-btn" :class="{ active: isActive('bold') }" @click="toggleBold" title="粗体" aria-label="粗体">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
@@ -358,12 +358,6 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 
 /* ═══ TipTap 编辑器样式已抽取至 styles/editor.css ═══ */
 
-/* 下拉动画 */
-.dropdown-enter-active { transition: all 0.15s ease-out; }
-.dropdown-leave-active { transition: all 0.1s ease-in; }
-.dropdown-enter-from { opacity: 0; transform: translateY(4px); }
-.dropdown-leave-to { opacity: 0; transform: translateY(4px); }
-
 /* ═══ BubbleMenu ═══ */
 .bubble-menu {
   display: flex;
@@ -389,15 +383,6 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
   width: 1px; height: 16px;
   background: var(--gray-border);
   margin: 0 3px; flex-shrink: 0;
-}
-
-/* tippy mention 主题：去掉默认样式，让 MentionList 自己控制外观 */
-.tippy-box[data-theme~='mention'] {
-  background: transparent;
-  box-shadow: none;
-}
-.tippy-box[data-theme~='mention'] .tippy-content {
-  padding: 0;
 }
 
 </style>

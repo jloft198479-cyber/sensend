@@ -112,10 +112,10 @@ function onDocClick(e: MouseEvent) {
       <!-- 有平台：可点击选择目标 -->
       <div v-else class="target-picker-wrap">
         <button class="target-picker-btn" @click="togglePicker" title="选择发送目标" aria-label="选择发送目标">
-          <span v-if="currentTarget" class="target-mention">
+          <span v-if="currentTarget" class="target-mention platform-mention">
             @{{ getInstanceDisplayName(platformTypes, currentTarget) }}
           </span>
-          <span v-else class="target-mention placeholder">
+          <span v-else class="target-mention platform-mention placeholder">
             @选择页面
           </span>
           <svg class="picker-chevron" :class="{ open: showPicker }" width="12" height="12"
@@ -259,23 +259,13 @@ function onDocClick(e: MouseEvent) {
   background: var(--bg-hover, rgba(0,0,0,0.04));
   border-color: var(--border-color, rgba(0,0,0,0.06));
 }
+/* 药丸基础样式复用全局 .platform-mention（App.vue 定义，与编辑器内 mention 同一格式真源）；
+   此处只保留底栏特有差异 */
 .target-mention {
   display: inline-flex;
   align-items: center;
-  color: var(--accent);
-  background: linear-gradient(135deg, var(--accent-light) 0%, color-mix(in srgb, var(--accent) 3%, transparent) 100%);
-  border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
-  border-radius: 5px;
-  padding: 1px 6px;
   font-size: 12px;
-  font-weight: 500;
   cursor: pointer;
-  transition: all 0.15s ease;
-  user-select: none;
-}
-.target-mention:hover {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, color-mix(in srgb, var(--accent) 6%, transparent) 100%);
-  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 .target-mention.placeholder {
   color: var(--muted);
@@ -296,7 +286,7 @@ function onDocClick(e: MouseEvent) {
   position: absolute;
   bottom: calc(100% + 4px);
   left: 0;
-  z-index: 99999;
+  z-index: var(--z-dropdown);
 }
 
 /* 字数统计 */
@@ -348,28 +338,28 @@ function onDocClick(e: MouseEvent) {
   position: relative;
 }
 
-/* 设置下拉菜单 */
+/* 设置下拉菜单（尺寸与 InstanceMenu 同一档方言：radius/padding/字号统一） */
 .settings-menu {
   position: absolute;
   bottom: calc(100% + 4px);
   right: 0;
-  background: var(--bg, #fff);
-  border: 1px solid var(--border-color, rgba(0,0,0,0.06));
-  border-radius: 6px;
-  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border-color);
+  border-radius: var(--btn-radius);
+  padding: 5px;
   min-width: 130px;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
-  z-index: 9999;
-  font-family: var(--font-ui, 'DM Sans', system-ui, sans-serif);
+  z-index: var(--z-dropdown);
+  font-family: var(--font-sans);
 }
 .settings-item {
   display: flex;
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 7px 10px;
+  padding: 6px 8px;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--btn-radius);
   background: transparent;
   font-size: 12.5px;
   font-weight: 500;

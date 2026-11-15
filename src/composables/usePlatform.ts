@@ -14,6 +14,9 @@ import { openUrl } from '@tauri-apps/plugin-opener'
 import type { PlatformInstance, PlatformTypeInfo, PublishResult } from '../types/platform'
 import { useToast } from './useToast'
 
+// 本地兜底平台类型 key（默认目标回退用；与 Rust 侧 get_platform_types 的 "local" 对应）
+const LOCAL_PLATFORM_TYPE = 'local'
+
 /**
  * 平台实例管理 + 发送逻辑 composable
  */
@@ -43,7 +46,7 @@ export function usePlatform() {
       if (instances.value.length > 0) {
         const currentStillExists = instances.value.find(i => i.id === activeInstanceId.value)
         if (!currentStillExists) {
-          const localInst = instances.value.find(i => i.platform_type === 'local')
+          const localInst = instances.value.find(i => i.platform_type === LOCAL_PLATFORM_TYPE)
           activeInstanceId.value = localInst?.id || null
         }
       } else {
@@ -151,7 +154,7 @@ export function usePlatform() {
           if (savedExists) {
             activeInstanceId.value = savedId
           } else {
-            const localInst = list.find(i => i.platform_type === 'local')
+            const localInst = list.find(i => i.platform_type === LOCAL_PLATFORM_TYPE)
             activeInstanceId.value = localInst?.id || null
           }
         }

@@ -5,6 +5,9 @@ import { open } from '@tauri-apps/plugin-dialog'
 import type { PlatformInstance, PlatformTypeInfo } from '../types/platform'
 import { useToast } from './useToast'
 
+// 新建实例的默认平台类型 key（与 Rust 侧 get_platform_types 对应）
+const DEFAULT_PLATFORM_TYPE = 'notion'
+
 export function useConfig() {
   // ── 状态 ──
   const instances = ref<PlatformInstance[]>([])
@@ -13,7 +16,7 @@ export function useConfig() {
   const editingInstanceId = ref<string | null>(null)
   const configForm = reactive({
     name: '',
-    platform_type: 'notion',
+    platform_type: DEFAULT_PLATFORM_TYPE,
     token: '',
     token2: '',
     target_id: '',
@@ -73,7 +76,7 @@ export function useConfig() {
   function openAddModal() {
     editingInstanceId.value = null
     configForm.name = ''
-    configForm.platform_type = 'notion'
+    configForm.platform_type = DEFAULT_PLATFORM_TYPE
     configForm.token = ''
     configForm.token2 = ''
     configForm.target_id = ''
