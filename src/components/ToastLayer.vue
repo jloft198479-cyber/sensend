@@ -35,7 +35,7 @@ const { toasts, remove } = useToast()
   position: fixed;
   top: 12px;
   right: 12px;
-  z-index: 9999;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 6px;
