@@ -36,3 +36,23 @@ export function getInstanceDisplayName(types: PlatformTypeInfo[], inst: Platform
   const typeName = types.find(t => t.key === inst.platform_type)?.name || inst.platform_type
   return `${inst.name}-${typeName}`
 }
+
+/** 实例选择列表的统一条目格式（底栏目标弹窗 / 编辑器 @ 列表共用，真理源自此处） */
+export interface InstanceItem {
+  id: string
+  name: string
+  label: string        // 完整显示名（实例名-类型），供 mention 节点与 aria 使用
+  typeName: string
+  platform_type: string
+}
+
+/** 平台实例 → 统一条目（唯一的映射规则，勿在他处重拼） */
+export function toInstanceItem(inst: PlatformInstance, types: PlatformTypeInfo[]): InstanceItem {
+  return {
+    id: inst.id,
+    name: inst.name,
+    label: getInstanceDisplayName(types, inst),
+    typeName: types.find(t => t.key === inst.platform_type)?.name || inst.platform_type,
+    platform_type: inst.platform_type,
+  }
+}

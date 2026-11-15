@@ -25,7 +25,7 @@ import { TextSelection } from '@tiptap/pm/state'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import type { Ref } from 'vue'
 import type { PlatformInstance, PlatformTypeInfo } from '../types/platform'
-import { getInstanceDisplayName } from '../types/platform'
+import { getInstanceDisplayName, toInstanceItem } from '../types/platform'
 import MentionList from '../components/MentionList.vue'
 import { SentMarkExtension, markSent } from './useSentMark'
 
@@ -228,13 +228,7 @@ export function useSensendEditor(
                 const searchStr = `${inst.name} ${inst.platform_type}`.toLowerCase()
                 return searchStr.includes(query.toLowerCase())
               })
-              .map(inst => ({
-                id: inst.id,
-                name: inst.name,
-                label: getInstanceDisplayName(platformTypes.value, inst),
-                typeName: platformTypes.value.find(t => t.key === inst.platform_type)?.name || inst.platform_type,
-                platform_type: inst.platform_type,
-              }))
+              .map(inst => toInstanceItem(inst, platformTypes.value))
           },
           render: () => {
             let component: any
