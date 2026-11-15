@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { getInstanceDisplayName } from '../types/platform'
 import type { PlatformInstance, PlatformTypeInfo } from '../types/platform'
 
-defineProps<{
+const props = defineProps<{
   instances: PlatformInstance[]
   platformTypes: PlatformTypeInfo[]
   currentTarget: PlatformInstance | null
@@ -21,6 +21,21 @@ const emit = defineEmits<{
 
 const showMenu = ref(false)
 const showPicker = ref(false)
+
+// ── 平台图标映射（唯一规则源：key → 字形；底色在 themes/*.css 的 --plat-* token）──
+// 字形缺省取类型名首字母大写；'folder' 渲染文件夹 SVG
+const PLAT_GLYPHS: Record<string, string> = {
+  local: 'folder',
+  notion: 'N',
+  flowus: 'F',
+  lark: '飞',
+}
+function platGlyph(type: string): string {
+  return PLAT_GLYPHS[type] ?? type.charAt(0).toUpperCase()
+}
+function isActive(inst: PlatformInstance): boolean {
+  return props.currentTarget?.id === inst.id
+}
 
 // ── 清空笔记（两步确认防误触，3 秒无操作还原）──
 const confirmingClear = ref(false)
@@ -126,11 +141,26 @@ function onDocClick(e: MouseEvent) {
           <button
             v-for="inst in instances" :key="inst.id"
             class="picker-item"
+            :class="{ active: isActive(inst) }"
             @click="selectTarget(inst.id)"
           >
+            <span class="picker-item-icon" :class="`p-${inst.platform_type}`">
+              <svg v-if="platGlyph(inst.platform_type) === 'folder'" width="12" height="12"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+              </svg>
+              <template v-else>{{ platGlyph(inst.platform_type) }}</template>
+            </span>
             <span class="picker-item-name">{{ inst.name }}</span>
-            <span class="picker-item-sep">—</span>
-            <span class="picker-item-type">{{ platformTypes.find(t => t.key === inst.platform_type)?.name }}</span>
+            <span class="picker-item-type">
+              {{ platformTypes.find(t => t.key === inst.platform_type)?.name }}
+              <svg v-if="isActive(inst)" class="picker-item-check" width="12" height="12"
+                viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </span>
           </button>
         </div>
       </div>
@@ -298,12 +328,12 @@ function onDocClick(e: MouseEvent) {
   left: 0;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 6px;
-  padding: 4px;
-  min-width: 100px;
+  border-radius: var(--btn-radius);
+  padding: 5px;
+  min-width: 220px;
   max-width: 280px;
   overflow-y: auto;
-  max-height: 200px;
+  max-height: 240px;
   box-shadow: 0 -4px 16px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04);
   font-family: var(--font-editor);
   z-index: 99999;
@@ -317,41 +347,72 @@ function onDocClick(e: MouseEvent) {
 .picker-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
   width: 100%;
-  padding: 5px 10px;
+  padding: 6px 8px;
   margin: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--btn-radius);
   background: transparent;
-  font-size: 12px;
+  font-size: 12.5px;
   color: var(--fg);
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
   outline: none;
+  transition: background 0.12s;
 }
 .picker-item:hover {
+  background: var(--bg-hover);
+}
+.picker-item.active {
   background: var(--accent-light);
 }
+/* 平台图标：底色来自主题 --plat-* token，未知类型自动落 --plat-default */
+.picker-item-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 5px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--plat-glyph);
+  background: var(--plat-default);
+}
+.picker-item-icon.p-flowus { background: var(--plat-flowus); }
+.picker-item-icon.p-notion { background: var(--plat-notion); }
+.picker-item-icon.p-lark   { background: var(--plat-lark); }
+.picker-item-icon.p-local  { background: var(--plat-local); }
 .picker-item-name {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 600;
   color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.picker-item-sep {
-  font-size: 12px;
-  color: var(--muted);
-  flex-shrink: 0;
-}
 .picker-item-type {
-  font-size: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11px;
   font-weight: 500;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.picker-item.active .picker-item-type {
+  color: var(--accent);
+  font-weight: 600;
+}
+.picker-item-check {
+  color: var(--accent);
+  flex-shrink: 0;
 }
 
 /* 滚动条 */
@@ -373,6 +434,11 @@ function onDocClick(e: MouseEvent) {
 .word-count {
   font-size: 12px;
   color: var(--fg-secondary);
+}
+
+/* 表单控件默认不继承父级字体（UA 样式表行为），统一拉回组件字体栈（--font-editor） */
+.footer-bar button {
+  font-family: inherit;
 }
 
 /* 底栏设置按钮 */

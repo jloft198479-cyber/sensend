@@ -29,6 +29,14 @@
   --success-text: #15803d;
   --success-border: #bbf7d0;
 
+  /* 平台识别色 — 目标选择弹窗图标底色（品牌身份色，与主题主色无关；新平台在此登记） */
+  --plat-local: #94a3b8;
+  --plat-notion: #37352f;
+  --plat-flowus: #2CAF68;
+  --plat-lark: #3370ff;
+  --plat-default: #8b949e;
+  --plat-glyph: #ffffff;
+
   /* 灰度色板（统一中性灰） */
   --gray-border: #e4e4e7;
   --gray-hover: #f4f4f5;

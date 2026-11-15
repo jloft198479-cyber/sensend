@@ -26,6 +26,14 @@
   --success-text: #4aca8a;
   --success-border: rgba(61, 189, 126, 0.25);
 
+  /* 平台识别色 — 同 light（品牌身份色）；Notion 近黑方块在暗底上隐身，提亮 */
+  --plat-local: #94a3b8;
+  --plat-notion: #555555;
+  --plat-flowus: #2CAF68;
+  --plat-lark: #3370ff;
+  --plat-default: #8b949e;
+  --plat-glyph: #ffffff;
+
   /* 灰度色板 */
   --gray-border: #3a3a3a;
   --gray-hover: #2e2e2e;

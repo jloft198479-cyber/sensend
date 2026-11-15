@@ -27,6 +27,14 @@
   --success-text: #059669;
   --success-border: #a7f3d0;
 
+  /* 平台识别色 — 同 light（品牌身份色，与主题主色无关） */
+  --plat-local: #94a3b8;
+  --plat-notion: #37352f;
+  --plat-flowus: #2CAF68;
+  --plat-lark: #3370ff;
+  --plat-default: #8b949e;
+  --plat-glyph: #ffffff;
+
   /* 灰度色板（冷调灰蓝） */
   --gray-border: #e5e7eb;
   --gray-hover: #f1f4f8;

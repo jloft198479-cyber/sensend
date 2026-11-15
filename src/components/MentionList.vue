@@ -105,6 +105,8 @@ defineExpose({ onKeyDown })
   border: none;
   border-radius: 6px;
   background: transparent;
+  /* button 不继承父级字体（UA 行为），显式拉回列表声明的 --font-editor */
+  font-family: inherit;
   font-size: 12px;
   color: var(--fg);
   cursor: pointer;
