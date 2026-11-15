@@ -17,18 +17,21 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   /* === 字体 === */
   --font-sans: 'DM Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
   --font-editor: 'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif;
-  /* 品牌名用 Segoe UI Semibold（系统预装，Win/Mac 均有） */
-  --font-mono: 'Segoe UI Semibold', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
-
-  /* === 窗口 & 布局 === */
-  --window-width: 420px;
-  --window-radius: 14px;
-  --shadow-window: 0 8px 32px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.06);
+  /* 品牌名专用（Segoe UI Semibold，系统预装，Win/Mac 均有）——勿当等宽字体用 */
+  --font-brand: 'Segoe UI Semibold', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* 真等宽：行内代码 / 凭证输入框等需要字符对齐的场景 */
+  --font-mono: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
 
   /* === 顶栏 === */
   --btn-size: 28px;
   --btn-radius: 6px;
   --btn-gap: 4px;
+
+  /* === 弹层层级（从低到高，新弹层按类型入档，勿跳档）=== */
+  --z-dropdown: 100;  /* 下拉菜单 / 弹出列表（目标弹窗、@列表、设置菜单、字体菜单） */
+  --z-overlay: 200;   /* 全屏遮罩 */
+  --z-modal: 1000;    /* 模态对话框 */
+  --z-toast: 9999;    /* Toast 浮层（永远最顶） */
 
   /* === 动画 === */
   --transition-fast: 0.2s ease;

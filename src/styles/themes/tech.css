@@ -41,10 +41,14 @@
   --gray-input-bg: #f8fafc;
   --gray-scrollbar: #cbd5e1;
   --gray-placeholder: #9ca3af;
-  --brand-muted: #8b95a5;
 
   /* 交互状态 */
   --bg-hover: rgba(30, 58, 138, 0.06);
+
+  /* 主色之上的文字（accent 底按钮文字等） */
+  --fg-on-accent: #ffffff;
+  /* 全屏遮罩浓度 */
+  --overlay-bg: rgba(0, 0, 0, 0.3);
 
   /* 编辑器专用 */
   --code-bg: #eef2f7;

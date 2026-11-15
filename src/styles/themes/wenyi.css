@@ -27,16 +27,28 @@
   --success-text: #5f7d46;
   --success-border: #d9e2c8;
 
+  /* 平台识别色 — 同 light（品牌身份色，与主题主色无关；新平台在此登记） */
+  --plat-local: #94a3b8;
+  --plat-notion: #37352f;
+  --plat-flowus: #2CAF68;
+  --plat-lark: #3370ff;
+  --plat-default: #8b949e;
+  --plat-glyph: #ffffff;
+
   /* 灰度色板（暖调灰） */
   --gray-border: #e6e0d3;
   --gray-hover: #f2eee4;
   --gray-input-bg: #f6f2e9;
   --gray-scrollbar: #d6cfbf;
   --gray-placeholder: #a99e8b;
-  --brand-muted: #a49a88;
 
   /* 交互状态 */
   --bg-hover: rgba(90, 70, 40, 0.06);
+
+  /* 主色之上的文字（accent 底按钮文字等） */
+  --fg-on-accent: #ffffff;
+  /* 全屏遮罩浓度 */
+  --overlay-bg: rgba(0, 0, 0, 0.3);
 
   /* 编辑器专用 */
   --code-bg: #f1ebdd;
