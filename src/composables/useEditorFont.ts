@@ -41,7 +41,7 @@ export function useEditorFont() {
       const style = document.createElement('style')
       style.id = 'dynamic-font-faces'
       style.textContent = userFonts.map(f =>
-        `@font-face { font-family: '${escapeCss(f.name)}'; src: url('${escapeCss(f.path)}'); }`
+        `@font-face { font-family: '${escapeCss(f.name)}'; src: url('${escapeCss(f.path)}'); font-display: swap; }`
       ).join('\n')
       document.head.appendChild(style)
     }

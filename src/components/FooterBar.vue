@@ -233,7 +233,7 @@ function onDocClick(e: MouseEvent) {
   white-space: nowrap;
   line-height: 1;
 }
-.target-btn:hover { background: rgba(0, 0, 0, 0.05); }
+.target-btn:hover { background: var(--bg-hover); }
 .target-btn.no-target {
   color: var(--muted);
   font-size: 12px;
@@ -279,8 +279,8 @@ function onDocClick(e: MouseEvent) {
 }
 .target-mention.placeholder {
   color: var(--muted);
-  background: rgba(0,0,0,0.03);
-  border-color: rgba(0,0,0,0.08);
+  background: var(--bg-hover);
+  border-color: var(--border-color);
 }
 .picker-chevron {
   color: var(--muted);

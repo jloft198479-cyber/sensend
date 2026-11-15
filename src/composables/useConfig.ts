@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { open } from '@tauri-apps/plugin-dialog'
 
 import type { PlatformInstance, PlatformTypeInfo } from '../types/platform'
+import { useToast } from './useToast'
 
 export function useConfig() {
   // ── 状态 ──
@@ -183,6 +184,8 @@ export function useConfig() {
       showForm.value = false
     } catch (e: any) {
       console.error('保存失败:', e)
+      // 失败必须可见：静默会让用户误以为已保存（DPAPI 加密失败/存储写入失败都在此路径）
+      useToast().error(`保存失败：${e?.message ?? e}`)
     } finally {
       isSaving.value = false
     }
@@ -195,6 +198,7 @@ export function useConfig() {
       showDeleteConfirm.value = null
     } catch (e) {
       console.error('删除失败:', e)
+      useToast().error(`删除失败：${(e as any)?.message ?? e}`)
     }
   }
 

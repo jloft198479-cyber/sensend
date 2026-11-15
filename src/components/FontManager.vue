@@ -259,11 +259,11 @@ onMounted(loadFonts)
   overflow-y: auto;
   padding: 0 18px 16px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(0,0,0,0.08) transparent;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .fm-list::-webkit-scrollbar { width: 4px; }
 .fm-list::-webkit-scrollbar-track { background: transparent; }
-.fm-list::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.08); border-radius: 2px; }
+.fm-list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
 
 .fm-empty {
   display: flex;
