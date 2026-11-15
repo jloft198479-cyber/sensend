@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 
-use crate::adapters::{self, PlatformAdapter, PlatformInstance, PlatformTypeInfo, ProbeResult, PublishResult};
+use crate::adapters::{self, PlatformAdapter, PlatformInstance, PlatformTypeInfo, PublishResult};
 use crate::security;
 
 // ── Store 辅助 ──
@@ -159,13 +159,6 @@ pub async fn delete_platform_instance(
 pub async fn test_platform_connection(instance: PlatformInstance) -> Result<(), String> {
     let adapter = get_adapter(&instance.platform_type)?;
     adapter.test_connection(&instance).await
-}
-
-#[tauri::command]
-pub async fn probe_target(instance: PlatformInstance) -> Result<ProbeResult, String> {
-    let adapter = get_adapter(&instance.platform_type)?;
-    let target_type = adapter.probe_type(&instance).await?;
-    Ok(ProbeResult { target_type })
 }
 
 #[tauri::command]

@@ -100,22 +100,11 @@ pub struct PublishResult {
     pub url: Option<String>,
 }
 
-/// 探测结果（目标类型）
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct ProbeResult {
-    pub target_type: String, // "page" | "database" | "bitable"
-}
-
 /// 平台适配器统一接口
 #[async_trait]
 pub trait PlatformAdapter: Send + Sync {
     async fn publish(&self, content: &Value, instance: &PlatformInstance) -> Result<PublishResult, String>;
     async fn test_connection(&self, instance: &PlatformInstance) -> Result<(), String>;
-
-    /// 探测目标类型（默认返回 "page"，各适配器按需覆盖）
-    async fn probe_type(&self, _instance: &PlatformInstance) -> Result<String, String> {
-        Ok("page".to_string())
-    }
 
     /// 追加内容到已有页面（默认不支持，各适配器按需覆盖）
     async fn append_blocks(&self, _content: &Value, _instance: &PlatformInstance) -> Result<PublishResult, String> {

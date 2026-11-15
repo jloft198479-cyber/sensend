@@ -486,15 +486,6 @@ impl NotionAdapter {
 #[async_trait]
 impl PlatformAdapter for NotionAdapter {
 
-    async fn probe_type(&self, instance: &PlatformInstance) -> Result<String, String> {
-        let target_id = resolve_target_id("notion", &instance.target_id);
-        let target = self.resolve_target(&instance.token, &target_id).await?;
-        match target {
-            TargetType::Database { .. } => Ok("database".to_string()),
-            TargetType::Page => Ok("page".to_string()),
-        }
-    }
-
     async fn test_connection(&self, instance: &PlatformInstance) -> Result<(), String> {
         log::info!("[Notion] 测试连接");
         match self.request("GET", "/users/me", &instance.token, None).await {

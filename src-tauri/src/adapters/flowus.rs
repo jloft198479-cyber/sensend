@@ -414,15 +414,6 @@ impl FlowUsAdapter {
 #[async_trait]
 impl PlatformAdapter for FlowUsAdapter {
 
-    async fn probe_type(&self, instance: &PlatformInstance) -> Result<String, String> {
-        let target_id = resolve_target_id("flowus", &instance.target_id);
-        let target = self.resolve_target(&instance.token, &target_id).await?;
-        match target {
-            TargetType::Database { .. } => Ok("database".to_string()),
-            TargetType::Page => Ok("page".to_string()),
-        }
-    }
-
     async fn test_connection(&self, instance: &PlatformInstance) -> Result<(), String> {
         let target_id = resolve_target_id("flowus", &instance.target_id);
         log::info!("[FlowUs] 测试连接, target_id={}", &target_id);

@@ -609,10 +609,6 @@ pub(crate) fn tiptap_to_lark_blocks(content: &Value) -> Vec<Value> {
 #[async_trait]
 impl PlatformAdapter for LarkAdapter {
 
-    async fn probe_type(&self, _instance: &PlatformInstance) -> Result<String, String> {
-        Ok("page".to_string())
-    }
-
     async fn test_connection(&self, instance: &PlatformInstance) -> Result<(), String> {
         let (app_id, app_secret) = Self::get_credentials(instance)?;
         let client = super::http_client();

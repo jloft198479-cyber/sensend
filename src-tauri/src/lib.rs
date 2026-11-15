@@ -59,7 +59,6 @@ pub fn run() {
             commands::platform::save_platform_instance,
             commands::platform::delete_platform_instance,
             commands::platform::test_platform_connection,
-            commands::platform::probe_target,
             commands::platform::publish_note,
             commands::platform::get_default_target,
             commands::platform::set_default_target,
