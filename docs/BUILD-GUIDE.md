@@ -13,7 +13,7 @@
   - 跑测试 → `scripts\run-tests.ps1`（双击 `scripts\run-tests.bat` 亦可）
   - 打包安装包（发布用）→ `scripts\build-release.ps1`
   ```powershell
-  cd F:\fzz-Project\sensend\sensend
+  cd F:\fzz-Project\2-sensend\sensend
   powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
   ```
 - ❌ **禁止**在普通终端直接执行 `npm run tauri build`、`cargo build`、`npm run tauri dev`——M 盘 Rust / MSVC 不在系统 PATH，裸跑必报"找不到 cargo / cl.exe"。
@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run-tests.ps1"
 - 构建耗时：增量约 1~2 分钟，全量 5~15 分钟。工具调用时设长超时或后台执行，勿因等待而误判失败。
 - `run-app.ps1` 会**强杀运行中的 sensend 并在桌面弹出新窗口**——用户正在使用时别跑它；仅验证编译用 run-tests.ps1。
 - exe 被运行中进程占用时 cargo 报 `os error 5 拒绝访问`（sensend 点关闭只是隐藏，进程还活着）。手动构建前先托盘退出应用；run-app.ps1 会自动杀进程。
-- 从 Git Bash 调用：先 `cd "F:/fzz-Project/sensend/sensend"`，脚本路径用正斜杠 `scripts/run-app.ps1` 亦可。
+- 从 Git Bash 调用：先 `cd "F:/fzz-Project/2-sensend/sensend"`，脚本路径用正斜杠 `scripts/run-app.ps1` 亦可。
 
 **非要手动加载环境**（不推荐，易漏步骤，报错别怪环境）：
 
@@ -98,7 +98,7 @@ Windows 平台打包 NSIS 安装包需要额外下载：
 node / npm 在系统 PATH，此步可在普通终端执行：
 
 ```bash
-cd F:\fzz-Project\sensend\sensend
+cd F:\fzz-Project\2-sensend\sensend
 npm install
 ```
 
@@ -123,7 +123,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run-app.ps1"
 打包安装包（NSIS setup.exe）**只有一种正确方式**——走脚本，它会自动加载 M 盘 Rust + MSVC 环境：
 
 ```bash
-cd F:\fzz-Project\sensend\sensend
+cd F:\fzz-Project\2-sensend\sensend
 powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"
 ```
 
@@ -261,7 +261,7 @@ $env:PATH += ";D:\Git\bin"
 
 ### 4.0 发布前自检（5 项，全绿才继续）
 
-在项目根目录 `F:\fzz-Project\sensend\sensend` 依次执行，任一失败即停止：
+在项目根目录 `F:\fzz-Project\2-sensend\sensend` 依次执行，任一失败即停止：
 
 ```powershell
 # ① 版本号：记下它，后面 tag / Release 标题 / 安装包名全部要跟它一致
@@ -285,7 +285,7 @@ git tag | Select-String "^v"
 > 编码提示：commit message 建议英文为主；若写中文且终端出现乱码，先执行 `chcp 65001` 再提交。提交前**必须**用 `git status` 核对暂存内容，明确列出要提交的文件（`git add <路径>`），不要 `git add .` 盲加。
 
 ```powershell
-cd F:\fzz-Project\sensend\sensend
+cd F:\fzz-Project\2-sensend\sensend
 git add <本次改动的文件/目录>        # 明确列出，不用 git add .
 git commit -m "feat(v0.5.0): 本次发布内容说明"
 git log --oneline -1                 # 验证提交成功

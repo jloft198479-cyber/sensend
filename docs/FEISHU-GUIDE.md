@@ -22,7 +22,7 @@
 - 用它们换来的 `tenant_access_token` 相当于「临时通行证」，**2 小时有效**。
 - 通行证代表「应用自己」，不是某个员工。所以 sensend 干的每件事，飞书都理解为「这个应用在操作」。
 
-一次完整流程（对应 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L499-L543)）：
+一次完整流程（对应 [lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs#L499-L543)）：
 
 ```
 App ID + App Secret
@@ -58,7 +58,7 @@ tenant_access_token（2 小时，进程内缓存）
 - 读文档只需要权限 A；写文档（追加块）需要权限 A + 写权限 B。
 - 2026-08-17 实测：**读正常，写返回 `403 / code=1770032 / forBidden`**，连最普通的 text 块都被拒。
 - 说明该应用只有读权限，没有写权限（或写了权限但没发布）。
-- **注意**：sensend 配置窗口的「测试连接」按钮只做了**读取**验证（拿 token → 解析 wiki → 读文档，见 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L499-L514)），**从不测写入**。所以「测试连接显示正常」≠「能写入」。真正的写入验证 = 实际发一条内容。
+- **注意**：sensend 配置窗口的「测试连接」按钮只做了**读取**验证（拿 token → 解析 wiki → 读文档，见 [lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs#L499-L514)），**从不测写入**。所以「测试连接显示正常」≠「能写入」。真正的写入验证 = 实际发一条内容。
 
 ### 1.4 几个名词别搞混
 
@@ -71,7 +71,7 @@ tenant_access_token（2 小时，进程内缓存）
 | document_id / obj_token | 真正文档的「身份证号」 | 写入文档时用 |
 | Block | 文档里一段一段的内容块 | sensend 把笔记转成 block 再追加 |
 
-wiki 链接解析流程（[lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L220-L258)）：
+wiki 链接解析流程（[lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs#L220-L258)）：
 
 ```
 粘贴的 wiki 链接: https://xxx.feishu.cn/wiki/GydowmeXUiXRWIk3vFicLtHVngd
@@ -90,7 +90,7 @@ obj_token = QNxAdoxSaom98ExNim2cCG0Wn9c  ← 这就是文档的 document_id，�
 
 ### 1.6 内容长什么样？（block_type 映射，以代码为准）
 
-飞书文档 = 一个根块 + 无数子块。sensend 把富文本笔记转成这些块（常量定义在 [lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs#L13-L21)）：
+飞书文档 = 一个根块 + 无数子块。sensend 把富文本笔记转成这些块（常量定义在 [lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs#L13-L21)）：
 
 | block_type | 含义 | sensend 从哪来 |
 |---|---|---|
@@ -183,7 +183,7 @@ Invoke-RestMethod -Uri "https://open.feishu.cn/open-apis/docx/v1/documents/$doc/
 
 ## 四、Sensend 实现对照（给改代码的人）
 
-- 适配器文件：[lark.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/lark.rs)
+- 适配器文件：[lark.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/lark.rs)
 - 调用流程：
   1. `get_tenant_token` — App ID+Secret 换 token，**进程内缓存 2 小时**（提前 5 分钟刷新）
   2. `resolve_document_id` — 识别 wiki 链接 → `get_node` 解析出 document_id
@@ -193,7 +193,7 @@ Invoke-RestMethod -Uri "https://open.feishu.cn/open-apis/docx/v1/documents/$doc/
   - `飞书认证失败 (code=...)` → token 获取环节出错
   - `飞书 API 错误 (code=...): msg` → 业务接口报错（如 1770032 = 权限不足）
   - `HTTP 错误 (403)` → 接口级 403
-- 前端错误翻译在 [usePlatform.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/usePlatform.ts#L66-L72)：401→「Token 过期」、403/forbidden→「无权限访问目标」、429→「请求频繁」、网络→「网络失败」。**注意 403 类信息会被翻译成「无权限」，不代表 token 失效**。
+- 前端错误翻译在 [usePlatform.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/usePlatform.ts#L66-L72)：401→「Token 过期」、403/forbidden→「无权限访问目标」、429→「请求频繁」、网络→「网络失败」。**注意 403 类信息会被翻译成「无权限」，不代表 token 失效**。
 
 ---
 

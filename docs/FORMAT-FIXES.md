@@ -38,14 +38,14 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 
 - **现象**：粘贴 markdown 待办（`- [ ] xxx`）后，勾选框在上一行、文字在下一行。
 - **根因**（库坑，非我们代码错误）：`@tiptap/extension-list` 3.28 的 TaskItem 注册了自定义 `addNodeView`（node_modules/@tiptap/extension-list/dist/index.js L1360-1451），live DOM 里的 `<li>` 是手工 `createElement` 拼的，**只设了 `data-checked` 属性，不设 `data-type="taskItem"`**。我们原来的 CSS 选择器全用 `li[data-type="taskItem"]`，在真实 DOM 上一个都匹配不上，flex 横排布局失效，块级 div 和行内 label 自然各占一行。
-- **修复位置**：[src/App.vue](file:///f:/fzz-Project/sensend/sensend/src/App.vue) 的待办 CSS，选择器全部从 `li[data-type="taskItem"]` 改为 `li[data-checked]`。
+- **修复位置**：[src/App.vue](file:///f:/fzz-Project/2-sensend/sensend/src/App.vue) 的待办 CSS，选择器全部从 `li[data-type="taskItem"]` 改为 `li[data-checked]`。
 - **排查要点**：写 TipTap 扩展的 CSS 时，**必须实测渲染后的 DOM 属性**，不要只看扩展源码的 renderHTML——NodeView 渲染路径和 renderHTML 序列化路径可以完全不同。
 
 ### 1.2 待办：从网页复制带 checkbox 的待办，勾选框全丢
 
 - **现象**：从网页/在线文档复制待办列表粘进 sensend，checkbox 消失，退化成普通圆点列表。
 - **根因**：原生 TaskItem 的 parseHTML 只认 `li[data-type="taskItem"]`，网页的 `li > input[type=checkbox]` 结构不认识，被当成普通 listItem。同时还会留下一个空的 bulletList 壳。
-- **修复位置**（[src/composables/useEditor.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useEditor.ts)）：
+- **修复位置**（[src/composables/useEditor.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditor.ts)）：
   - `TaskItemBase.extend({...})` 补两条 `:has()` 解析规则（`li:has(> input[type=checkbox])`、`li:has(> label input[type=checkbox])`，priority 52 高于 listItem 的 50），并把 checkbox 勾选态读进 `attrs.checked`。
   - `handlePaste` 里：凡 HTML 含 checkbox，先用 DOMParser 把 `<ul>` 标成 `data-type="taskList"`、`<li>` 标成 `data-type="taskItem"`+`data-checked`、拆掉 label/删除 input，再 insertContent——彻底消灭空壳。
 - **排查要点**：网页待办有裸 input 和 label 包 input 两种结构，两条规则都要有；普通列表项（无 checkbox）不能被误判成 taskItem。
@@ -54,21 +54,21 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 
 - **现象**：从 Typora / GitHub / VSCode 复制的竖线表格文本，粘进 sensend 变成一行普通文字，不是表格。
 - **根因**：`handlePaste` 入口的"是否像 markdown"粗判正则不含表格语法，`| --- | --- |` 分隔行不被识别，整串文本没走 markdown 解析。
-- **修复位置**：[src/composables/useEditor.ts](file:///f:/fzz-Project/sensend/sensend/src/composables/useEditor.ts) 的 `looksLikeMarkdown` 正则，新增表格分隔行分支：`\s*\|?[\s:|-]*-{2,}[\s:|-]*\|`。
+- **修复位置**：[src/composables/useEditor.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditor.ts) 的 `looksLikeMarkdown` 正则，新增表格分隔行分支：`\s*\|?[\s:|-]*-{2,}[\s:|-]*\|`。
 - **排查要点**：正则只在"分隔行"（含连续两个以上 `-`）上放行，普通句子里的单竖线不会误命中。`@tiptap/extension-table` 自带的 parseMarkdown 能力是够的，缺的只是入口关卡。
 
 ### 1.4 表格：粘进来是无线的字，看不出是表格
 
 - **现象**：表格能解析出来，但完全没有边框和表头底色，显示成一堆字。
 - **根因**：全项目没有一行表格 CSS。
-- **修复位置**：[src/styles/editor.css](file:///f:/fzz-Project/sensend/sensend/src/styles/editor.css) 新增表格样式：`border-collapse: collapse`、td/th 边框 `var(--gray-border)`、表头浅底加粗、单元格内边距、`.selectedCell` 高亮。
+- **修复位置**：[src/styles/editor.css](file:///f:/fzz-Project/2-sensend/sensend/src/styles/editor.css) 新增表格样式：`border-collapse: collapse`、td/th 边框 `var(--gray-border)`、表头浅底加粗、单元格内边距、`.selectedCell` 高亮。
 - **排查要点**：TipTap 功能是否"看着有"要分三层验证——能否解析（parse）、能否渲染（DOM+CSS）、能否导出（IR+适配器）。少任何一层都是半废。
 
 ### 1.5 出站：粘贴/光标落脚导致的尾部空段
 
 - **现象**：粘贴后导出到平台会多一个空块（空段落）。
 - **根因**：编辑器粘贴后会给文档尾部补一个空 paragraph 作为光标落脚点，它不是用户内容，却被 getJSON 原样带走。
-- **修复位置**：[src-tauri/src/adapters/ir.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/ir.rs) 的 `parse()`，尾部 while 剥掉空段（空或纯空白文本的 Paragraph）。
+- **修复位置**：[src-tauri/src/adapters/ir.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/ir.rs) 的 `parse()`，尾部 while 剥掉空段（空或纯空白文本的 Paragraph）。
 - **三条边界（都有测试）**：只剥**尾部**；**中间**空行是用户排版保留；尾部含 @mention 的段是有效内容不误杀。
 - **测试**：`ir_parse_trailing_blank_paragraphs_trimmed` / `ir_parse_middle_blank_paragraph_kept` / `ir_parse_trailing_mention_paragraph_kept`。
 
@@ -76,28 +76,28 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 
 - **现象**：`npm run tauri build` 报 `error: failed to remove file ...sensend.exe` / `拒绝访问 (os error 5)` / `RUST BUILD FAILED`。
 - **根因**：有 sensend.exe 进程还开着（上次启动的应用窗口没关），Windows 不让删除/覆盖正在运行的文件。
-- **修复位置**：[scripts/run-app.ps1](file:///f:/fzz-Project/sensend/sensend/scripts/run-app.ps1) 构建前自动 `Get-Process -Name "sensend"` 并 `Stop-Process -Force`。
+- **修复位置**：[scripts/run-app.ps1](file:///f:/fzz-Project/2-sensend/sensend/scripts/run-app.ps1) 构建前自动 `Get-Process -Name "sensend"` 并 `Stop-Process -Force`。
 - **排查要点**：报 os error 5 时先查 `Get-Process sensend`，有进程就杀掉再构建；一键脚本已内置，双击 run-app.bat 不会再踩。
 
 ### 1.7 出站：FlowUs 表格单元格多 rich_text 丢失（P1，d09a413）
 
 - **现象**：FlowUs 表格单元格内文本有混合样式（如"**粗体**+普通+*斜体*"）时，只保留了第一段，后续格式或内容丢失。
 - **根因**：`flowus.rs` 表格单元格映射用 `rt[0].clone()` 只取 rich_text 数组首元素，而单元格实际接受整个数组。
-- **修复位置**：[flowus.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/flowus.rs) 改为 `row_cells.extend(rt)` 传入完整数组。这是 Notion 侧 d2d8909 同款缺陷在 FlowUs 的复现，两处现在对齐。
+- **修复位置**：[flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) 改为 `row_cells.extend(rt)` 传入完整数组。这是 Notion 侧 d2d8909 同款缺陷在 FlowUs 的复现，两处现在对齐。
 - **测试**：`fix_p1_table_cell_keeps_all_rich_text_segments`（flowus.rs）。
 
 ### 1.8 出站：Notion 代码块语言映射缺失（P1，d09a413）
 
 - **现象**：代码块语言用 TipTap 原始值直传（如 `cpp`、`plaintext`），Notion 只认官方枚举（如 `c++`、`plain text`），部分语言不被识别。
 - **根因**：`notion.rs` 直接把 `language` 属性透传，无映射表。
-- **修复位置**：[notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs) 新增 `NOTION_LANG_MAP` 常量表，覆盖 40 个别名、大小写不敏感，未知语言回落 `plain text`。
+- **修复位置**：[notion.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/notion.rs) 新增 `NOTION_LANG_MAP` 常量表，覆盖 40 个别名、大小写不敏感，未知语言回落 `plain text`。
 - **测试**：`fix_p1_language_mapping`（notion.rs）。
 
 ### 1.9 出站：Notion 嵌套列表深度超限（P1，d09a413）
 
 - **现象**：三层及以上嵌套列表触发 Notion `validation_error`（单请求 children 嵌套上限 2 层）。
 - **根因**：`map_list_item` 递归构建 children 无深度截断。
-- **修复位置**：[notion.rs](file:///f:/fzz-Project/sensend/sensend/src-tauri/src/adapters/notion.rs) 给 `map_list_item` 加 `depth` 参数（从 1 计），`depth < 2` 才允许继续嵌套，第 3 层起子项文本并入父项 rich_text（带层级前缀），内容不丢。
+- **修复位置**：[notion.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/notion.rs) 给 `map_list_item` 加 `depth` 参数（从 1 计），`depth < 2` 才允许继续嵌套，第 3 层起子项文本并入父项 rich_text（带层级前缀），内容不丢。
 - **测试**：`fix_p1_list_depth_capped_at_two`（notion.rs）。
 
 ---
