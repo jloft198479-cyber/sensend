@@ -24,7 +24,7 @@
       ],
       "text_color": "default"
     },
-    "type": "todo"
+    "type": "to_do"
   },
   {
     "data": {
@@ -51,6 +51,6 @@
       ],
       "text_color": "default"
     },
-    "type": "todo"
+    "type": "to_do"
   }
 ]

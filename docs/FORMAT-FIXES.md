@@ -100,6 +100,32 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 - **修复位置**：[notion.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/notion.rs) 给 `map_list_item` 加 `depth` 参数（从 1 计），`depth < 2` 才允许继续嵌套，第 3 层起子项文本并入父项 rich_text（带层级前缀），内容不丢。
 - **测试**：`fix_p1_list_depth_capped_at_two`（notion.rs）。
 
+### 1.10 出站：FlowUs 表格裸 table_row 直发被拒（P1，2026-11-16 真机验证）
+
+- **现象**：发往 FlowUs 的内容带表格时整个发送 400 失败（此前只做过本地快照测试，未真机验证）。
+- **根因**：`flowus.rs` 把 `table_row` 块当普通块直发到页面 children，但 FlowUs v1 API **不接受裸 table_row**——必须先建 `table` 壳，再把行挂到壳下（同 Notion 官方结构）。
+- **修复位置**：[flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) Table 分支输出 `table` 块（行随顶层 `children` 携带）；`append_children` 遇 table 拆两步：`flush_batch`（普通块攒批）→ `append_table`（建壳 → 取返回 id → 行按 100/批挂壳下）。
+- **真机验证**：壳 200 / 行挂壳下 200，混合多段 rich_text 单元格完整落库。
+- **测试**：`fix5_table_cell_keeps_annotations` / `fix_p1_table_cell_keeps_all_rich_text_segments` 改为断言 table 壳结构；golden `table_with_inline` 重生成。
+
+### 1.11 出站：FlowUs 待办块类型名错误，静默降级成段落（P2，2026-11-16 真机验证）
+
+- **现象**：待办发到 FlowUs 不报错，但落库变成普通 paragraph，勾选框消失——静默降级最迷惑。
+- **根因**：`flowus.rs` 类型名用了 `todo`，FlowUs v1 对未知类型不报错而是降级 paragraph；实测**正确类型名是 `to_do`**（v2 API 命名）。
+- **修复位置**：[flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) `map_list_item` 的 `ListKind::Task => "to_do"`。
+- **真机验证**：`to_do` + `checked:true` 完整落库。
+- **测试**：golden `tasklist` 重生成。
+
+### 1.12 出站：FlowUs 嵌套列表整段内容丢失（P1，2026-11-16 真机验证）
+
+- **现象**：嵌套列表发到 FlowUs 不报错，但**子项内容整段消失**（比丢层级更严重的内容丢失）。
+- **根因**：`flowus.rs` 把子列表塞进 `data.children`，FlowUs v1 对该字段**静默丢弃**（响应 200，不报错）。原代码注释标注的"真机验证点"由此关闭。
+- **修复位置**：[flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) `map_list_item` 改为拍平：子项递归输出为同级块（父项在前、子项按原顺序紧随），不再携带任何 `children` 字段。
+- **真机验证**：父项+两级子项全部落库为同级 bulleted_list_item，文本无丢失。
+- **测试**：`fix2` 从断言"进 children"改写为 `fix2_nested_list_flattened_no_content_loss`（断言拍平顺序+无 children 字段+内容齐全）；golden `nested_list` 重生成。
+
+> **1.10~1.12 的共同教训**：FlowUs v1 有两类坑——**硬拒绝**（裸 table_row → 400）和**静默降级/丢弃**（todo→paragraph、children→丢弃）。后者不报错、只丢数据，本地快照测试完全测不出来，必须真机读回验证。真机证据与复跑脚本：`F:\00-项目\05-flowus\.tmp\verify_sensend_v1.py`、调研文档 `F:\00-项目\05-flowus\Sensend×FlowUs博客-兼容性调研.md`。
+
 ---
 
 ## 2. 排查套路（遇到新的格式问题怎么查）

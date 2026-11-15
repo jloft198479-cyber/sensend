@@ -125,7 +125,7 @@ impl FlowUsAdapter {
             }
             Block::List { kind, items } => {
                 for item in items {
-                    out.push(self.map_list_item(*kind, item));
+                    out.extend(self.map_list_item(*kind, item));
                 }
             }
             Block::CodeBlock { language, code } => {
@@ -145,6 +145,10 @@ impl FlowUsAdapter {
             }
             Block::Table(table) => {
                 let col_count = table.rows.iter().map(|r| r.len()).max().unwrap_or(1).max(1);
+                // FlowUs v1 不接受裸 table_row（真机实测 400），必须先建 table 壳再把行挂壳下。
+                // 行随 table 块的顶层 children 携带，append_children 负责拆成两步请求
+                //（结构对齐 notion.rs 官方表格壳；table_width 以外的字段 v1 会静默忽略，不冗余传）
+                let mut rows: Vec<Value> = Vec::new();
                 for row in &table.rows {
                     let mut row_cells: Vec<Value> = Vec::new();
                     for cell in row {
@@ -159,11 +163,16 @@ impl FlowUsAdapter {
                     while row_cells.len() < col_count {
                         row_cells.push(json!({"type": "text", "text": {"content": "", "link": null }}));
                     }
-                    out.push(json!({
+                    rows.push(json!({
                         "type": "table_row",
                         "data": { "cells": row_cells }
                     }));
                 }
+                out.push(json!({
+                    "type": "table",
+                    "data": { "table_width": col_count },
+                    "children": rows
+                }));
             }
             Block::HorizontalRule => {
                 out.push(json!({
@@ -191,12 +200,14 @@ impl FlowUsAdapter {
         })
     }
 
-    /// 列表项 → FlowUs block（嵌套子列表进 children，修复 #2；真机验证点）
-    fn map_list_item(&self, kind: super::ir::ListKind, item: &super::ir::ListItem) -> Value {
+    /// 列表项 → FlowUs block(s)（嵌套子列表拍平为同级块）。
+    /// 2026-11-16 真机验证：FlowUs v1 会静默丢弃 data.children，嵌套子项整段消失（内容丢失）；
+    /// 类型名必须用 `to_do`（`todo` 会被降级成 paragraph，勾选态丢失）
+    fn map_list_item(&self, kind: super::ir::ListKind, item: &super::ir::ListItem) -> Vec<Value> {
         let block_type = match kind {
             super::ir::ListKind::Bullet => "bulleted_list_item",
             super::ir::ListKind::Ordered => "numbered_list_item",
-            super::ir::ListKind::Task => "todo",
+            super::ir::ListKind::Task => "to_do",
         };
 
         let mut rt = map_rich_text(&item.inlines);
@@ -216,26 +227,20 @@ impl FlowUsAdapter {
         data.insert("text_color".into(), json!("default"));
         data.insert("background_color".into(), json!("default"));
 
-        // 嵌套子列表（FlowUs 嵌套结构真机验证点；若不支持改为拍平输出）
-        let children: Vec<Value> = item
-            .children
-            .iter()
-            .filter_map(|c| match c {
-                super::ir::Block::List { items: sub_items, kind: sub_kind } => {
-                    Some(sub_items.iter().map(|it| self.map_list_item(*sub_kind, it)).collect::<Vec<Value>>())
-                }
-                _ => None,
-            })
-            .flatten()
-            .collect();
-        if !children.is_empty() {
-            data.insert("children".into(), json!(children));
-        }
-
-        json!({
+        let mut out = vec![json!({
             "type": block_type,
             "data": Value::Object(data)
-        })
+        })];
+
+        // 子列表拍平：父项在前，子项按原顺序紧随其后（递归处理任意深度）
+        for child in &item.children {
+            if let super::ir::Block::List { items: sub_items, kind: sub_kind } = child {
+                for it in sub_items {
+                    out.extend(self.map_list_item(*sub_kind, it));
+                }
+            }
+        }
+        out
     }
 
     // ── 目标类型判断 ──
@@ -315,19 +320,87 @@ impl FlowUsAdapter {
         Ok((page_id, page_url))
     }
 
-    /// 追加内容块到页面
+    /// 追加内容块到页面。
+    /// 表格块特殊处理：FlowUs v1 不接受裸 table_row，table 块先单独建壳，
+    /// 再把行追加到壳下（两步请求，真机验证过的唯一可行路径）。
     async fn append_children(
         &self,
         token: &str,
         page_id: &str,
         blocks: Vec<Value>,
     ) -> Result<(), String> {
-        // 分批追加（每批最多 100 个）
-        for chunk in blocks.chunks(100) {
+        // 普通块攒批（每批最多 100 个），表格块两步走
+        let mut batch: Vec<Value> = Vec::new();
+        for block in blocks {
+            if block.get("type").and_then(|t| t.as_str()) == Some("table") {
+                self.flush_batch(token, page_id, &mut batch).await?;
+                self.append_table(token, page_id, block).await?;
+            } else {
+                batch.push(block);
+                if batch.len() >= 100 {
+                    self.flush_batch(token, page_id, &mut batch).await?;
+                }
+            }
+        }
+        self.flush_batch(token, page_id, &mut batch).await?;
+        Ok(())
+    }
+
+    /// 把攒好的普通块一次追加（空批直接跳过）
+    async fn flush_batch(
+        &self,
+        token: &str,
+        page_id: &str,
+        batch: &mut Vec<Value>,
+    ) -> Result<(), String> {
+        if batch.is_empty() {
+            return Ok(());
+        }
+        let body = json!({ "children": batch });
+        self.request(
+            "PATCH",
+            &format!("/blocks/{}/children", page_id),
+            token,
+            Some(body),
+        ).await?;
+        batch.clear();
+        Ok(())
+    }
+
+    /// 表格两步走：先建 table 壳（剥离顶层 children），再按 100/批把行挂到壳下
+    async fn append_table(
+        &self,
+        token: &str,
+        page_id: &str,
+        table_block: Value,
+    ) -> Result<(), String> {
+        let rows: Vec<Value> = match table_block.get("children") {
+            Some(Value::Array(rows)) => rows.clone(),
+            _ => Vec::new(),
+        };
+        let mut table = table_block.clone();
+        if let Some(obj) = table.as_object_mut() {
+            obj.remove("children");
+        }
+        let body = json!({ "children": [table] });
+        let res = self.request(
+            "PATCH",
+            &format!("/blocks/{}/children", page_id),
+            token,
+            Some(body),
+        ).await?;
+        let table_id = res.get("results")
+            .and_then(|r| r.as_array())
+            .and_then(|arr| arr.first())
+            .and_then(|b| b.get("id"))
+            .and_then(|id| id.as_str())
+            .ok_or("创建表格失败：未返回表格块 ID")?
+            .to_string();
+        for chunk in rows.chunks(100) {
             let body = json!({ "children": chunk });
             self.request(
                 "PATCH",
-                &format!("/blocks/{}/children", page_id),
+                &format!("/blocks/{}/children", table_id),
                 token,
                 Some(body),
             ).await?;
@@ -564,19 +637,31 @@ mod tests {
         assert_eq!(content, "第一行\n第二行\n第三行");
     }
 
+    // 2026-11-16 真机验证：FlowUs v1 静默丢弃 data.children，嵌套子项整段消失（内容丢失）。
+    // 旧断言"子列表进 children"断言的正是内容丢失根因，已改写为拍平断言。
     #[test]
-    fn fix2_nested_list_children() {
+    fn fix2_nested_list_flattened_no_content_loss() {
         let fixture = test_helpers::load_fixture("nested_list");
         let blocks = convert(&fixture);
-        let children = blocks[0]["data"]["children"].as_array().expect("嵌套子列表应进 children");
-        assert_eq!(children.len(), 2);
+        let texts: Vec<String> = blocks.iter()
+            .filter(|b| b["type"] == "bulleted_list_item")
+            .map(|b| b["data"]["rich_text"].as_array().unwrap().iter()
+                .filter_map(|t| t["text"]["content"].as_str()).collect::<String>())
+            .collect();
+        assert_eq!(texts, vec!["顶层项 1", "子项 1.1", "子项 1.2", "顶层项 2"],
+            "父项+子项应按原顺序全部拍平为同级块，内容不丢: {:?}", texts);
+        for b in &blocks {
+            assert!(b["data"].get("children").is_none(),
+                "任何列表项不得携带 data.children（FlowUs v1 会静默丢弃整段子树）");
+        }
     }
 
     #[test]
     fn fix5_table_cell_keeps_annotations() {
         let fixture = test_helpers::load_fixture("table_with_inline");
         let blocks = convert(&fixture);
-        let cell = &blocks[0]["data"]["cells"][0];
+        assert_eq!(blocks[0]["type"], "table", "表格必须包 table 壳（裸 table_row 会被 v1 拒 400）");
+        let cell = &blocks[0]["children"][0]["data"]["cells"][0];
         assert_eq!(cell["annotations"]["bold"], json!(true), "表头第一格粗体应保留");
     }
 
@@ -605,7 +690,8 @@ mod tests {
             }]
         });
         let blocks = convert(&doc);
-        let cells = blocks[0]["data"]["cells"].as_array().unwrap();
+        assert_eq!(blocks[0]["type"], "table");
+        let cells = blocks[0]["children"][0]["data"]["cells"].as_array().unwrap();
         // 单元格应为多段 rich_text（2 段），不是 1 段
         assert_eq!(cells.len(), 2, "混合样式单元格应保留全部段落: {:?}", cells);
         assert_eq!(cells[0]["text"]["content"], json!("粗体"));
