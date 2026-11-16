@@ -18,6 +18,7 @@ const emit = defineEmits<{
   'open-data-dir': []
   'select-target': [instanceId: string]
   'clear': []
+  'check-update': []
 }>()
 
 const showMenu = ref(false)
@@ -75,6 +76,11 @@ function handleHotkey() {
 function handleOpenDataDir() {
   closeMenu()
   emit('open-data-dir')
+}
+
+function handleCheckUpdate() {
+  closeMenu()
+  emit('check-update')
 }
 
 // 点击外部关闭菜单
@@ -181,6 +187,14 @@ function onDocClick(e: MouseEvent) {
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
               <span>打开数据文件夹</span>
+            </button>
+            <button class="settings-item" @click.stop="handleCheckUpdate" aria-label="检查更新">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"/>
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+              </svg>
+              <span>检查更新</span>
             </button>
           </div>
         </Transition>

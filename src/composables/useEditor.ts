@@ -475,5 +475,7 @@ export function useSensendEditor(
     setMention,
     setOnMentionChange,
     markSent,
+    // 供自动更新安装前善后调用（安装器会直接退出应用，不走 app-exit-request）
+    saveNow: doSave,
   }
 }

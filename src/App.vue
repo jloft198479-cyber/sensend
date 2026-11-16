@@ -18,6 +18,7 @@ import { useEditorFont } from './composables/useEditorFont'
 import { usePlatform } from './composables/usePlatform'
 import { useHotkey } from './composables/useHotkey'
 import { useToast } from './composables/useToast'
+import { useUpdater } from './composables/useUpdater'
 
 // ── 平台逻辑 ──
 const {
@@ -41,6 +42,7 @@ const {
   setMention,
   setOnMentionChange,
   markSent,
+  saveNow,
 } = useSensendEditor(instances, platformTypes)
 
 // ── 格式操作 ──
@@ -80,10 +82,20 @@ async function togglePin() {
 
 async function hideWindow() { await invoke('hide_window') }
 
+// ── 自动更新 ──
+const { silentCheckForUpdate, manualCheck } = useUpdater()
+
 // 主窗口 visible:false 启动（消白屏），前端挂载完成后再显示
 onMounted(async () => {
   try { await getCurrentWindow().show() } catch (e) { console.error('显示窗口失败:', e) }
+  // 启动静默检查更新：延迟 8s 避开启动竞速，内部 24h 限频 + 失败静默
+  setTimeout(() => { silentCheckForUpdate() }, 8000)
 })
+
+/** 设置菜单「检查更新」：发现新版即下载安装，安装前先保存笔记 */
+function handleCheckUpdate() {
+  manualCheck(saveNow)
+}
 
 // ── mention ↔ 底栏双向同步 ──
 
@@ -235,6 +247,7 @@ async function onSaveHotkeys() {
       @open-data-dir="openDataDir"
       @select-target="handleFooterSelect"
       @clear="handleClear"
+      @check-update="handleCheckUpdate"
     />
 
     <!-- ═══ 快捷键设置弹窗 ═══ -->
