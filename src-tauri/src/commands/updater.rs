@@ -3,6 +3,11 @@
 /// 移植自 solo（03-solo/src-tauri/src/updater.rs，生产验证过的同款实现）。
 use std::time::Duration;
 use tokio::net::TcpStream;
+use tokio::sync::Mutex;
+
+/// 串行化检测：set_var/remove_var 非线程安全（Windows 并发读写环境变量是 UB），
+/// 且启动静默检查与手动检查可能并发触发
+static DETECT_LOCK: Mutex<()> = Mutex::const_new(());
 
 /// 检测 GitHub 更新所需的代理，返回代理 URL。
 /// 未检测到时返回 None（表示直连）。
@@ -92,6 +97,7 @@ async fn check_local_ports() -> Option<String> {
 /// 插件内部的 reqwest 客户端会读取该环境变量走代理。
 #[tauri::command]
 pub async fn detect_proxy_for_update() -> Result<String, String> {
+    let _guard = DETECT_LOCK.lock().await;
     match detect_github_proxy().await {
         Some(proxy) => {
             std::env::set_var("HTTPS_PROXY", &proxy);

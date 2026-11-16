@@ -53,10 +53,11 @@ if ($confVersion -ne $cargoVersion -or $confVersion -ne $npmVersion) {
 }
 
 # ── 更新签名私钥（updater 工件签名必需；私钥不入库，见 docs/AUTO-UPDATE-DESIGN.md）──
+# 注意：tauri build 只认 TAURI_SIGNING_PRIVATE_KEY（内容或路径均可，官方文档）；
+# TAURI_SIGNING_PRIVATE_KEY_PATH 仅对 signer sign 子命令有效——用错变量名构建必失败
 $signKeyPath = "F:\fzz-Project\9-CNB\keys\sensend-updater\sensend-updater.key"
 if (Test-Path $signKeyPath) {
-    $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $signKeyPath
-    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+    $env:TAURI_SIGNING_PRIVATE_KEY = $signKeyPath
 } else {
     Write-Host "ERROR: 更新签名私钥缺失：$signKeyPath" -ForegroundColor Red
     Write-Host "生成：npx tauri signer generate -w `"$signKeyPath`" --password `"`" --ci"
@@ -95,7 +96,15 @@ $manifest = [ordered]@{
     }
 }
 $manifestPath = Join-Path $nsisDir "latest.json"
-$manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath -Encoding utf8
+# 必须 UTF-8 无 BOM：PS5.1 的 -Encoding utf8 带 BOM，serde_json 对 BOM 直接解析失败，
+# 且该失败发生在插件 endpoint 循环的 200 分支内（? 中止）→ 连第二端点兜底都不触发
+$manifestJson = $manifest | ConvertTo-Json -Depth 5
+[System.IO.File]::WriteAllText((Resolve-Path $nsisDir).Path + "\latest.json", $manifestJson, (New-Object System.Text.UTF8Encoding($false)))
+$first3 = [System.IO.File]::ReadAllBytes($manifestPath)[0..2]
+if ($first3[0] -eq 0xEF -and $first3[1] -eq 0xBB -and $first3[2] -eq 0xBF) {
+    Write-Host "ERROR: latest.json 仍带 BOM，updater 将无法解析" -ForegroundColor Red
+    exit 1
+}
 
 Write-Host ""
 Write-Host "=== 构建产物 ===" -ForegroundColor Green

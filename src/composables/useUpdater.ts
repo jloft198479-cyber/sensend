@@ -30,30 +30,36 @@ async function checkUpdateAvailability() {
 export function useUpdater() {
   const { info, error, updateMessage, remove } = useToast()
 
-  /** 启动静默检查：24h 限频；发现新版仅弹 toast 提供「更新」入口，不自动下载 */
-  async function silentCheckForUpdate() {
+  /** 启动静默检查：24h 限频；发现新版弹常驻 toast 提供「更新」入口（2.5s 会点不到），不自动下载。
+      beforeInstall 透传给下载安装链（缺了 = 装机丢笔记，App.vue 必须传 flushSave） */
+  async function silentCheckForUpdate(beforeInstall?: () => Promise<void>) {
     if (status.value !== 'idle') return
     const last = Number(localStorage.getItem(LS_KEY) || 0)
     if (Date.now() - last < CHECK_INTERVAL_MS) return
     localStorage.setItem(LS_KEY, String(Date.now()))
+    status.value = 'checking'
     try {
+      currentUpdate?.close().catch(() => {})
       currentUpdate = await checkUpdateAvailability()
       if (currentUpdate) {
-        info(`发现新版本 v${currentUpdate.version}`, {
+        info(`发现新版本 v${currentUpdate.version}`, 0, {
           label: '更新',
-          onClick: () => startDownloadInstall(),
+          onClick: () => startDownloadInstall(beforeInstall),
         })
       }
     } catch {
       // 静默：网络不通不打扰用户
+    } finally {
+      if (status.value === 'checking') status.value = 'idle'
     }
   }
 
   /** 手动检查（设置菜单）：发现新版直接进入下载安装 */
   async function manualCheck(beforeInstall?: () => Promise<void>) {
-    if (status.value === 'downloading' || status.value === 'installing') return
+    if (status.value !== 'idle' && status.value !== 'error') return
     status.value = 'checking'
     try {
+      currentUpdate?.close().catch(() => {})
       currentUpdate = await checkUpdateAvailability()
       if (currentUpdate) {
         await startDownloadInstall(beforeInstall)

@@ -10,6 +10,9 @@ pub fn http_client() -> &'static reqwest::Client {
     HTTP_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .timeout(std::time::Duration::from_secs(15))
+            // 显式禁用代理：更新检查的代理探测会设置 HTTPS_PROXY（进程级），
+            // 若平台发布客户端在探测之后首次构建会继承代理，代理挂掉则发布静默失效
+            .no_proxy()
             .build()
             .expect("Failed to build HTTP client")
     })

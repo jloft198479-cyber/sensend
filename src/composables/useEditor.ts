@@ -477,5 +477,11 @@ export function useSensendEditor(
     markSent,
     // 供自动更新安装前善后调用（安装器会直接退出应用，不走 app-exit-request）
     saveNow: doSave,
+    // 双保险 flush：等 doSave 落地并兜底等在途保存（与 handleExitRequest 同款模式），
+    // 更新安装链的 beforeInstall 应使用本方法而非 saveNow
+    flushSave: async () => {
+      await doSave()
+      if (inFlightSave) await inFlightSave
+    },
   }
 }
