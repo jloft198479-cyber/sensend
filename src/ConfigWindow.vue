@@ -115,11 +115,10 @@ onMounted(() => {
           </svg>
           <span>{{ exitConfirm === 'back' && isDirty ? '确认放弃？' : '返回' }}</span>
         </button>
-        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="新增页面">
+        <button v-else class="title-btn add-new-btn" @click="openAddModal" title="新增页面" aria-label="新增页面">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          <span>新增页面</span>
         </button>
         <button class="close-win-btn" :class="{ 'confirm-exit': exitConfirm === 'close' && isDirty }"
           @click="requestExit('close')"
@@ -258,7 +257,7 @@ onMounted(() => {
           <path d="M12 8v8M8 12h8"/>
         </svg>
         <p>还没有配置任何发送页面</p>
-        <p class="empty-hint">点击下方按钮，或右上角「新增页面」</p>
+        <p class="empty-hint">点击下方按钮，或右上角的加号</p>
         <!-- [ZC-12] 空态给真实动线：文案让用户去点顶栏 40px 高的按钮，不如直接给按钮 -->
         <button class="empty-action-btn" @click="openAddModal">添加第一个目标</button>
       </div>
@@ -379,6 +378,10 @@ onMounted(() => {
 }
 .title-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .add-new-btn {
+  /* 加号钮：与返回/关闭同高的方形图标钮（min-width/padding 覆盖 .title-btn 的文字钮设定） */
+  min-width: 0;
+  width: var(--control-h-md);
+  padding: 0;
   background: var(--accent-fill);
   color: var(--fg-on-accent);
 }
