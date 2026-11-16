@@ -199,7 +199,13 @@ export function useSensendEditor(
           // [ZC-06] 一个目标都没配时禁止弹出 @ 列表（allow 默认恒 true，会弹"无匹配平台"空壳），
           // 改为一次性引导用户去配置——allow=false 时按 @ 无反应，必须有这条 toast 才不像"按键坏了"
           allow: () => {
-            if (instances.value.length > 0) return true
+            if (instances.value.length > 0) {
+              // 有目标就把"已提示过"复位：用户可能先删光（看过一次提示）、后来新建了
+              // 目标又删光——这时必须再提示一次，否则按 @ 既不弹列表也不出提示，
+              // 看起来就是"@ 键坏了"（零实例的唯一出路是这条 toast）
+              zeroInstanceTipShown = false
+              return true
+            }
             if (!zeroInstanceTipShown) {
               zeroInstanceTipShown = true
               useToast().info('还没有配置发送目标，点底栏「管理」添加一个')

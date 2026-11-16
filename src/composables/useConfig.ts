@@ -250,8 +250,18 @@ export function useConfig() {
     try {
       await invoke('delete_platform_instance', { instanceId: id })
       instances.value = instances.value.filter(i => i.id !== id)
-      // [ZC-10] 删掉的若正是默认目标，本地同步清掉，避免"当前目标"卡指向幽灵
-      if (defaultTargetId.value === id) defaultTargetId.value = null
+      // [ZC-10] 删掉的若正是默认目标，后端也要清，不能只清前端：
+      // 否则 config.json 里留着幽灵 id，下次启动 get_default_target 照样返回它，
+      // 主窗 D-02 分支会弹"上次默认发送目标已被删除"——用户刚删完却被通知"被删除"。
+      // 传空串：读取方按 falsy 视为"从未设置"，走首次初始化回落，不产生假告警。
+      if (defaultTargetId.value === id) {
+        defaultTargetId.value = null
+        try {
+          await invoke('set_default_target', { targetId: '' })
+        } catch (e) {
+          console.warn('清除默认发送目标失败（后端可能仍指向已删实例）:', e)
+        }
+      }
       showDeleteConfirm.value = null
     } catch (e) {
       console.error('删除失败:', e)

@@ -111,25 +111,32 @@ Sensend 使用 Tauri 2 的标准 IPC 通信模型：
 
 - **前端 → 后端**：通过 `@tauri-apps/api/core` 的 `invoke('command_name', { args })` 调用后端 `#[tauri::command]` 标注的函数。
 - **后端 → 前端**：通过 `app.emit('event_name', payload)` 推送事件，前端用 `getCurrentWindow().listen('event_name', cb)` 监听。
-- **窗口间通信**：配置窗口保存实例后，后端 `emit("instances-updated", ())` 广播，主窗口监听后刷新实例列表。
+- **窗口间通信**：配置窗口保存/删除实例、或设置默认目标后，后端 `emit("instances-updated", ())` 广播，主窗口监听后刷新实例列表与底栏当前目标。配置窗口被重新显示时后端 `emit_to("config", "config-window-shown")`，配置页据此重拉数据（窗口不销毁，否则显示的是隐藏期间的旧状态）。
 
 ### 2.3 双窗口模型
 
 项目通过 URL 参数 `?page=config` 在同一前端入口（`index.html`）中区分两个窗口：
 
 - **主窗口（`main`）**：无边框、置顶、跳过任务栏、`visibleOnAllWorkspaces`，承载编辑器。关闭按钮被拦截为隐藏。
-- **配置窗口（`config`）**：有边框、置顶、`420×580`，承载平台管理界面。由主窗口触发 `open_config_window` 命令创建。
+- **配置窗口（`config`）**：有边框、置顶、`420×580`，承载平台管理界面。由主窗口触发 `open_config_window` 命令创建；**关闭请求同样被拦截为 `hide()`，窗口不销毁**（2026-11-17 整改：二次打开由冷启动变为瞬开），重新显示时后端 `emit_to("config", "config-window-shown")` 通知前端重拉数据。新建时为 `visible(false)` + builder 阶段 `background_color` 上底色，前端挂载完成后自行 `show()`，另有 500ms 后端兜底强制显示。
 
 入口判定见 [src/main.ts](file:///f:/fzz-Project/2-sensend/sensend/src/main.ts)：
 
 ```typescript
+// 先用 localStorage 缓存同步上色（无 IPC、挂载前生效），后端真值由 initTheme() 异步校正
+applyCachedThemeSync()
 const page = params.get('page')
 if (page === 'config') {
-  createApp(ConfigWindow).mount('#app')
+  import('./ConfigWindow.vue').then(({ default: ConfigWindow }) => { /* mount */ })
 } else {
-  createApp(App).mount('#app')
+  import('./App.vue').then(async ({ default: App }) => {
+    await import('./styles/editor.css')   // 编辑器样式只进主窗
+    /* mount */
+  })
 }
 ```
+
+> 两个分支都是**动态** `import()`：配置页不再加载 TipTap 主包（689 KB → 约 118 KB），`editor.css` 也移出配置页加载链（2026-11-17 整改）。`initTheme()` 不再阻塞挂载。
 
 ---
 
@@ -177,6 +184,8 @@ sensend/
 │   │   ├── FooterBar.vue       # 底栏（目标选择/菜单/字数）
 │   │   ├── HotkeyModal.vue     # 快捷键设置弹窗
 │   │   ├── MentionList.vue      # @提及下拉列表
+│   │   ├── InstanceMenu.vue    # 目标选择列表（底栏弹窗/@ 列表共用格式真源）
+│   │   ├── TargetIcon.vue      # 平台图标唯一渲染点（内联 SVG，禁字母/汉字混排）
 │   │   └── ToastLayer.vue     # Toast 提示浮层
 │   │
 │   ├── composables/            # 组合式函数（业务逻辑层）
@@ -240,7 +249,7 @@ sensend/
 
 ### 4.1 入口与路由：`src/main.ts`
 
-职责：根据 URL 参数 `?page=config` 决定挂载 `App`（主窗口）还是 `ConfigWindow`（配置窗口）。引入全局样式 `vars.css` 与 `editor.css`。两窗口启动时均调用 `initTheme()` 读取后端 `get_theme` 设置 `document.documentElement.dataset.theme`，并监听 `theme-updated` 事件实现跨窗口实时同步（v0.4.0 新增）。ConfigWindow 采用动态 `import()` 懒加载，Rollup 自动分包（v0.4.0 优化）。
+职责：根据 URL 参数 `?page=config` 决定挂载 `App`（主窗口）还是 `ConfigWindow`（配置窗口）。只静态引入 `vars.css`；`editor.css` 由主窗分支内 `await import()` 注入。两窗口启动时均调用 `initTheme()` 读取后端 `get_theme` 设置 `document.documentElement.dataset.theme`，并监听 `theme-updated` 事件实现跨窗口实时同步（v0.4.0 新增）。**`App` 与 `ConfigWindow` 均动态 `import()` 懒加载**（2026-11-17 整改：此前 `App.vue` 是静态 import，导致配置页被迫解析整个 TipTap），入口只剩 `main.ts` + `useTheme`（约 84 KB）。`initTheme()` 不阻塞挂载：先在挂载前用 `applyCachedThemeSync()` 读 localStorage 同步上色，IPC 回来再校正（失败时保留缓存值，不强行回落 light）。
 
 ### 4.2 主窗口：`src/App.vue`
 
@@ -279,6 +288,8 @@ sensend/
 | FooterBar | [src/components/FooterBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/FooterBar.vue) | 底栏；目标选择器（picker）、设置菜单（配置/快捷键/数据目录）、清空笔记（两步确认 + 撤销）、字数统计 |
 | HotkeyModal | [src/components/HotkeyModal.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/HotkeyModal.vue) | 快捷键设置弹窗；焦点陷阱（Tab 循环）、焦点恢复 |
 | MentionList | [src/components/MentionList.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/MentionList.vue) | `@提及` 下拉项；键盘上下选择、自动滚动、hover 态 |
+| InstanceMenu | [src/components/InstanceMenu.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/InstanceMenu.vue) | 目标选择列表（底栏弹窗与 @ 列表共用的唯一行格式）；当前目标置顶 + 行首竖条 + 「当前」标签、搜索命中高亮、键鼠单一高亮（`mousemove` 同步 `selectedIndex`） |
+| TargetIcon | [src/components/TargetIcon.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/TargetIcon.vue) | 平台图标唯一渲染点：四平台内联 SVG 线稿（同视觉重量），底色走 `--plat-*` token；未知平台才回退首字母 |
 | ToastLayer | [src/components/ToastLayer.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/ToastLayer.vue) | 全局 Toast 浮层（Teleport 到 body）；success/error/info 三类 |
 
 ### 4.5 Composables 层
@@ -320,7 +331,7 @@ sensend/
   - 插件注册：`log`（日志后端） / `opener` / `dialog` / `store` / `global-shortcut` / `single-instance` / `updater`。
   - 命令注册：`invoke_handler!` 注册全部 23 个命令（v0.4.0 新增 `get_theme` / `set_theme`；2026-11-16 第 4 批新增 `open_path`）。
   - `setup` 钩子：创建应用数据目录、初始化全局快捷键、构建系统托盘（显示/退出菜单 + 左键点击显示窗口）。
-  - 窗口事件处理：主窗口关闭请求被拦截为 `hide()`（最小化到托盘）。
+  - 窗口事件处理：主窗口与配置窗口的关闭请求均被拦截为 `hide()`（不销毁，二次打开瞬开）；隐藏 10 秒后连同 WebView2 子进程一并修剪工作集。
   - `single-instance` 回调：二次启动时显示并聚焦主窗口。
 
 ### 5.2 命令层：`src-tauri/src/commands/`
@@ -344,7 +355,7 @@ sensend/
 
 | 命令 | 说明 |
 |------|------|
-| `open_config_window` | 创建/显示配置窗口；定位在主窗口右下方 40,60 偏移 |
+| `open_config_window` | 创建或显示配置窗口；定位在主窗口右下方 40,60 偏移。已存在则 `show()+set_focus()` 并广播 `config-window-shown`；新建则 `visible(false)` + 建窗即上主题底色，由前端挂载后 `show()`（500ms 后端兜底） |
 | `get_platform_types` | 返回平台类型元数据（local/notion/flowus/lark）|
 | `list_platform_instances` | 从 `config.json` store 读取实例列表 |
 | `save_platform_instance` | 新增或更新实例，emit `instances-updated` |

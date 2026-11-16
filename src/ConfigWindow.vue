@@ -66,7 +66,10 @@ function doExit(kind: 'back' | 'close') {
 }
 function requestExit(kind: 'back' | 'close') {
   // 无改动直接走；第一次点进入确认态（3 秒不点自动回退是辅助，取消/再点是主路径）；
-  // 第二次点同一按钮 = 确认放弃
+  // 第二次点同一按钮 = 确认。
+  // 注意两者语义不同，文案必须跟着改：**返回**是真的离开表单（内容丢弃），
+  // **关闭**只是隐藏窗口（组件不销毁，填了一半的内容还在，下次打开照样看得到）——
+  // 所以关闭的提示不能写"放弃修改"，那是在说假话。
   if (!isDirty.value || exitConfirm.value === kind) { doExit(kind); return }
   exitConfirm.value = kind
   if (exitTimer) clearTimeout(exitTimer)
@@ -119,8 +122,9 @@ onMounted(() => {
           <span>新增页面</span>
         </button>
         <button class="close-win-btn" :class="{ 'confirm-exit': exitConfirm === 'close' && isDirty }"
-          @click="requestExit('close')" :title="exitConfirm === 'close' && isDirty ? '再次点击放弃修改并关闭' : '关闭'"
-          :aria-label="exitConfirm === 'close' && isDirty ? '确认放弃修改并关闭' : '关闭'">
+          @click="requestExit('close')"
+          :title="exitConfirm === 'close' && isDirty ? '再次点击关闭窗口（未保存的修改会保留）' : '关闭'"
+          :aria-label="exitConfirm === 'close' && isDirty ? '确认关闭窗口，未保存的修改会保留' : '关闭'">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
