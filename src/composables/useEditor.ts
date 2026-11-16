@@ -14,6 +14,7 @@ import { useEditor as useTiptapEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
+import { SlashCommandExtension } from './useSlashCommand'
 import { useToast } from './useToast'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItemBase from '@tiptap/extension-task-item'
@@ -182,6 +183,8 @@ export function useSensendEditor(
       TaskItem.configure({ nested: true }),
       // 表格支持：从网页/其他编辑器复制含表格的 HTML 时能正确解析
       TableKit,
+      // 斜杠命令：行首 "/" 弹命令列表（插入表格等），与 @mention 同构
+      SlashCommandExtension,
       // 发送成功视觉标记（ProseMirror decoration，不碰文档 JSON）
       SentMarkExtension,
       // Markdown 支持：提供 parse/serialize 能力，配合 handlePaste 处理纯文本 Markdown 粘贴
