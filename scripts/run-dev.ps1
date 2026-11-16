@@ -1,4 +1,4 @@
-# Sensend 开发模式（热更新）：改样式 / 前端代码即时生效，不用重新编译
+﻿# Sensend 开发模式（热更新）：改样式 / 前端代码即时生效，不用重新编译
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-dev.ps1
 #
 # 与 run-app.ps1 的区别（两个都留着，各管一段）：
@@ -8,6 +8,10 @@
 #   run-app.ps1  → 打包成 target\release\sensend.exe 再启动。
 #                  界面资源是编译进 exe 的，改完必须重跑；适合"验证真实产物"和发布前自检。
 $ErrorActionPreference = "Continue"
+
+# 控制台按 UTF-8 输出：bat 已 chcp 65001，这里同步 PS 的输出编码，
+# 否则 PowerShell 5.1 会按 GBK 写 console，中文提示全变乱码。
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
 
 # ── 项目根自定位（不写死盘符，项目改名/挪位置都不坏）──
 $Root = Split-Path -Parent $PSScriptRoot

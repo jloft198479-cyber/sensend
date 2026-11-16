@@ -1,4 +1,4 @@
-# Sensend 一键启动脚本：构建 release 版并启动应用窗口
+﻿# Sensend 一键启动脚本：构建 release 版并启动应用窗口
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-app.ps1
 $ErrorActionPreference = "Continue"
 

@@ -1,13 +1,13 @@
 @echo off
+chcp 65001 >nul
 cls
 echo ============================================
-echo  Sensend 开发模式（热更新 / HMR）
-echo  改样式、改组件即时生效，不用重新编译
-echo  关掉这个黑窗口 = 结束开发模式
+echo  Sensend Dev Mode ^| tauri dev + HMR
+echo  port 1420, changes apply instantly
 echo ============================================
 echo.
 
-REM -- 委托给 ps1 脚本加载 MSVC+Rust 环境 --
+REM -- delegate to ps1 (env loading lives there only) --
 powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0run-dev.ps1"
 
 echo.

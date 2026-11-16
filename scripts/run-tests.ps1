@@ -1,4 +1,4 @@
-# Sensend 测试脚本（PowerShell 版，供智能体/终端调用；双击用户请用 run-tests.bat）
+﻿# Sensend 测试脚本（PowerShell 版，供智能体/终端调用；双击用户请用 run-tests.bat）
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-tests.ps1
 $ErrorActionPreference = "Continue"
 

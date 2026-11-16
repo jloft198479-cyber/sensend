@@ -385,6 +385,49 @@ grep -rl "<新主色 hex>" dist/   # 有输出 = 进去了
 
 2026-11-17 实测踩过：`run-dev.ps1` 第一版漏了这个参数，等于用正式身份在调试。
 
+### 3.9 双击 .bat 没反应 / 中文乱码 / 半行被当命令执行
+
+**现象**（2026-11-17 实测，三种表象同一个根）：
+
+- 双击 `启动开发模式.bat`，窗口闪一下就没，或者干脆没反应
+- 报 `'榛戠獥鍙? is not recognized as an internal or external command`（中文乱码后被当成命令）
+- PowerShell 脚本里中文提示乱码，脚本执行到一半莫名中断
+
+**两个原因，都得治**：
+
+**① `.bat` 必须是 CRLF + 纯 ASCII**
+
+- LF 换行的批处理在 cmd 下会被错误解析（`if (...)` 块、标签尤其容易断）
+- 含中文 + `chcp 65001` 会撞上 cmd 的读偏移错位 bug：切换代码页后按字节偏移重读，多字节字符让位置错开，**半行内容被当独立命令执行**——上面那句 `'榛戠獥鍙? is not recognized` 就是这么来的
+- 另外 `echo` 行里的裸 `&` 是命令分隔符，必须写成 `^&`（`run-app.bat` 曾因此报错）
+
+**② `.ps1` 必须带 UTF-8 BOM**
+
+PowerShell 5.1（`powershell.exe`，不是 `pwsh`）**没有 BOM 就按 ANSI/GBK 读文件**。
+中文注释乱码通常无害（注释到行尾就结束了），但**中文出现在字符串里**时，乱码会把引号配对冲乱，
+整段脚本语法崩掉——`run-dev.ps1` 就是这样起不来的。
+
+顺带在 ps1 开头补一句控制台编码，否则中文写到 GBK 控制台还是乱码：
+
+```powershell
+try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch { }
+```
+
+**规矩**：
+
+| 文件 | 编码 | 换行 | 中文 |
+|---|---|---|---|
+| `*.bat` | UTF-8 **无** BOM | **CRLF** | ❌ 不允许（提示语用英文，中文交给 ps1 输出） |
+| `*.ps1` | UTF-8 **带** BOM | 不限 | ✅ 可以 |
+
+**自检命令**（改完就查，别等用户双击）：
+
+```powershell
+$b = [System.IO.File]::ReadAllBytes("scripts\run-dev.bat")
+($b[0] -eq 0xEF -and $b[1] -eq 0xBB)          # 应为 False（bat 不要 BOM）
+(($b | Where-Object { $_ -gt 127 }).Count)     # 应为 0（bat 纯 ASCII）
+```
+
 ---
 
 ## 四、发布流程（傻瓜式全流程）
