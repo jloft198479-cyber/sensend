@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
-import { getInstanceDisplayName, toInstanceItem } from '../types/platform'
+import { toInstanceItem } from '../types/platform'
 import type { InstanceItem, PlatformInstance, PlatformTypeInfo } from '../types/platform'
 import InstanceMenu from './InstanceMenu.vue'
+import TargetIcon from './TargetIcon.vue'
 
 const props = defineProps<{
   instances: PlatformInstance[]
@@ -142,7 +143,10 @@ function onDocClick(e: MouseEvent) {
         <button class="target-picker-btn" ref="pickerBtnRef" @click="togglePicker" title="选择发送目标" aria-label="选择发送目标"
           aria-haspopup="true" :aria-expanded="showPicker">
           <span v-if="currentTarget" class="target-mention platform-mention">
-            <span class="tm-text">@{{ getInstanceDisplayName(platformTypes, currentTarget) }}</span>
+            <!-- [ZC-13] 底栏改 @名字（类型在列表里看徽标；getInstanceDisplayName 的连字符串是
+                 存进笔记正文的 label，给人看的呈现与此解耦——不可改它返回值） -->
+            <TargetIcon :platform-type="currentTarget.platform_type" size="sm" />
+            <span class="tm-text">@{{ currentTarget.name }}</span>
           </span>
           <span v-else class="target-mention platform-mention placeholder">
             <span class="tm-text">@选择页面</span>
@@ -304,6 +308,7 @@ function onDocClick(e: MouseEvent) {
 .target-mention {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-4);
   font-family: var(--font-editor);
   font-size: var(--text-xs);
   cursor: pointer;

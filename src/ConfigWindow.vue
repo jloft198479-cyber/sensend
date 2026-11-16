@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { useConfig } from './composables/useConfig'
-import { platGlyph } from './types/platform'
+import TargetIcon from './components/TargetIcon.vue'
 import ToastLayer from './components/ToastLayer.vue'
 
 const {
@@ -202,17 +202,14 @@ onMounted(() => {
            骨架期不出现（否则又会像 ZC-03 之前那样先说一句假话） -->
       <div v-if="loaded" class="default-target-card" :class="{ 'is-unset': !currentDefaultTarget }">
         <template v-if="currentDefaultTarget">
-          <span class="dt-icon" :class="`p-${currentDefaultTarget.platform_type}`">
-            <svg v-if="platGlyph(currentDefaultTarget.platform_type) === 'folder'" width="12" height="12"
-              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-              stroke-linecap="round" stroke-linejoin="round">
-              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-            </svg>
-            <template v-else>{{ platGlyph(currentDefaultTarget.platform_type) }}</template>
-          </span>
+          <!-- [ZC-13] 图标走 TargetIcon 单一渲染点，类型用全局 .type-badge -->
+          <TargetIcon :platform-type="currentDefaultTarget.platform_type" />
           <div class="dt-text">
             <span class="dt-name">{{ currentDefaultTarget.name }}</span>
-            <span class="dt-meta">当前目标 · {{ dtTypeName }}</span>
+            <span class="dt-meta">
+              当前目标
+              <span class="type-badge">{{ dtTypeName }}</span>
+            </span>
           </div>
         </template>
         <template v-else>
@@ -238,10 +235,12 @@ onMounted(() => {
       <div v-else class="instance-list">
         <div v-for="inst in instances" :key="inst.id" class="instance-card">
           <div class="instance-info">
+            <!-- [ZC-13] 列表卡补图标 + 类型徽标：与 @ 列表/底栏同一套显示规则 -->
+            <TargetIcon :platform-type="inst.platform_type" />
             <div class="instance-text">
               <span class="instance-name">{{ inst.name }}</span>
               <span class="instance-type">
-                {{ platformTypes.find(t => t.key === inst.platform_type)?.name }}
+                <span class="type-badge">{{ platformTypes.find(t => t.key === inst.platform_type)?.name }}</span>
                 <span v-if="inst.publish_mode === 'block'" class="mode-tag">追加</span>
                 <span v-else-if="inst.publish_mode === 'page'" class="mode-tag">子页面</span>
               </span>
@@ -614,24 +613,6 @@ onMounted(() => {
   margin-bottom: var(--space-12);
 }
 .default-target-card.is-unset { background: var(--bg); }
-.dt-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-icon);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  line-height: 1;
-  color: var(--plat-glyph);
-  background: var(--plat-default);
-}
-.dt-icon.p-flowus { background: var(--plat-flowus); }
-.dt-icon.p-notion { background: var(--plat-notion); }
-.dt-icon.p-lark   { background: var(--plat-lark); }
-.dt-icon.p-local  { background: var(--plat-local); }
 .dt-text {
   display: flex;
   flex-direction: column;
@@ -647,6 +628,9 @@ onMounted(() => {
   white-space: nowrap;
 }
 .dt-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-6);
   font-size: var(--text-2xs);
   color: var(--muted);
 }

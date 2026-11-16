@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, watch, nextTick, onMounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted } from 'vue'
 import type { InstanceItem } from '../types/platform'
-import { platGlyph } from '../types/platform'
+import TargetIcon from './TargetIcon.vue'
 
 // ═══ 平台实例选择列表 —— 底栏目标弹窗 / 编辑器 @ 列表的唯一格式真源 ═══
 // 行格式（图标锚点 + 名字 + 来源右对齐 + 当前目标 ✓）、键盘上下/回车导航、
@@ -25,10 +25,22 @@ const emit = defineEmits<{
 const selectedIndex = ref(0)
 const listRef = ref<HTMLElement | null>(null)
 
+// [ZC-11] 当前目标置顶（用户打开列表首先要确认"现在发给谁"），其余维持录入顺序。
+// "最近使用"排序需要使用记录数据源，暂缺（见任务书），先按录入顺序。
+const orderedItems = computed(() => {
+  if (!props.activeId) return props.items
+  const cur = props.items.find(i => i.id === props.activeId)
+  if (!cur) return props.items
+  return [cur, ...props.items.filter(i => i.id !== props.activeId)]
+})
+
 /** [m-21] 打开时把高亮定位到「当前目标」而不是永远第一项：
- *  用户打开列表就是为了确认/改当前目标，光标落在第一项会让人多按一次方向键。 */
+ *  用户打开列表就是为了确认/改当前目标，光标落在第一项会让人多按一次方向键。
+ *  [ZC-11] 当前目标已置顶，定位到第 0 项即它；无 activeId 时也定位 0。 */
 function syncSelectedToActive() {
-  const idx = props.activeId ? props.items.findIndex(i => i.id === props.activeId) : -1
+  const idx = props.activeId
+    ? orderedItems.value.findIndex(i => i.id === props.activeId)
+    : -1
   selectedIndex.value = idx >= 0 ? idx : 0
 }
 
@@ -60,13 +72,13 @@ watch(selectedIndex, () => { void scrollSelectedIntoView() })
 onMounted(() => { void scrollSelectedIntoView() })
 
 function onKeyDown(event: KeyboardEvent): boolean {
-  if (props.items.length === 0) return false
+  if (orderedItems.value.length === 0) return false
   if (event.key === 'ArrowUp') {
-    selectedIndex.value = (selectedIndex.value + props.items.length - 1) % props.items.length
+    selectedIndex.value = (selectedIndex.value + orderedItems.value.length - 1) % orderedItems.value.length
     return true
   }
   if (event.key === 'ArrowDown') {
-    selectedIndex.value = (selectedIndex.value + 1) % props.items.length
+    selectedIndex.value = (selectedIndex.value + 1) % orderedItems.value.length
     return true
   }
   if (event.key === 'Enter' || event.key === ' ') {
@@ -89,7 +101,7 @@ function onItemHover(index: number) {
 }
 
 function selectItem(index: number) {
-  const item = props.items[index]
+  const item = orderedItems.value[index]
   if (item) emit('select', item)
 }
 
@@ -128,44 +140,34 @@ defineExpose({ onKeyDown })
 </script>
 
 <template>
-  <div class="inst-menu" ref="listRef" v-if="items.length > 0" :style="{ maxHeight }">
+  <div class="inst-menu" ref="listRef" v-if="orderedItems.length > 0" :style="{ maxHeight }">
     <button
-      v-for="(item, index) in items"
+      v-for="(item, index) in orderedItems"
       :key="item.id"
       class="inst-item"
       :class="{
         'is-selected': index === selectedIndex,
-        active: item.id === activeId,
+        'is-current': item.id === activeId,
       }"
       @click="selectItem(index)"
       @focus="onItemFocus(index)"
       @mousemove="onItemHover(index)"
       :aria-label="item.label"
     >
-      <span class="inst-icon" :class="`p-${item.platform_type}`">
-        <svg v-if="platGlyph(item.platform_type) === 'folder'" width="12" height="12"
-          viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
-        </svg>
-        <template v-else>{{ platGlyph(item.platform_type) }}</template>
-      </span>
+      <!-- [ZC-11] 当前目标：行首 2px 竖条（::before）+「当前」小标签，删除原行尾 ✓（与类型文字挤在一起读不出来） -->
+      <TargetIcon :platform-type="item.platform_type" />
       <span class="inst-name">
         <template v-for="(seg, si) in splitHit(item.name, props.query)" :key="si">
           <mark v-if="seg.hit" class="inst-hit">{{ seg.t }}</mark>
           <template v-else>{{ seg.t }}</template>
         </template>
       </span>
-      <span class="inst-type">
+      <span v-if="item.id === activeId" class="current-tag">当前</span>
+      <span class="type-badge">
         <template v-for="(seg, si) in splitHit(item.typeName, props.query)" :key="si">
           <mark v-if="seg.hit" class="inst-hit">{{ seg.t }}</mark>
           <template v-else>{{ seg.t }}</template>
         </template>
-        <svg v-if="item.id === activeId" class="inst-check" width="12" height="12"
-          viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <polyline points="20 6 9 17 4 12"/>
-        </svg>
       </span>
     </button>
   </div>
@@ -223,6 +225,7 @@ defineExpose({ onKeyDown })
 
 /* ═══ 行 ═══ */
 .inst-item {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -248,61 +251,44 @@ defineExpose({ onKeyDown })
 .inst-item.is-selected {
   background: var(--bg-hover);
 }
-/* 键盘选中：hover 底 + 内描边焦点环；与"当前目标"（文字色 + ✓）彻底分开 */
+/* 键盘选中：hover 底 + 内描边焦点环；与"当前目标"（竖条 + 标签）彻底分开 */
 .inst-item.is-selected {
   box-shadow: var(--shadow-ring-inset);
 }
-/* 当前目标：只改文字色 + 对勾，不铺整行底色（方案 P2-4） */
-.inst-item.active .inst-name {
+/* [ZC-11] 当前目标：行首 2px 实色竖条（--focus-ring）+ 名字强调，替代原行尾 ✓ */
+.inst-item.is-current .inst-name {
   color: var(--accent-strong);
 }
-
-/* ── 平台图标：底色来自主题 --plat-* token，未知类型自动落 --plat-default ── */
-.inst-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: var(--radius-icon);
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: var(--text-2xs);
-  font-weight: 700;
-  line-height: 1;
-  color: var(--plat-glyph);
-  background: var(--plat-default);
+.inst-item.is-current::before {
+  content: '';
+  position: absolute;
+  left: var(--space-2);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 2px;
+  height: var(--menu-row-h);
+  max-height: 14px;
+  border-radius: var(--radius-xs);
+  background: var(--focus-ring);
 }
-.inst-icon.p-flowus { background: var(--plat-flowus); }
-.inst-icon.p-notion { background: var(--plat-notion); }
-.inst-icon.p-lark   { background: var(--plat-lark); }
-.inst-icon.p-local  { background: var(--plat-local); }
-
+/* 「当前」小标签：比 ✓ 语义明确（"这是现在正用的"），不与类型文字挤在一起 */
+.current-tag {
+  flex-shrink: 0;
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  line-height: 1;
+  color: var(--accent-strong);
+  background: var(--accent-light);
+  border-radius: var(--radius-xs);
+  padding: var(--space-2) var(--space-4);
+}
 .inst-name {
+  flex: 1 1 auto;
   font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg);
   overflow: hidden;
   text-overflow: ellipsis;
-}
-.inst-type {
-  margin-left: auto;
-  flex-shrink: 0;
-  display: inline-flex;
-  align-items: center;
-  gap: var(--space-4);
-  font-size: var(--text-2xs);
-  font-weight: 500;
-  color: var(--muted);
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.inst-item.active .inst-type {
-  color: var(--accent-strong);
-  font-weight: 600;
-}
-.inst-check {
-  color: var(--accent-strong);
-  flex-shrink: 0;
 }
 
 /* [ZC-09] 搜索命中高亮：底/字走主题 token（覆盖 mark 的 UA 默认黄底） */
@@ -310,7 +296,6 @@ defineExpose({ onKeyDown })
   background: var(--accent-light);
   color: var(--accent-strong);
   border-radius: var(--radius-xs);
-  padding: 0 1px;
   font-weight: 600;
 }
 
