@@ -2,11 +2,18 @@
 /* 从 App.vue :deep() 抽取，改为直接选择器（非 scoped） */
 /* 选择器作用域：.editor-wrapper 内的 .tiptap */
 
+/* ═══ 内容字阶（内容排版 token 真源；界面字阶在 base.css，两者互不混用）═══ */
+/* 正文 16px/1.9：2026-11-17 实测定稿——15px 为 v0.1.0 起历代原值，此为首次调整。
+   雅黑墨高大，视觉行距密度勿与思源/苹方等字体的行高数字直接对标 */
+.editor-wrapper {
+  --text-editor: 16px;
+}
+
 .editor-wrapper .tiptap {
   outline: none;
   min-height: 100%;
   font-family: var(--font-editor);
-  font-size: var(--text-md);
+  font-size: var(--text-editor);
   line-height: 1.9;
   color: var(--fg);
   caret-color: var(--fg);
