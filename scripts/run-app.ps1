@@ -35,9 +35,12 @@ Write-Host "=== Sensend Build & Run ===" -ForegroundColor Green
 Write-Host "cargo: $((Get-Command cargo -ErrorAction SilentlyContinue).Source)"
 Write-Host "rustc: $(rustc --version)"
 
-# ── 杀掉残留的 sensend 进程（否则 exe 被占用，构建报“拒绝访问”os error 5）──
-Get-Process -Name "sensend" -ErrorAction SilentlyContinue | ForEach-Object {
-    Write-Host "Killing lingering sensend process (PID $($_.Id))..." -ForegroundColor Yellow
+# ── 只杀测试环境的进程（安装版路径不同，不能误杀，否则无法两版并存对比）──
+$devExe = "F:\fzz-Project\2-sensend\sensend\src-tauri\target\release\sensend.exe"
+Get-Process -Name "sensend" -ErrorAction SilentlyContinue | Where-Object {
+    $_.Path -and $_.Path -ieq $devExe
+} | ForEach-Object {
+    Write-Host "Killing dev sensend process (PID $($_.Id))..." -ForegroundColor Yellow
     Stop-Process -Id $_.Id -Force
 }
 
@@ -46,7 +49,8 @@ npm run build
 if ($LASTEXITCODE -ne 0) { Write-Host "FRONTEND BUILD FAILED" -ForegroundColor Red; exit 1 }
 
 Write-Host "[3/4] Building Rust (release, WebView2 full sidecar)..." -ForegroundColor Cyan
-npm run tauri build -- --no-bundle
+# 测试环境用独立标识（com.jloft.sensend.dev）：与安装版互不抢单实例锁、数据目录分离
+npm run tauri build -- --no-bundle --config src-tauri/tauri.dev.conf.json
 if ($LASTEXITCODE -ne 0) { Write-Host "RUST BUILD FAILED" -ForegroundColor Red; exit 1 }
 
 $exe = "src-tauri\target\release\sensend.exe"
