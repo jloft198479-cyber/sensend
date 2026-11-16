@@ -1,6 +1,12 @@
-# Sensend Build Script
-# 加载 MSVC 环境（vcvars64.bat）后执行 tauri build
-# 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1
+﻿# Sensend Build Script
+# 加载 MSVC 环境（vcvars64.bat）后执行 tauri build，并生成自动更新清单 latest.json
+# 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 [-Notes "发版说明"] [-Upload]
+param(
+    # 发版说明（写入 latest.json 的 notes，留空则用默认文案）
+    [string]$Notes = "",
+    # 构建完成后自动上传到远端 Release（默认 false，只生成本地产物与清单）
+    [switch]$Upload
+)
 $ErrorActionPreference = "Stop"
 
 # ── Rust 环境（装在 M 盘自定义位置）──
@@ -34,12 +40,90 @@ if (Test-Path $vcvars) {
     Write-Host "WARNING: $vcvars not found, will try build without MSVC env" -ForegroundColor Yellow
 }
 
-# ── 切到项目根目录并打包 ──
+# ── 切到项目根目录 ──
 Set-Location "F:\fzz-Project\2-sensend\sensend"
+
+# ── 版本三处一致性检查（tauri.conf.json / Cargo.toml / package.json）──
+$confVersion = (Get-Content "src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json).version
+$cargoVersion = (Select-String -Path "src-tauri/Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
+$npmVersion = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
+if ($confVersion -ne $cargoVersion -or $confVersion -ne $npmVersion) {
+    Write-Host "ERROR: 版本号三处不一致 conf=$confVersion cargo=$cargoVersion npm=$npmVersion（发版前必须同步）" -ForegroundColor Red
+    exit 1
+}
+
+# ── 更新签名私钥（updater 工件签名必需；私钥不入库，见 docs/AUTO-UPDATE-DESIGN.md）──
+$signKeyPath = "F:\fzz-Project\9-CNB\keys\sensend-updater\sensend-updater.key"
+if (Test-Path $signKeyPath) {
+    $env:TAURI_SIGNING_PRIVATE_KEY_PATH = $signKeyPath
+    $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = ""
+} else {
+    Write-Host "ERROR: 更新签名私钥缺失：$signKeyPath" -ForegroundColor Red
+    Write-Host "生成：npx tauri signer generate -w `"$signKeyPath`" --password `"`" --ci"
+    Write-Host "私钥丢失 = 已发布用户收不到自动更新，务必备份。"
+    exit 1
+}
+
 Write-Host ""
-Write-Host "=== Sensend Build ===" -ForegroundColor Green
+Write-Host "=== Sensend Build v$confVersion ===" -ForegroundColor Green
 Write-Host "Rust: $(rustc --version)" -ForegroundColor Cyan
 Write-Host "cl.exe: $((Get-Command cl.exe -ErrorAction SilentlyContinue).Source)" -ForegroundColor Cyan
 Write-Host ""
 
 npm run tauri build
+if ($LASTEXITCODE -ne 0) { Write-Host "ERROR: tauri build 失败" -ForegroundColor Red; exit 1 }
+
+# ── 生成自动更新清单 latest.json ──
+$nsisDir = "src-tauri/target/release/bundle/nsis"
+$exe = Get-ChildItem "$nsisDir/*-setup.exe" | Sort-Object LastWriteTime -Descending | Select-Object -First 1
+$sigFile = "$($exe.FullName).sig"
+if (-not (Test-Path $sigFile)) {
+    Write-Host "ERROR: 未找到签名文件 $sigFile（createUpdaterArtifacts 未生效？）" -ForegroundColor Red
+    exit 1
+}
+if (-not $Notes) { $Notes = "Sensend v$confVersion" }
+$tag = "v$confVersion"
+$manifest = [ordered]@{
+    version  = $confVersion
+    notes    = $Notes
+    pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'Z'")
+    platforms = [ordered]@{
+        "windows-x86_64" = [ordered]@{
+            signature = (Get-Content $sigFile -Raw).Trim()
+            url = "https://github.com/jloft198479-cyber/sensend/releases/download/$tag/$($exe.Name)"
+        }
+    }
+}
+$manifestPath = Join-Path $nsisDir "latest.json"
+$manifest | ConvertTo-Json -Depth 5 | Set-Content $manifestPath -Encoding utf8
+
+Write-Host ""
+Write-Host "=== 构建产物 ===" -ForegroundColor Green
+Write-Host "安装包：$($exe.FullName)"
+Write-Host "签名：  $sigFile"
+Write-Host "清单：  $manifestPath"
+
+# ── 上传（-Upload 开关；两条渠道尽力自动，不可用则打印手动指引）──
+if (-not $Upload) {
+    Write-Host ""
+    Write-Host "（未加 -Upload，跳过上传。手动发布：GitHub 用 gh release create $tag；CNB 按 docs/AUTO-UPDATE-DESIGN.md）" -ForegroundColor Yellow
+    exit 0
+}
+
+# GitHub：gh CLI 若可用则自动发 Release（latest.json 是 updater 的取件入口，必须同传）
+$gh = Get-Command gh -ErrorAction SilentlyContinue
+if ($gh) {
+    gh release create $tag $exe.FullName $sigFile $manifestPath --title "Sensend v$confVersion" --notes $Notes
+} else {
+    Write-Host "未安装 gh CLI，GitHub Release 请手动创建并上传三件产物（tag=$tag）" -ForegroundColor Yellow
+}
+
+# CNB：国内直连渠道（公开仓库附件免登录可下，updater 端点已登记）
+# 流程 = cnb CLI 三步（建 release → 拿 upload_url → PUT 上传 → confirmation），见 9-CNB 发版文档
+$cnb = Get-Command cnb -ErrorAction SilentlyContinue
+if ($cnb) {
+    Write-Host "CNB 上传：按 F:\fzz-Project\9-CNB\docs\CNB发版分发-全流程与踩坑经验.md 三步走（tag=$tag）" -ForegroundColor Cyan
+    # 附件上传细节依赖 cnb CLI 交互输出，此处仅提示；自动化待 cnb CLI 就位后补齐
+} else {
+    Write-Host "未安装 cnb CLI，CNB 发版按 9-CNB 文档手动执行（tag=$tag，附件含安装包+latest.json）" -ForegroundColor Yellow
+}
