@@ -210,7 +210,7 @@ function onDocClick(e: MouseEvent) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 14px 14px;
+  padding: var(--space-8) var(--space-14) var(--space-10);
   min-height: 40px;
   background: var(--bg);
   flex-shrink: 0;
@@ -230,7 +230,7 @@ function onDocClick(e: MouseEvent) {
 .footer-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   flex-shrink: 0;
 }
 
@@ -238,8 +238,8 @@ function onDocClick(e: MouseEvent) {
 .target-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 8px;
+  gap: var(--space-4);
+  padding: var(--space-6) var(--space-8);
   border: none;
   background: transparent;
   cursor: pointer;
@@ -261,8 +261,8 @@ function onDocClick(e: MouseEvent) {
 .target-picker-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 4px 8px;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-8);
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   background: transparent;
@@ -307,7 +307,7 @@ function onDocClick(e: MouseEvent) {
 /* 目标弹窗锚点：定位归底栏，列表格式来自 InstanceMenu */
 .picker-anchor {
   position: absolute;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + var(--space-4));
   left: 0;
   z-index: var(--z-dropdown);
 }
@@ -351,7 +351,7 @@ function onDocClick(e: MouseEvent) {
   background: var(--danger-bg);
 }
 .clear-confirm-text {
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   white-space: nowrap;
 }
@@ -364,7 +364,7 @@ function onDocClick(e: MouseEvent) {
 /* 设置下拉菜单（尺寸与 InstanceMenu 同一档方言：radius/padding/字号统一） */
 .settings-menu {
   position: absolute;
-  bottom: calc(100% + 4px);
+  bottom: calc(100% + var(--space-4));
   right: 0;
   background: var(--bg);
   border: 1px solid var(--border-color);
@@ -380,7 +380,7 @@ function onDocClick(e: MouseEvent) {
   align-items: center;
   gap: var(--space-8);
   width: 100%;
-  height: 28px;
+  height: var(--menu-row-h);
   padding: 0 var(--space-8);
   border: none;
   border-radius: var(--radius-sm);
@@ -413,7 +413,7 @@ function onDocClick(e: MouseEvent) {
 
 /* 窄窗压缩（方案 4.11）：字数只留数字，药丸进一步收窄，底栏内边距收紧 */
 @media (max-width: 359px) {
-  .footer-bar { padding: 8px 10px 10px; }
+  .footer-bar { padding: var(--space-8) var(--space-10) var(--space-10); }
   .wc-unit { display: none; }
   .target-mention { max-width: 130px; }
 }

@@ -49,8 +49,8 @@ const { toasts, remove } = useToast()
 /* 位置：顶栏下方（52px），不再压住发送/关闭按钮（方案 M-4 / 4.8.5） */
 .toast-layer {
   position: fixed;
-  top: 52px;
-  right: 12px;
+  top: var(--toast-top);
+  right: var(--toast-right);
   z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
@@ -62,7 +62,7 @@ const { toasts, remove } = useToast()
   display: flex;
   align-items: center;
   gap: var(--space-8);
-  padding: 8px 10px;
+  padding: var(--space-8) var(--space-10);
   border-radius: var(--radius-md);
   background: var(--bg);
   border: 1px solid var(--border-color);
@@ -72,7 +72,7 @@ const { toasts, remove } = useToast()
   font-weight: 500;
   color: var(--fg);
   cursor: default;
-  max-width: min(320px, calc(100vw - 24px));
+  max-width: min(320px, calc(100vw - var(--space-24)));
 }
 .toast-icon { flex-shrink: 0; color: var(--muted); }
 .toast-item.success { border-left-color: var(--success-text); }
@@ -101,7 +101,7 @@ const { toasts, remove } = useToast()
   background: none;
   color: var(--muted);
   cursor: pointer;
-  padding: 2px;
+  padding: var(--space-2);
   display: flex;
   align-items: center;
   opacity: 0.4;

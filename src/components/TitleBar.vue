@@ -174,8 +174,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 10px 10px 14px;
-  height: 44px;
+  padding: var(--space-10) var(--space-10) var(--space-10) var(--space-14);
+  height: var(--titlebar-h);
   cursor: default;
   user-select: none;
   flex-shrink: 0;
@@ -185,12 +185,13 @@ onMounted(() => {
 .title-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .title {
   font-family: var(--font-brand);
   font-size: var(--text-lg);
   font-weight: 700;
+  font-style: italic;
   letter-spacing: -0.01em;
   color: var(--accent-strong);
 }
@@ -205,7 +206,7 @@ onMounted(() => {
 .saving-dots {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--space-2);
 }
 .saving-dots::after {
   content: '';
@@ -213,7 +214,7 @@ onMounted(() => {
   width: 12px;
   height: 3px;
   background: currentColor;
-  border-radius: 1.5px;
+  border-radius: var(--radius-full);
   animation: saving-bar 0.9s ease-in-out infinite;
 }
 
@@ -226,7 +227,7 @@ onMounted(() => {
   width: 1px;
   height: 16px;
   background: var(--border-color);
-  margin: 0 calc(var(--btn-gap) + 2px);
+  margin: 0 calc(var(--btn-gap) + var(--space-2));
 }
 
 /* 功能按钮 */
@@ -277,7 +278,7 @@ onMounted(() => {
   color: var(--fg-on-accent);
   cursor: pointer;
   border-radius: var(--btn-radius);
-  margin-left: 4px;
+  margin-left: var(--space-4);
   transition: all var(--transition-fast);
 }
 .send-btn:hover:not(:disabled) {
@@ -301,7 +302,7 @@ onMounted(() => {
   position: absolute;
   top: 100%;
   right: 0;
-  margin-top: 6px;
+  margin-top: var(--space-6);
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -314,7 +315,7 @@ onMounted(() => {
 .font-menu-title {
   font-size: var(--text-2xs);
   color: var(--muted);
-  padding: 4px 10px 6px;
+  padding: var(--space-4) var(--space-10) var(--space-6);
   font-weight: 500;
 }
 .font-menu-item {
@@ -322,7 +323,7 @@ onMounted(() => {
   align-items: center;
   gap: var(--space-8);
   width: 100%;
-  height: 28px;
+  height: var(--menu-row-h);
   padding: 0 var(--space-8);
   border: none;
   border-radius: var(--radius-sm);
@@ -345,11 +346,11 @@ onMounted(() => {
 .font-menu-divider {
   height: 1px;
   background: var(--border-color);
-  margin: 4px 0;
+  margin: var(--space-4) 0;
 }
 .font-menu-action {
   color: var(--muted);
-  gap: 4px;
+  gap: var(--space-4);
 }
 .font-menu-action:hover {
   color: var(--fg);

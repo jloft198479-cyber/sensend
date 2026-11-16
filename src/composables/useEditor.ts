@@ -244,13 +244,30 @@ export function useSensendEditor(
 
                 const windowH = window.innerHeight
                 const rect = props.clientRect()
-                const bottomSpace = windowH - rect.bottom - 44
-                const topSpace = rect.top - 36
+                // 几何值全部读取设计 token（单一来源 styles/base.css），此处不写字面量
+                const rootStyle = getComputedStyle(document.documentElement)
+                const token = (name: string, fallback: number) => {
+                  const n = parseFloat(rootStyle.getPropertyValue(name))
+                  return Number.isFinite(n) ? n : fallback
+                }
+                const edgeGap = token('--list-edge-gap', 12)
+                const rowH = token('--menu-row-h', 28)
+                const padY = token('--menu-pad-y', 6) * 2
+                const maxRows = token('--mention-max-rows', 8)
+                const flipMin = token('--mention-flip-min', 80)
+                const footerH =
+                  document.querySelector('.footer-bar')?.getBoundingClientRect().height ||
+                  token('--footer-h', 46)
 
-                const isFlipped = bottomSpace < 80 && topSpace > bottomSpace
+                const bottomSpace = windowH - rect.bottom - footerH - edgeGap
+                const topSpace = rect.top - edgeGap
+
+                const isFlipped = bottomSpace < flipMin && topSpace > bottomSpace
                 const availablePx = isFlipped ? topSpace : bottomSpace
 
-                const finalH = Math.max(90, availablePx)
+                // 高度按整行取整 + 上下内边距：避免末行被切一半，同时上下都有留白
+                const rows = Math.max(1, Math.min(maxRows, Math.floor((availablePx - padY) / rowH)))
+                const finalH = rows * rowH + padY
                 document.documentElement.style.setProperty('--mention-list-max-h', `${finalH}px`)
 
                 popup = tippy('body', {

@@ -12,7 +12,7 @@ const props = withDefaults(defineProps<{
   maxHeight?: string         // 弹窗最大高度（定位策略由消费方决定）
 }>(), {
   activeId: null,
-  maxHeight: '240px',
+  maxHeight: 'var(--menu-max-h)',
 })
 
 const emit = defineEmits<{
@@ -123,13 +123,35 @@ defineExpose({ onKeyDown })
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  padding: var(--space-4);
+  /* 上下留白不用 padding（会随内容滚走），改用下方 sticky 占位条 */
+  padding: 0 var(--menu-pad);
   box-shadow: var(--shadow-e2);
   font-family: var(--font-sans);
   z-index: var(--z-dropdown);
 }
+/* 滚动时上下留白钉在边缘：内容从占位条下方滑过，永不贴边 */
+.inst-menu::before,
+.inst-menu::after {
+  content: '';
+  display: block;
+  position: sticky;
+  height: var(--menu-pad-y);
+  background: var(--bg);
+  z-index: var(--z-sticky);
+}
+.inst-menu::before {
+  top: 0;
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+}
+.inst-menu::after {
+  bottom: 0;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+}
+/* 空态自带内边距，不需要占位条 */
+.inst-empty::before,
+.inst-empty::after { display: none; }
 .inst-empty {
-  padding: 8px 10px;
+  padding: var(--space-8) var(--space-10);
   font-size: var(--text-xs);
   color: var(--muted);
   white-space: nowrap;
@@ -141,7 +163,7 @@ defineExpose({ onKeyDown })
   align-items: center;
   gap: var(--space-8);
   width: 100%;
-  height: 28px;
+  height: var(--menu-row-h);
   padding: 0 var(--space-8);
   margin: 0;
   border: none;
@@ -163,7 +185,7 @@ defineExpose({ onKeyDown })
 }
 /* 键盘选中：hover 底 + 内描边焦点环；与"当前目标"（文字色 + ✓）彻底分开 */
 .inst-item.is-selected {
-  box-shadow: inset 0 0 0 1px var(--focus-ring);
+  box-shadow: var(--shadow-ring-inset);
 }
 /* 当前目标：只改文字色 + 对勾，不铺整行底色（方案 P2-4） */
 .inst-item.active .inst-name {
@@ -174,12 +196,12 @@ defineExpose({ onKeyDown })
 .inst-icon {
   width: 20px;
   height: 20px;
-  border-radius: 5px;
+  border-radius: var(--radius-icon);
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 10px;
+  font-size: var(--text-2xs);
   font-weight: 700;
   line-height: 1;
   color: var(--plat-glyph);
@@ -202,7 +224,7 @@ defineExpose({ onKeyDown })
   flex-shrink: 0;
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: var(--space-4);
   font-size: var(--text-2xs);
   font-weight: 500;
   color: var(--muted);
@@ -227,7 +249,7 @@ defineExpose({ onKeyDown })
 }
 .inst-menu::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 2px;
+  border-radius: var(--radius-full);
 }
 .inst-menu::-webkit-scrollbar-thumb:hover {
   background: var(--scrollbar-thumb-hover);

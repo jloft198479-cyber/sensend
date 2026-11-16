@@ -6,6 +6,7 @@
 @import '@fontsource/dm-sans/500.css';
 @import '@fontsource/dm-sans/600.css';
 @import '@fontsource/dm-sans/700.css';
+@import '@fontsource/dm-sans/700-italic.css';
 
 /* 编辑器字体默认使用系统字体栈，用户可通过字体选择器切换 */
 
@@ -17,8 +18,8 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   /* === 字体 === */
   --font-sans: 'DM Sans', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei UI', 'Microsoft YaHei', ui-sans-serif, system-ui, sans-serif;
   --font-editor: 'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', Georgia, serif;
-  /* 品牌名专用（Segoe UI Semibold，系统预装，Win/Mac 均有）——勿当等宽字体用 */
-  --font-brand: 'Segoe UI Semibold', 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+  /* 品牌名专用：DM Sans 700 真斜体（见 700-italic.css），禁止用 CSS 合成斜体 */
+  --font-brand: 'DM Sans', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
   /* 真等宽：行内代码 / 凭证输入框等需要字符对齐的场景 */
   --font-mono: 'Cascadia Mono', 'Consolas', 'Courier New', monospace;
 
@@ -44,6 +45,30 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   --space-20: 20px;
   --space-24: 24px;
   --space-32: 32px;
+  /* 规范 4.8 各组件显式指定的值（4.4 禁值表与之冲突，按显式指定优先） */
+  --space-10: 10px;
+  --space-14: 14px;
+  --space-18: 18px;
+  --space-28: 28px;
+
+  /* === 几何尺寸（组件共用，禁止散写数字）=== */
+  --titlebar-h: 44px;
+  --control-h-xs: 24px;
+  --control-h-sm: 28px;
+  --control-h-md: 32px;
+  --control-h-lg: 36px;
+  --menu-row-h: 28px;
+  --menu-pad: 4px;
+  --menu-pad-y: 8px;   /* 弹层内部上下留白（首/末行与边框之间） */
+  --list-edge-gap: 12px;
+  --mention-max-rows: 8;
+  /* 弹层总高 = 整行数 × 行高 + 上下留白（默认 8×28+8×2 = 240） */
+  --menu-max-h: calc(var(--menu-row-h) * var(--mention-max-rows) + var(--menu-pad-y) * 2);
+  --mention-flip-min: 80px;
+  --toast-top: 52px;
+  --toast-right: 12px;
+  --footer-h: 46px;
+  --radius-icon: 5px;   /* 平台图标专用（方案 4.7 显式值） */
 
   /* === 圆角阶梯（方案 4.5）=== */
   --radius-xs: 4px;
@@ -59,6 +84,11 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   --shadow-e2: 0 6px 18px color-mix(in srgb, var(--shadow-color) 12%, transparent);
   --shadow-e3: 0 24px 64px color-mix(in srgb, var(--shadow-color) 20%, transparent),
                0 8px 20px color-mix(in srgb, var(--shadow-color) 8%, transparent);
+  /* 焦点环（几何入 token，禁止组件散写 0 0 0 Npx） */
+  --focus-ring-width: 3px;
+  --shadow-focus: 0 0 0 var(--focus-ring-width) var(--focus-ring);
+  --shadow-ring-inset: inset 0 0 0 1px var(--focus-ring);
+  --shadow-pulse: 0 0 0 var(--focus-ring-width) var(--accent-light);
 
   /* === 顶栏 === */
   --btn-size: 28px;
@@ -67,6 +97,7 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
 
   /* === 弹层层级（从低到高，新弹层按语义入档，勿跳档）=== */
   --z-dropdown: 100;  /* 下拉菜单 / 弹出列表（目标弹窗、@列表、设置菜单、字体菜单） */
+  --z-sticky: 1;      /* 组件内部 sticky 占位条（局部层叠，不参与全局层级） */
   --z-scrim: 200;     /* 全屏遮罩 */
   --z-modal: 300;     /* 模态对话框 */
   --z-toast: 500;     /* Toast 浮层（永远最顶） */
@@ -123,6 +154,6 @@ input:focus-visible,
 }
 
 /* 反馈消息 */
-.test-msg { font-size: 12px; font-weight: 500; padding: 8px 12px; border-radius: 8px; text-align: center; margin-top: 10px; }
+.test-msg { font-size: var(--text-xs); font-weight: 500; padding: var(--space-8) var(--space-12); border-radius: var(--radius-md); text-align: center; margin-top: var(--space-10); }
 .test-msg.success { background: var(--success-bg); color: var(--success-text); border: 1px solid var(--success-border); }
 .test-msg.fail { background: var(--danger-bg); color: var(--danger); border: 1px solid var(--danger-border); }

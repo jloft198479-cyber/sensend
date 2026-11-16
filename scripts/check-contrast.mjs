@@ -18,6 +18,7 @@ const THEMES = [
   { id: 'dark', name: '暗夜', file: 'src/styles/themes/dark.css' },
   { id: 'wenyi', name: '秋珀', file: 'src/styles/themes/wenyi.css' },
   { id: 'tech', name: '魅蓝', file: 'src/styles/themes/tech.css' },
+  { id: 'ink', name: '墨白', file: 'src/styles/themes/ink.css' },
 ]
 
 /** 需要校验的色对（fg/bg 为 CSS 变量名，min 为 WCAG 门槛） */
@@ -155,7 +156,7 @@ for (const r of rows) {
   )
 }
 
-console.log(`\n四主题变量数：${THEMES.map((t) => {
+console.log(`\n主题变量数：${THEMES.map((t) => {
   const f = path.join(ROOT, t.file)
   return fs.existsSync(f) ? `${t.name}=${readVars(f).size}` : `${t.name}=缺失`
 }).join('  ')}`)

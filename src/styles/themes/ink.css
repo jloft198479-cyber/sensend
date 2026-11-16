@@ -1,0 +1,68 @@
+/* ═══ 墨白主题 — 纸白墨黑，极简无彩 ═══
+   主色为石墨黑（三档角色），仅平台图标保留品牌身份色；
+   语义色沿用浅色主题的低饱和取值 */
+
+[data-theme="ink"] {
+  /* 背景层 */
+  --bg: #ffffff;
+  --bg-page: #f5f5f4;
+
+  /* 文字层级 */
+  --fg: #1a1a1a;
+  --fg-secondary: #555555;
+  --muted: #6b6b6b;
+  --placeholder: #737373;
+
+  /* 边框 & 分隔 */
+  --border-color: rgba(0, 0, 0, 0.10);
+  --control-border: #8A8A8A;
+
+  /* 主色 — 石墨黑（三档角色，禁止混用） */
+  --accent: #2f2f2f;           /* 装饰：品牌词标 / 淡底 / 图示 */
+  --accent-strong: #1a1a1a;    /* 可读：浅底上的主色文字 / 图标 */
+  --accent-fill: #2f2f2f;      /* 填充：主按钮 / 发送按钮底色 */
+  --accent-fill-hover: #1f1f1f;
+  --accent-hover: #3a3a3a;     /* 兼容旧引用，批 4 收口 */
+  --accent-light: #efefef;
+
+  /* 语义色 — 成功/错误/警告 */
+  --danger: #C0271F;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --success-bg: #f0fdf4;
+  --success-text: #15803d;
+  --success-border: #bbf7d0;
+  --warning-text: #A15C00;
+  --warning-bg: #FFF7E6;
+
+  /* 平台识别色 — 品牌身份色，不随主题换色 */
+  --plat-local: #94a3b8;
+  --plat-notion: #37352f;
+  --plat-flowus: #2CAF68;
+  --plat-lark: #3370ff;
+  --plat-default: #8b949e;
+  --plat-glyph: #ffffff;
+
+  /* 灰度色板（中性灰） */
+  --gray-border: #e4e4e7;
+  --gray-hover: #f4f4f5;
+  --gray-input-bg: #fafafa;
+  --gray-scrollbar: #d4d4d8;
+
+  /* 交互状态 */
+  --bg-hover: rgba(0, 0, 0, 0.06);
+  --focus-ring: rgba(47, 47, 47, 0.35);
+
+  /* 主色之上的文字 */
+  --fg-on-accent: #ffffff;
+  /* 全屏遮罩 / 阴影基色 */
+  --scrim-bg: rgba(0, 0, 0, 0.35);
+  --shadow-color: #000000;
+
+  /* 编辑器专用 */
+  --code-bg: #f5f5f5;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.1);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.2);
+}

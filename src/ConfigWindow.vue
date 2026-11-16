@@ -241,8 +241,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 14px 0 16px;
-  height: 44px;
+  padding: 0 var(--space-14) 0 var(--space-16);
+  height: var(--titlebar-h);
   background: var(--accent-light);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
@@ -252,15 +252,15 @@ onMounted(() => {
 .title-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .title-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  height: 32px;
-  padding: 0 16px;
+  gap: var(--space-6);
+  height: var(--control-h-md);
+  padding: 0 var(--space-16);
   min-width: 148px;
   border: none;
   border-radius: var(--radius-md);
@@ -298,7 +298,7 @@ onMounted(() => {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -312,7 +312,7 @@ onMounted(() => {
 .edit-section {
   flex: 1;
   overflow-y: auto;
-  padding: 20px;
+  padding: var(--space-20);
   background: var(--bg);
   border-bottom: 1px solid var(--border-color);
 }
@@ -321,13 +321,13 @@ onMounted(() => {
 .edit-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--space-20);
 }
 /* 表单分区（方案 C-2 / 4.8.2）：区块间 20，区块内 14 */
 .form-group {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-14);
 }
 .form-group-title {
   font-size: var(--text-sm);
@@ -337,15 +337,15 @@ onMounted(() => {
 .form-row {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: var(--space-6);
 }
 .form-label {
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: var(--fg);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-6);
 }
 .label-hint {
   font-size: var(--text-xs);
@@ -356,12 +356,12 @@ onMounted(() => {
 .field-hint {
   font-size: var(--text-xs);
   color: var(--muted);
-  margin-top: 2px;
+  margin-top: var(--space-2);
   line-height: 1.4;
 }
 .browse-btn {
   margin-left: auto;
-  padding: 1px 8px;
+  padding: var(--space-2) var(--space-8);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-xs);
   background: var(--bg);
@@ -380,10 +380,10 @@ onMounted(() => {
 .platform-select::after {
   content: '';
   position: absolute;
-  right: 14px;
+  right: var(--space-14);
   top: 50%;
-  width: 7px;
-  height: 7px;
+  width: var(--space-8);
+  height: var(--space-8);
   border-right: 2px solid var(--muted);
   border-bottom: 2px solid var(--muted);
   transform: translateY(-70%) rotate(45deg);
@@ -391,8 +391,8 @@ onMounted(() => {
 }
 .platform-select select {
   width: 100%;
-  height: 36px;
-  padding: 0 32px 0 12px;
+  height: var(--control-h-lg);
+  padding: 0 var(--space-32) 0 var(--space-12);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--gray-input-bg);
@@ -408,7 +408,7 @@ onMounted(() => {
 .platform-select select:focus {
   border-color: var(--accent-strong);
   background-color: var(--bg);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: var(--shadow-focus);
 }
 .platform-select select:disabled {
   opacity: 0.6;
@@ -418,8 +418,8 @@ onMounted(() => {
 
 .form-input {
   width: 100%;
-  height: 36px;
-  padding: 0 12px;
+  height: var(--control-h-lg);
+  padding: 0 var(--space-12);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   font-size: var(--text-sm);
@@ -435,7 +435,7 @@ onMounted(() => {
 .form-input:focus {
   border-color: var(--accent-strong);
   background: var(--bg);
-  box-shadow: 0 0 0 3px var(--focus-ring);
+  box-shadow: var(--shadow-focus);
 }
 .form-input::placeholder { color: var(--placeholder); }
 
@@ -445,18 +445,18 @@ onMounted(() => {
   align-items: center;
 }
 .input-with-toggle .form-input {
-  padding-right: 36px;
+  padding-right: var(--control-h-lg);
 }
 .toggle-visibility {
   position: absolute;
-  right: 4px;
+  right: var(--space-4);
   width: var(--btn-size);
   height: var(--btn-size);
   border: none;
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -470,12 +470,12 @@ onMounted(() => {
 
 .form-actions {
   display: flex;
-  gap: 10px;
-  margin-top: 2px;
+  gap: var(--space-10);
+  margin-top: var(--space-2);
 }
 .action-btn {
   flex: 1;
-  height: 32px;
+  height: var(--control-h-md);
   padding: 0;
   border: none;
   border-radius: var(--radius-md);
@@ -486,7 +486,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-6);
   font-family: var(--font-sans);
 }
 .action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -499,14 +499,14 @@ onMounted(() => {
 .list-section {
   flex: 1;
   overflow-y: auto;
-  padding: 16px 20px;
+  padding: var(--space-16) var(--space-20);
 }
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 28px 20px;
+  padding: var(--space-28) var(--space-20);
   color: var(--muted);
   text-align: center;
 }
@@ -516,7 +516,7 @@ onMounted(() => {
   font-weight: 500;
 }
 .empty-hint {
-  margin-top: 6px !important;
+  margin-top: var(--space-6) !important;
   font-size: var(--text-xs) !important;
   font-weight: 400 !important;
   color: var(--placeholder);
@@ -525,13 +525,13 @@ onMounted(() => {
 .instance-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-8);
 }
 .instance-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: var(--space-10) var(--space-12);
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -544,17 +544,17 @@ onMounted(() => {
 .instance-info {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-10);
   min-width: 0;
 }
 .instance-text {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: var(--space-2);
   min-width: 0;
 }
 .instance-name {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg);
   overflow: hidden;
@@ -566,12 +566,12 @@ onMounted(() => {
   color: var(--muted);
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: var(--space-6);
 }
 .mode-tag {
   height: 18px;
   line-height: 18px;
-  padding: 0 6px;
+  padding: 0 var(--space-6);
   font-size: var(--text-2xs);
   font-weight: 600;
   color: var(--accent-strong);
@@ -581,7 +581,7 @@ onMounted(() => {
 .instance-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-4);
   flex-shrink: 0;
 }
 .icon-btn {
@@ -601,8 +601,8 @@ onMounted(() => {
 .icon-btn:hover { background: var(--gray-hover); color: var(--fg); }
 .icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); }
 .confirm-btn {
-  height: 28px;
-  padding: 0 10px;
+  height: var(--control-h-sm);
+  padding: 0 var(--space-10);
   border: 1px solid var(--danger);
   background: var(--danger-bg);
   color: var(--danger);

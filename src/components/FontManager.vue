@@ -184,7 +184,7 @@ onMounted(loadFonts)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px 12px;
+  padding: var(--space-16) var(--space-18) var(--space-12);
 }
 .fm-header h3 {
   font-size: var(--text-md);
@@ -199,7 +199,7 @@ onMounted(loadFonts)
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -215,29 +215,29 @@ onMounted(loadFonts)
 .fm-hint {
   display: flex;
   align-items: flex-start;
-  gap: 6px;
-  padding: 0 18px 12px;
+  gap: var(--space-6);
+  padding: 0 var(--space-18) var(--space-12);
   font-size: var(--text-xs);
   color: var(--muted);
   line-height: 1.5;
 }
 .fm-hint svg {
   flex-shrink: 0;
-  margin-top: 1px;
+  margin-top: var(--space-2);
 }
 
 /* 操作栏 */
 .fm-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 18px 12px;
+  gap: var(--space-8);
+  padding: 0 var(--space-18) var(--space-12);
 }
 .fm-folder-btn {
   display: flex;
   align-items: center;
-  gap: 5px;
-  padding: 6px 12px;
+  gap: var(--space-6);
+  padding: var(--space-6) var(--space-12);
   border: 1px solid var(--control-border);
   border-radius: var(--radius-md);
   background: var(--bg);
@@ -280,24 +280,24 @@ onMounted(loadFonts)
 .fm-list {
   flex: 1;
   overflow-y: auto;
-  padding: 0 18px 16px;
+  padding: 0 var(--space-18) var(--space-16);
   scrollbar-width: thin;
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
 .fm-list::-webkit-scrollbar { width: 4px; }
 .fm-list::-webkit-scrollbar-track { background: transparent; }
-.fm-list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 2px; }
+.fm-list::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--radius-full); }
 
 .fm-empty {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 28px 20px;
+  padding: var(--space-28) var(--space-20);
   color: var(--muted);
   text-align: center;
 }
 .fm-empty p {
-  margin: 8px 0 0;
+  margin: var(--space-8) 0 0;
   font-size: var(--text-sm);
   font-weight: 500;
 }
@@ -311,10 +311,10 @@ onMounted(loadFonts)
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
+  padding: var(--space-8) var(--space-10);
   border: 1px solid var(--border-color);
-  border-radius: 8px;
-  margin-bottom: 6px;
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-6);
   transition: all var(--dur-fast);
 }
 .fm-font-item:hover {
@@ -326,11 +326,11 @@ onMounted(loadFonts)
 .fm-font-info {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   min-width: 0;
 }
 .fm-font-name {
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg);
   overflow: hidden;
@@ -340,7 +340,7 @@ onMounted(loadFonts)
 .fm-font-ext {
   height: 18px;
   line-height: 18px;
-  padding: 0 6px;
+  padding: 0 var(--space-6);
   font-size: var(--text-2xs);
   font-weight: 600;
   color: var(--accent-strong);
@@ -351,7 +351,7 @@ onMounted(loadFonts)
 
 .fm-delete-btn {
   width: 24px;
-  height: 24px;
+  height: var(--control-h-xs);
   border: none;
   background: transparent;
   color: var(--muted);
@@ -375,8 +375,8 @@ onMounted(loadFonts)
 /* 二次确认态：按钮原地替换为文字，3 秒未点自动回退 */
 .fm-delete-btn.confirming {
   width: auto;
-  height: 24px;
-  padding: 0 8px;
+  height: var(--control-h-xs);
+  padding: 0 var(--space-8);
   color: var(--danger);
   background: var(--danger-bg);
   border: 1px solid var(--danger);

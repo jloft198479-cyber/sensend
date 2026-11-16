@@ -20,6 +20,7 @@ export const THEMES: ThemeMeta[] = [
   { id: 'dark', name: '暗夜', preview: '#1a1a1a', windowBg: '#1a1a1a' },
   { id: 'wenyi', name: '秋珀', preview: '#a17a45', windowBg: '#faf8f3' },
   { id: 'tech', name: '魅蓝', preview: '#3b82f6', windowBg: '#fbfcfe' },
+  { id: 'ink', name: '墨白', preview: '#1a1a1a', windowBg: '#ffffff' },
 ]
 
 /** 当前主题（跨组件共享的单一状态） */

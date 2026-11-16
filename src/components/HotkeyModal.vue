@@ -132,7 +132,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px 18px 12px;
+  padding: var(--space-16) var(--space-18) var(--space-12);
   border-bottom: 1px solid var(--border-color);
 }
 .modal-title {
@@ -150,21 +150,21 @@ function onPanelKeydown(e: KeyboardEvent) {
 }
 .modal-close:hover { background: var(--gray-hover); color: var(--fg); }
 
-.modal-body { padding: 6px; }
+.modal-body { padding: var(--space-6); }
 
 /* ═══ 快捷键设置 ═══ */
 .hotkey-panel { width: 320px; }
-.hotkey-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
-.hotkey-item { display: flex; flex-direction: column; gap: 4px; }
+.hotkey-body { padding: var(--space-16) var(--space-18); display: flex; flex-direction: column; gap: var(--space-14); }
+.hotkey-item { display: flex; flex-direction: column; gap: var(--space-4); }
 .hotkey-label { font-size: var(--text-xs); font-weight: 600; color: var(--fg); }
 .hotkey-desc { font-size: var(--text-xs); color: var(--muted); }
 .hotkey-record-btn {
   display: flex; align-items: center; justify-content: center;
-  padding: 8px 12px; border: 1px solid var(--control-border); border-radius: var(--radius-md);
+  padding: var(--space-8) var(--space-12); border: 1px solid var(--control-border); border-radius: var(--radius-md);
   background: var(--gray-input-bg); cursor: pointer; transition: all var(--dur-fast);
   /* button 不继承父级字体（UA 行为），显式拉回 */
   font-family: inherit;
-  min-height: 36px;
+  min-height: var(--control-h-lg);
 }
 .hotkey-record-btn:hover { border-color: var(--accent-strong); background: var(--bg); }
 .hotkey-record-btn.recording {
@@ -172,8 +172,8 @@ function onPanelKeydown(e: KeyboardEvent) {
   animation: pulse-border 1.5s infinite;
 }
 @keyframes pulse-border {
-  0%, 100% { box-shadow: 0 0 0 0 var(--accent-light); }
-  50% { box-shadow: 0 0 0 3px var(--accent-light); }
+  0%, 100% { box-shadow: none; }
+  50% { box-shadow: var(--shadow-pulse); }
 }
 .hotkey-kbd {
   font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 600;
@@ -188,7 +188,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
-.hotkey-actions { margin-top: 4px; display: flex; }
+.hotkey-actions { margin-top: var(--space-4); display: flex; }
 
 .config-btn {
   flex: 1; height: 32px; padding: 0; border: none; border-radius: var(--radius-md);
@@ -196,7 +196,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   /* button 不继承父级字体（UA 行为），显式拉回 */
   font-family: inherit;
   transition: all var(--dur-fast) ease; display: flex; align-items: center;
-  justify-content: center; gap: 6px; width: 100%;
+  justify-content: center; gap: var(--space-6); width: 100%;
 }
 .config-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .save-btn { background: var(--accent-fill); color: var(--fg-on-accent); }

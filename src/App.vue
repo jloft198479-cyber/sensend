@@ -281,7 +281,7 @@ async function onSaveHotkeys() {
   background: var(--accent-light);
   border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
   border-radius: var(--radius-sm);
-  padding: 1px 6px;
+  padding: var(--space-2) var(--space-6);
   font-size: var(--text-xs);
   font-weight: 500;
   cursor: default;
@@ -304,12 +304,12 @@ ul[data-type="taskList"] {
 ul[data-type="taskList"] li[data-checked] {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: var(--space-8);
   margin: 0.2em 0;
 }
 ul[data-type="taskList"] li[data-checked] > label {
   flex: none;
-  margin-top: 2px;
+  margin-top: var(--space-2);
   cursor: pointer;
   user-select: none;
 }
@@ -350,7 +350,7 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 /* ═══ 编辑器容器 ═══ */
 .editor-wrapper {
   flex: 1;
-  padding: 32px 28px;
+  padding: var(--space-32) var(--space-28);
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: transparent transparent;
@@ -359,14 +359,14 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 }
 /* 窄窗优先（方案 4.11）：280–359 与 360–419 两档收紧内边距，420 以上保持舒展版 */
 @media (max-width: 419px) {
-  .editor-wrapper { padding: 24px 20px; }
+  .editor-wrapper { padding: var(--space-24) var(--space-20); }
 }
 @media (max-width: 359px) {
-  .editor-wrapper { padding: 20px 16px; }
+  .editor-wrapper { padding: var(--space-20) var(--space-16); }
 }
 /* 仅最小高度 200px 时压缩上下留白（默认窗高 210 不受影响） */
 @media (max-height: 200px) {
-  .editor-wrapper { padding-top: 12px; padding-bottom: 12px; }
+  .editor-wrapper { padding-top: var(--space-12); padding-bottom: var(--space-12); }
 }
 .editor-wrapper:hover {
   scrollbar-color: var(--scrollbar-thumb) transparent;
@@ -375,7 +375,7 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 .editor-wrapper::-webkit-scrollbar-track { background: transparent; }
 .editor-wrapper::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 2px;
+  border-radius: var(--radius-full);
   transition: background 0.3s;
 }
 .editor-wrapper:hover::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); }
@@ -389,17 +389,17 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
   align-items: center;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 1px;
+  gap: var(--space-2);
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-e2);
-  padding: 3px 4px;
+  padding: var(--space-4);
   /* 窄窗不横向溢出：放不下时折成第二行（280px 下仍保留全部动作） */
-  max-width: calc(100vw - 16px);
+  max-width: calc(100vw - var(--space-16));
 }
 .bm-btn {
-  width: 28px; height: 28px;
+  width: var(--btn-size); height: var(--btn-size);
   border: none; background: transparent;
   color: var(--fg-secondary); cursor: pointer;
   border-radius: var(--radius-sm);
@@ -411,7 +411,7 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 .bm-divider {
   width: 1px; height: 16px;
   background: var(--border-color);
-  margin: 0 3px; flex-shrink: 0;
+  margin: 0 var(--space-4); flex-shrink: 0;
 }
 
 </style>
