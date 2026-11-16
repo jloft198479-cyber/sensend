@@ -386,7 +386,7 @@ onMounted(() => {
   box-sizing: border-box;
 }
 .form-input:focus { border-color: var(--accent); background: var(--bg); }
-.form-input::placeholder { color: var(--gray-placeholder); }
+.form-input::placeholder { color: var(--placeholder); }
 
 .input-with-toggle {
   position: relative;
@@ -467,7 +467,7 @@ onMounted(() => {
   margin-top: 6px !important;
   font-size: 12px !important;
   font-weight: 400 !important;
-  color: var(--gray-placeholder);
+  color: var(--placeholder);
 }
 
 .instance-list {

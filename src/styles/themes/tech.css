@@ -1,5 +1,6 @@
 /* ═══ 科技风 — 冷白电光 ═══
-   浅色科技感：冷白底 + 电光蓝主色，冷静克制（深色系请用"暗夜"主题） */
+   浅色科技感：冷白底 + 电光蓝主色，冷静克制（深色系请用"暗夜"主题）
+   规范 v1.0 批 1：主色三档；阴影基色用冷蓝（避免冷白底上出现纯黑阴影） */
 
 [data-theme="tech"] {
   /* 背景层 */
@@ -9,23 +10,30 @@
   /* 文字层级 */
   --fg: #1f2937;
   --fg-secondary: #4b5563;
-  --muted: #6b7280;
+  --muted: #5F6B7C;
+  --placeholder: #667284;
 
   /* 边框 & 分隔 */
   --border-color: rgba(30, 58, 138, 0.12);
+  --control-border: #7F8B9D;
 
-  /* 主色 — 电光蓝 */
+  /* 主色 — 电光蓝（三档角色） */
   --accent: #3b82f6;
-  --accent-hover: #2f6fe0;
+  --accent-strong: #2359C4;
+  --accent-fill: #2A63D6;
+  --accent-fill-hover: #2359C4;
+  --accent-hover: #2f6fe0;      /* 兼容旧引用，批 4 收口 */
   --accent-light: #e6effd;
 
   /* 语义色 */
-  --danger: #ef4444;
+  --danger: #C62828;
   --danger-bg: #fef2f2;
   --danger-border: #fecaca;
   --success-bg: #ecfdf5;
-  --success-text: #059669;
+  --success-text: #047857;
   --success-border: #a7f3d0;
+  --warning-text: #A15C00;
+  --warning-bg: #FFF7E6;
 
   /* 平台识别色 — 同 light（品牌身份色，与主题主色无关） */
   --plat-local: #94a3b8;
@@ -40,15 +48,16 @@
   --gray-hover: #f1f4f8;
   --gray-input-bg: #f8fafc;
   --gray-scrollbar: #cbd5e1;
-  --gray-placeholder: #9ca3af;
 
   /* 交互状态 */
   --bg-hover: rgba(30, 58, 138, 0.06);
+  --focus-ring: rgba(59, 130, 246, 0.35);
 
-  /* 主色之上的文字（accent 底按钮文字等） */
+  /* 主色之上的文字（accent-fill 底按钮文字等） */
   --fg-on-accent: #ffffff;
-  /* 全屏遮罩浓度 */
-  --overlay-bg: rgba(0, 0, 0, 0.3);
+  /* 全屏遮罩 / 阴影基色（冷蓝） */
+  --scrim-bg: rgba(0, 0, 0, 0.35);
+  --shadow-color: #1E3A8A;
 
   /* 编辑器专用 */
   --code-bg: #eef2f7;

@@ -1,5 +1,6 @@
 /* ═══ 文艺风 — 暖纸书卷 ═══
-   iA Writer 哲学：暖白纸面、碳黑文字、驼色点缀，克制留白 */
+   iA Writer 哲学：暖白纸面、碳黑文字、驼色点缀，克制留白
+   规范 v1.0 批 1：主色三档；阴影基色改暖棕（避免暖纸上出现冷黑） */
 
 [data-theme="wenyi"] {
   /* 背景层 */
@@ -9,14 +10,19 @@
   /* 文字层级 */
   --fg: #2c2822;
   --fg-secondary: #6d6455;
-  --muted: #8b8172;
+  --muted: #736A5B;
+  --placeholder: #746B5C;
 
   /* 边框 & 分隔 */
-  --border-color: rgba(90, 70, 40, 0.1);
+  --border-color: rgba(90, 70, 40, 0.12);
+  --control-border: #8B7F6B;
 
-  /* 主色 — 驼褐（浅而轻盈，不取深金褐） */
+  /* 主色 — 驼褐（浅而轻盈，不取深金褐；三档角色） */
   --accent: #a17a45;
-  --accent-hover: #8d6a3a;
+  --accent-strong: #7D5A2E;
+  --accent-fill: #8A6534;
+  --accent-fill-hover: #7D5A2E;
+  --accent-hover: #8d6a3a;      /* 兼容旧引用，批 4 收口 */
   --accent-light: #f3ecdd;
 
   /* 语义色 — 砖红/橄榄，柔化不刺眼 */
@@ -24,8 +30,10 @@
   --danger-bg: #faf1ee;
   --danger-border: #eed6d0;
   --success-bg: #f0f4e8;
-  --success-text: #5f7d46;
+  --success-text: #58733F;
   --success-border: #d9e2c8;
+  --warning-text: #8A5A1F;
+  --warning-bg: #FBF3E4;
 
   /* 平台识别色 — 同 light（品牌身份色，与主题主色无关；新平台在此登记） */
   --plat-local: #94a3b8;
@@ -40,15 +48,16 @@
   --gray-hover: #f2eee4;
   --gray-input-bg: #f6f2e9;
   --gray-scrollbar: #d6cfbf;
-  --gray-placeholder: #a99e8b;
 
   /* 交互状态 */
   --bg-hover: rgba(90, 70, 40, 0.06);
+  --focus-ring: rgba(161, 122, 69, 0.35);
 
-  /* 主色之上的文字（accent 底按钮文字等） */
+  /* 主色之上的文字（accent-fill 底按钮文字等） */
   --fg-on-accent: #ffffff;
-  /* 全屏遮罩浓度 */
-  --overlay-bg: rgba(0, 0, 0, 0.3);
+  /* 全屏遮罩 / 阴影基色（暖棕，避免冷黑） */
+  --scrim-bg: rgba(0, 0, 0, 0.35);
+  --shadow-color: #5A4628;
 
   /* 编辑器专用 */
   --code-bg: #f1ebdd;

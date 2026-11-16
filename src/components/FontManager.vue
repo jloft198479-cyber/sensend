@@ -135,11 +135,11 @@ onMounted(loadFonts)
 .font-manager-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg);
+  background: var(--scrim-bg);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-overlay);
+  z-index: var(--z-scrim);
   backdrop-filter: blur(2px);
 }
 .font-manager {
@@ -283,7 +283,7 @@ onMounted(loadFonts)
 .fm-empty-hint {
   font-size: 11px !important;
   font-weight: 400 !important;
-  color: var(--gray-placeholder) !important;
+  color: var(--placeholder) !important;
 }
 
 .fm-font-item {

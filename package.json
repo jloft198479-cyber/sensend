@@ -14,6 +14,7 @@
     "dev": "vite",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "check:contrast": "node scripts/check-contrast.mjs",
     "tauri": "tauri"
   },
   "dependencies": {

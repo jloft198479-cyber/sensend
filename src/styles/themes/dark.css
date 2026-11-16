@@ -1,4 +1,6 @@
-/* ═══ 暗夜主题 ═══ */
+/* ═══ 暗夜主题 ═══
+   规范 v1.0 批 1：主色三档；暗色主按钮改"亮底深字"（fg-on-accent = #0E2A1C），
+   遮罩加重到 0.6，阴影基色纯黑 */
 
 [data-theme="dark"] {
   /* 背景层 */
@@ -8,15 +10,20 @@
   /* 文字层级 */
   --fg: #e4e4e4;
   --fg-secondary: #a0a0a0;
-  --muted: #808080;
+  --muted: #9A9A9A;
+  --placeholder: #8F8F8F;
 
   /* 边框 & 分隔 */
-  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.10);
+  --control-border: #7A7A7A;
 
-  /* 主色 — 品牌绿暗变体 */
+  /* 主色 — 品牌绿暗变体（三档角色） */
   --accent: #3dbd7e;
-  --accent-hover: #4aca8a;
-  --accent-light: rgba(61, 189, 126, 0.15);
+  --accent-strong: #4ACA8A;
+  --accent-fill: #3DBD7E;
+  --accent-fill-hover: #4ACA8A;
+  --accent-hover: #4aca8a;      /* 兼容旧引用，批 4 收口 */
+  --accent-light: #1F3A2C;
 
   /* 语义色 */
   --danger: #f87171;
@@ -25,6 +32,8 @@
   --success-bg: rgba(61, 189, 126, 0.1);
   --success-text: #4aca8a;
   --success-border: rgba(61, 189, 126, 0.25);
+  --warning-text: #FBBF24;
+  --warning-bg: #3A3020;
 
   /* 平台识别色 — 同 light（品牌身份色）；Notion 近黑方块在暗底上隐身，提亮 */
   --plat-local: #94a3b8;
@@ -39,15 +48,16 @@
   --gray-hover: #2e2e2e;
   --gray-input-bg: #282828;
   --gray-scrollbar: #555555;
-  --gray-placeholder: #707070;
 
   /* 交互状态 */
   --bg-hover: rgba(255, 255, 255, 0.06);
+  --focus-ring: rgba(61, 189, 126, 0.45);
 
-  /* 主色之上的文字（accent 底按钮文字等） */
-  --fg-on-accent: #ffffff;
-  /* 全屏遮罩浓度 */
-  --overlay-bg: rgba(0, 0, 0, 0.3);
+  /* 主色之上的文字（亮底配深字，6.4:1） */
+  --fg-on-accent: #0E2A1C;
+  /* 全屏遮罩（暗色对暗色需加重）/ 阴影基色 */
+  --scrim-bg: rgba(0, 0, 0, 0.60);
+  --shadow-color: #000000;
 
   /* 编辑器专用 */
   --code-bg: #2a2a2a;

@@ -112,7 +112,7 @@ function onPanelKeydown(e: KeyboardEvent) {
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: var(--overlay-bg);
+  background: var(--scrim-bg);
   backdrop-filter: blur(4px);
   display: flex;
   align-items: center;

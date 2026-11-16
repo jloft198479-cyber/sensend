@@ -1,5 +1,7 @@
 /* ═══ 浅色主题（默认）═══
-   主题只定义"颜色相关"变量；新增主题 = 复制本文件改色值 + 换 data-theme 选择器 + useTheme.ts 注册 */
+   主题只定义"颜色相关"变量；新增主题 = 复制本文件改色值 + 换 data-theme 选择器 + useTheme.ts 注册
+   规范 v1.0 批 1：主色拆三档角色（accent 装饰 / accent-strong 可读 / accent-fill 填充），
+   并补齐 control-border / placeholder / warning / scrim / shadow-color / focus-ring */
 
 :root {
   /* === Sensend 配色体系 V2 === */
@@ -11,23 +13,30 @@
   /* 文字层级 */
   --fg: #333333;
   --fg-secondary: #666666;
-  --muted: #737373;
+  --muted: #6B6B6B;
+  --placeholder: #707070;
 
   /* 边框 & 分隔 */
-  --border-color: rgba(0, 0, 0, 0.06);
+  --border-color: rgba(0, 0, 0, 0.08);
+  --control-border: #8A8A8A;   /* 控件描边（对输入底 ≥3:1，方案 P1-5） */
 
-  /* 主色 — 印象笔记风格绿 */
-  --accent: #2CAF68;
-  --accent-hover: #25a05c;
-  --accent-light: #eaf7ef;
+  /* 主色 — 印象笔记风格绿（三档角色，禁止混用） */
+  --accent: #2CAF68;           /* 装饰：品牌词标 / 淡底 / 图示；禁止作文字色或实心按钮底 */
+  --accent-strong: #1B7F4B;    /* 可读：浅底上的主色文字 / 图标 */
+  --accent-fill: #1B7F4B;      /* 填充：主按钮 / 发送按钮底色 */
+  --accent-fill-hover: #187246;
+  --accent-hover: #25a05c;     /* 兼容旧引用，批 4 收口 */
+  --accent-light: #EAF7EF;
 
-  /* 语义色 — 成功/错误 */
-  --danger: #DC2626;
+  /* 语义色 — 成功/错误/警告 */
+  --danger: #C0271F;
   --danger-bg: #fef2f2;
   --danger-border: #fecaca;
   --success-bg: #f0fdf4;
   --success-text: #15803d;
   --success-border: #bbf7d0;
+  --warning-text: #A15C00;
+  --warning-bg: #FFF7E6;
 
   /* 平台识别色 — 目标选择弹窗图标底色（品牌身份色，与主题主色无关；新平台在此登记） */
   --plat-local: #94a3b8;
@@ -37,20 +46,21 @@
   --plat-default: #8b949e;
   --plat-glyph: #ffffff;
 
-  /* 灰度色板（统一中性灰） */
+  /* 灰度色板（统一中性灰；--gray-border 保留给旧引用，批 2/3 收口） */
   --gray-border: #e4e4e7;
   --gray-hover: #f4f4f5;
   --gray-input-bg: #fafafa;
   --gray-scrollbar: #d4d4d8;
-  --gray-placeholder: #a1a1aa;
 
   /* 交互状态 */
   --bg-hover: rgba(0, 0, 0, 0.06);
+  --focus-ring: rgba(44, 175, 104, 0.35);
 
-  /* 主色之上的文字（accent 底按钮文字等） */
+  /* 主色之上的文字（accent-fill 底按钮文字等） */
   --fg-on-accent: #ffffff;
-  /* 全屏遮罩浓度 */
-  --overlay-bg: rgba(0, 0, 0, 0.3);
+  /* 全屏遮罩 / 阴影基色 */
+  --scrim-bg: rgba(0, 0, 0, 0.35);
+  --shadow-color: #000000;
 
   /* 编辑器专用 */
   --code-bg: #f5f5f5;
