@@ -58,6 +58,8 @@ if ($confVersion -ne $cargoVersion -or $confVersion -ne $npmVersion) {
 $signKeyPath = "F:\fzz-Project\9-CNB\keys\sensend-updater\sensend-updater.key"
 if (Test-Path $signKeyPath) {
     $env:TAURI_SIGNING_PRIVATE_KEY = $signKeyPath
+    # 空口令密钥在非 CI 环境会弹一次 "Password:" 提示（按回车即过）；设 CI 让 CLI 跳过交互
+    $env:CI = "true"
 } else {
     Write-Host "ERROR: 更新签名私钥缺失：$signKeyPath" -ForegroundColor Red
     Write-Host "生成：npx tauri signer generate -w `"$signKeyPath`" --password `"`" --ci"

@@ -39,7 +39,10 @@ export function useUpdater() {
     localStorage.setItem(LS_KEY, String(Date.now()))
     status.value = 'checking'
     try {
-      currentUpdate?.close().catch(() => {})
+      // 先置 null 再关：check 抛错时旧引用不残留（旧 toast 点击会被 startDownloadInstall 安全短路）
+      const stale = currentUpdate
+      currentUpdate = null
+      stale?.close().catch(() => {})
       currentUpdate = await checkUpdateAvailability()
       if (currentUpdate) {
         info(`发现新版本 v${currentUpdate.version}`, 0, {
@@ -59,7 +62,9 @@ export function useUpdater() {
     if (status.value !== 'idle' && status.value !== 'error') return
     status.value = 'checking'
     try {
-      currentUpdate?.close().catch(() => {})
+      const stale = currentUpdate
+      currentUpdate = null
+      stale?.close().catch(() => {})
       currentUpdate = await checkUpdateAvailability()
       if (currentUpdate) {
         await startDownloadInstall(beforeInstall)

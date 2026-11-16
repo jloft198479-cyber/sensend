@@ -15,7 +15,7 @@
                                ▼
         发现新版 ─→ toast「更新」按钮 ─→ download（常驻 toast 进度 %）
                                ▼
-              beforeInstall = saveNow（保存笔记！安装器直接退出应用）
+              beforeInstall = flushSave（保存笔记！安装器直接退出应用）
                                ▼
               update.install()（NSIS 静默升级后自动重启）
 ```
@@ -42,8 +42,8 @@
 | 能力 | `capabilities/default.json` | `updater:default` / `allow-check` / `allow-download-and-install` |
 | 前端 | `composables/useUpdater.ts` | 统一检查入口 + 状态机 + 下载进度 + 安装前善后；启动静默 24h 限频（localStorage） |
 | 前端 | `useToast.ts` | `duration<=0` 常驻 toast + `updateMessage` 原地更新（进度显示） |
-| 前端 | `useEditor.ts → saveNow` | 安装前保存笔记（安装器不走 app-exit-request 事件链！） |
-| UI | `FooterBar.vue` 设置菜单 | 「检查更新」入口 → emit → App.vue `manualCheck(saveNow)` |
+| 前端 | `useEditor.ts → flushSave` | 安装前保存笔记（doSave + 兜底等在途保存；安装器不走 app-exit-request 事件链！） |
+| UI | `FooterBar.vue` 设置菜单 | 「检查更新」入口 → emit → App.vue `manualCheck(flushSave)` |
 | 发版 | `scripts/build-release.ps1` | 版本三处一致性检查 → 签名构建 → 生成 `latest.json` →（-Upload）gh/cnb 尽力自动上传 |
 
 ## 4. 发版流程（发 vX.Y.Z）
@@ -57,5 +57,5 @@
 
 - **真机升级闭环未跑**：需构建 0.5.0（含 updater）→ 安装 → 发 0.5.1 → 验证应用内升级。当前 0.5.0 老用户无 updater，首轮只能手动安装新版。
 - CNB 直链免登录**未实测**（仓库未建）；文档断言公开仓库可用，建仓发版时第一时间 curl 验证。
-- `install()` 绕过 app-exit-request，故 saveNow 挂在 beforeInstall——若未来有其他退出善后，需同步在此登记。
+- `install()` 绕过 app-exit-request，故 flushSave 挂在 beforeInstall——若未来有其他退出善后，需同步在此登记。
 - 代理探测只覆盖 http(s) 代理，socks 不支持（沿用 solo 约定）。
