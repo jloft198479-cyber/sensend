@@ -30,7 +30,10 @@ if (Test-Path $vcvars) {
     $env:PATH = "M:\rust\.cargo\bin;$env:PATH"
 }
 
-Set-Location "F:\fzz-Project\2-sensend\sensend\src-tauri"
+# ── 项目根自定位（不写死盘符：项目改名 / 挪位置都不坏）──
+$Root = Split-Path -Parent $PSScriptRoot
+
+Set-Location (Join-Path $Root "src-tauri")
 Write-Host "=== Sensend Tests ===" -ForegroundColor Green
 Write-Host "cargo: $((Get-Command cargo -ErrorAction SilentlyContinue).Source)"
 Write-Host "rustc: $(rustc --version)"

@@ -40,8 +40,9 @@ if (Test-Path $vcvars) {
     Write-Host "WARNING: $vcvars not found, will try build without MSVC env" -ForegroundColor Yellow
 }
 
-# ── 切到项目根目录 ──
-Set-Location "F:\fzz-Project\2-sensend\sensend"
+# ── 切到项目根目录（自定位，不写死盘符）──
+$Root = Split-Path -Parent $PSScriptRoot
+Set-Location $Root
 
 # ── 版本三处一致性检查（tauri.conf.json / Cargo.toml / package.json）──
 # -Encoding UTF8 必须显式：package.json 等含中文且无 BOM，PS5.1 默认按 ANSI 读，
@@ -57,7 +58,9 @@ if ($confVersion -ne $cargoVersion -or $confVersion -ne $npmVersion) {
 # ── 更新签名私钥（updater 工件签名必需；私钥不入库，见 docs/AUTO-UPDATE-DESIGN.md）──
 # 注意：tauri build 只认 TAURI_SIGNING_PRIVATE_KEY（内容或路径均可，官方文档）；
 # TAURI_SIGNING_PRIVATE_KEY_PATH 仅对 signer sign 子命令有效——用错变量名构建必失败
-$signKeyPath = "F:\fzz-Project\9-CNB\keys\sensend-updater\sensend-updater.key"
+# 私钥位置：优先环境变量 SENSEND_SIGN_KEY 覆盖，否则用 9-CNB 下的默认位置
+# （跨项目共享密钥，故意放在仓库外，不跟代码走；项目挪位置时要同步改这里）
+$signKeyPath = if ($env:SENSEND_SIGN_KEY) { $env:SENSEND_SIGN_KEY } else { "F:\fzz-Project\9-CNB\keys\sensend-updater\sensend-updater.key" }
 if (Test-Path $signKeyPath) {
     $env:TAURI_SIGNING_PRIVATE_KEY = $signKeyPath
     # 空口令密钥在非 CI 环境会弹一次 "Password:" 提示（按回车即过）；设 CI 让 CLI 跳过交互
@@ -128,7 +131,12 @@ if (-not $Upload) {
 # GitHub：gh CLI 若可用则自动发 Release（latest.json 是 updater 的取件入口，必须同传）
 $gh = Get-Command gh -ErrorAction SilentlyContinue
 if ($gh) {
-    gh release create $tag $exe.FullName $sigFile $manifestPath --title "Sensend v$confVersion" --notes $Notes
+    # 说明文字必须走 --notes-file：PowerShell 里 --notes 直接传中文会转义乱码（§4.7 踩过）
+    # 必须 UTF-8 无 BOM，否则 gh 读文件首行带 BOM
+    $notesFile = Join-Path $env:TEMP "sensend-release-notes-$tag.md"
+    [System.IO.File]::WriteAllText($notesFile, $Notes, (New-Object System.Text.UTF8Encoding($false)))
+    gh release create $tag $exe.FullName $sigFile $manifestPath --title "Sensend v$confVersion" --notes-file $notesFile
+    Remove-Item $notesFile -Force -ErrorAction SilentlyContinue
 } else {
     Write-Host "未安装 gh CLI，GitHub Release 请手动创建并上传三件产物（tag=$tag）" -ForegroundColor Yellow
 }

@@ -38,7 +38,7 @@
 | 极简设计 | 无边框窗口、自定义标题栏、托盘常驻 |
 | 自动保存 | 编辑内容防抖 800ms 自动落盘到 `note.json`（v0.4.0 起从 note.md 迁移） |
 | 默认目标记忆 | 上次发送/选择的平台实例 ID 存后端 `config.json`（v0.3.0 起，不再用 localStorage） |
-| 五主题系统 | 草绿 / 暗夜 / 秋珀 / 魅蓝 / 墨白，两窗口实时同步（v0.4.0 四主题，墨白后加） |
+| 七主题系统 | 浅色 草绿 / 天青 / 魅蓝 / 墨白 / 秋珀 + 深色 夜山 / 暗夜；两窗口实时同步，菜单顺序＝`THEMES` 数组顺序（先浅后深，用户按亮暗找）（v0.4.0 四主题 → 后加墨白、天青、夜山） |
 | 发送成功标记 | 发送后编辑区末尾显示"✓ 已发送"徽章，3 秒自动消失（v0.4.0 新增） |
 
 ### 1.3 技术栈
@@ -166,12 +166,17 @@ sensend/
 │   ├── UX-PERFORMANCE-EVALUATION.md  # 体验与性能评估报告
 │   └── YOUDAO-MCP-FEASIBILITY.md  # 有道云笔记 MCP 接入可行性报告
 │
-├── scripts/                    # 辅助脚本
-│   ├── build-release.ps1       # Windows 打包脚本（自动加载 MSVC + Rust 环境）
-│   ├── run-app.ps1             # 开发启动脚本（PowerShell）
-│   ├── run-app.bat             # 开发启动脚本（批处理）
-│   ├── run-tests.ps1           # 后端黄金测试运行脚本（PowerShell）
-│   └── run-tests.bat           # 后端黄金测试运行脚本（批处理）
+├── 启动开发模式.bat            # 【日常入口】双击即进热更新开发模式（转调 scripts/run-dev.bat）
+├── scripts/                    # 辅助脚本（环境加载逻辑只写在 ps1 里，bat 只做转调）
+│   ├── run-dev.ps1             # 开发模式：tauri dev + HMR，改样式秒生效不重编译
+│   ├── run-dev.bat             # 上述脚本的双击壳
+│   ├── run-app.ps1             # 验证成品：全量构建出 release exe 再启动（慢是正常的）
+│   ├── run-app.bat             # 上述脚本的双击壳
+│   ├── run-tests.ps1           # 跑 cargo test（不弹窗不杀进程）
+│   ├── run-tests.bat           # 上述脚本的双击壳
+│   ├── build-release.ps1       # 打包发布：安装包 + .sig + latest.json，加 -Upload 直发 Release
+│   ├── check-tokens.mjs        # 设计门禁：禁颜色/间距字面量
+│   └── check-contrast.mjs      # 设计门禁：七主题 × 14 组色对 WCAG + 主题同构 + import 校验
 │
 ├── src/                        # ── 前端源码 ──
 │   ├── main.ts                 # 入口：按 URL 参数路由 main/config
@@ -681,10 +686,12 @@ ConfigWindow.vue
 | 软件 | 版本 | 用途 |
 |------|------|------|
 | Node.js | 18+ | 前端构建 |
-| Rust | 最新稳定版 | 后端编译 |
-| Tauri CLI | 2.x | 打包（`npm install -g @tauri-apps/cli`）|
+| Rust | 最新稳定版 | 后端编译（本机装在 `M:\rust`，不在系统 PATH） |
+| Tauri CLI | 2.x | 打包。**项目已内置 `@tauri-apps/cli`（devDependencies），无需全局安装** |
 
 > Windows 打包 NSIS 安装包需额外下载 NSIS 3.11 与 `nsis_tauri_utils.dll` v0.5.3（详见 `docs/BUILD-GUIDE.md`）。
+>
+> ⚠️ 本机 Rust / VS Build Tools 都不在系统 PATH，**任何 cargo / tauri 命令都必须走 `scripts/` 下的脚本**，裸跑必报"找不到 cargo / cl.exe"。完整路径说明见 `docs/BUILD-GUIDE.md` §〇。
 
 ### 9.2 开发运行
 
@@ -692,29 +699,40 @@ ConfigWindow.vue
 # 安装依赖
 npm install
 
-# 开发模式（前端 + 后端热重载，端口 1420）
-npm run tauri dev
+# 改样式 / 调交互（日常首选）：双击仓库根 启动开发模式.bat
+# 等价命令：
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-dev.ps1
 ```
 
-### 9.3 构建发布
+`run-dev.ps1` 会加载 M 盘 Rust + MSVC 环境、释放残留的 1420 端口，再跑 `tauri dev --config src-tauri/tauri.dev.conf.json`（HMR，前端改动秒生效不重编译）。
+
+> 直接裸跑 `npm run tauri dev` 会失败——环境不在 PATH，且不会带测试身份配置。
+
+### 9.3 构建与发布
 
 ```bash
-# 完整构建（vue-tsc 类型检查 + vite build + cargo build）
-npm run tauri build
+# 验证编出来的成品（全量构建，慢是正常的）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-app.ps1
+
+# 打包发布（生成安装包 + .sig + latest.json；加 -Upload 则连 Release 一起发）
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Notes "更新说明"
 ```
 
-**产物**：
-- 便携版：`src-tauri/target/release/sensend.exe`
-- NSIS 安装包：`src-tauri/target/release/bundle/nsis/Sensend_<版本号>_x64-setup.exe`
+**产物**（都在 `src-tauri/target/release/` 下）：
+- 便携版：`sensend.exe`
+- `bundle/nsis/Sensend_<版本号>_x64-setup.exe` — 安装包
+- `bundle/nsis/Sensend_<版本号>_x64-setup.exe.sig` — 更新签名
+- `bundle/nsis/latest.json` — 自动更新清单（**发 Release 时必须一起上传，否则自动更新失效**）
 
 ### 9.4 前端脚本
 
 | 脚本 | 说明 |
 |------|------|
 | `npm run dev` | 仅启动 Vite 开发服务器 |
-| `npm run build` | `vue-tsc --noEmit && vite build` |
+| `npm run build` | `npm run check`（token 门禁 + 对比度门禁）`&& vue-tsc --noEmit && vite build` |
+| `npm run check` | 只跑两道设计门禁（`check:tokens` + `check:contrast`） |
 | `npm run preview` | Vite 预览构建产物 |
-| `npm run tauri` | 透传 tauri CLI |
+| `npm run tauri` | 透传 tauri CLI（**需已加载 M 盘环境，别裸跑**） |
 
 ### 9.5 Tauri 配置要点（`tauri.conf.json`）
 

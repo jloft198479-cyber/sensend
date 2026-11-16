@@ -2,6 +2,9 @@
 # 用法：powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-app.ps1
 $ErrorActionPreference = "Continue"
 
+# ── 项目根自定位（不写死盘符：项目改名 / 挪位置都不坏）──
+$Root = Split-Path -Parent $PSScriptRoot
+
 # ── Rust 环境（装在 M 盘自定义位置）──
 $env:CARGO_HOME = "M:\rust\.cargo"
 $env:RUSTUP_HOME = "M:\rust\.rustup"
@@ -30,13 +33,13 @@ if (Test-Path $vcvars) {
     $env:PATH = "M:\rust\.cargo\bin;$env:PATH"
 }
 
-Set-Location "F:\fzz-Project\2-sensend\sensend"
+Set-Location $Root
 Write-Host "=== Sensend Build & Run ===" -ForegroundColor Green
 Write-Host "cargo: $((Get-Command cargo -ErrorAction SilentlyContinue).Source)"
 Write-Host "rustc: $(rustc --version)"
 
 # ── 只杀测试环境的进程（安装版路径不同，不能误杀，否则无法两版并存对比）──
-$devExe = "F:\fzz-Project\2-sensend\sensend\src-tauri\target\release\sensend.exe"
+$devExe = Join-Path $Root "src-tauri\target\release\sensend.exe"
 Get-Process -Name "sensend" -ErrorAction SilentlyContinue | Where-Object {
     $_.Path -and $_.Path -ieq $devExe
 } | ForEach-Object {

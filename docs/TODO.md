@@ -187,3 +187,39 @@
 - 快捷键默认值收敛到后端 `get_hotkeys` 单一来源（前端不再各存一份）
 - 接入 `tauri-plugin-log`：release 落 `%LOCALAPPDATA%\com.jloft.sensend\logs\sensend.log`（512KB 滚动）+ dev stdout；`publish_note` 成功/失败 info/warn 留痕（不含内容与凭证）——结束线上零日志状态
 - CSP 收紧见 wandao #2；本地文件名边界见 wandao #4
+
+---
+
+## 文档体检（2026-11-17，逐条对照脚本与配置核验）
+
+> 起因：简乐质问「文档里还有多少胡编乱造、把方向搞偏的」。做法：4 个脚本 + 两份 tauri 配置 + package.json + 已发布 Release 资产，逐条对账。
+
+**查出的错（全部已修）**：
+
+| 严重度 | 位置 | 错在哪 |
+|---|---|---|
+| 🔴 方向性 | `run-dev.ps1` | 跑 `tauri dev` 没带 `--config tauri.dev.conf.json` → 用**正式身份** `com.jloft.sensend` 调试，抢正式版数据目录与单实例锁 |
+| 🔴 方向性 | BUILD-GUIDE §4.4 | 发布命令**只传 setup.exe**，漏 `.sig` 与 `latest.json` → updater 端点 404 → 已安装用户自动更新永久失效（v0.5.0 就是这么发的） |
+| 🔴 方向性 | BUILD-GUIDE §2.2 | 把 `run-app.ps1` 标成「改完代码最快看到效果」，实际是全量打包（90s）。文档亲手把用户推上最慢的路 |
+| 🟠 缺步骤 | BUILD-GUIDE §2.3 | 说脚本「做三件事」，漏掉版本三处一致性校验、更新签名私钥检查（缺了 exit 1）、`latest.json` 生成与 BOM 自检 |
+| 🟠 缺步骤 | BUILD-GUIDE §2.3/§4.2 | 产物清单只有 exe，漏 `.sig` / `latest.json` |
+| 🟠 说反了 | BUILD-GUIDE §〇/§2.2.1 | 「`run-app.ps1` 会强杀运行中的 sensend」——实际按 Path 精确匹配只杀 `target\release` 那一个，**不碰安装版** |
+| 🟠 说反了 | `FORMAT-FIXES.md` §1.6 | 同上，写成 `Get-Process -Name "sensend"` 全杀 |
+| 🟠 跑不通 | `README.md` 开发段 | 教人裸跑 `npm run tauri dev` / `npm run tauri build`，本机必报找不到 cargo |
+| 🟠 跑不通 | `CODE-WIKI.md` §9.2/§9.3 | 同上；且 §9.1 说 Tauri CLI 要 `npm install -g`，与「项目已内置」矛盾 |
+| 🟠 描述错 | `CODE-WIKI.md` §9.4 | `npm run build` 写的是 `vue-tsc && vite build`，实际前面还有 `npm run check`（两道设计门禁） |
+| 🟡 路径错 | `EXPERIENCE.md` §1.2 | 项目根写成 `F:\fzz-Project\sensend\sensend`，少了 `2-sensend` 一段 |
+| 🟡 过期 | BUILD-GUIDE 全文 | 命令示例钉死 v0.5.0（实际 0.5.1）→ 全部改 `<X.Y.Z>` 占位 |
+| 🟡 易混 | BUILD-GUIDE §3.5 | 「代码签名证书」与「Tauri 更新签名」混为一谈，读者会以为没买证书所以更新坏了 |
+
+**脚本层同类问题（已修）**：
+
+- 写死路径 5 处（`run-app.ps1` ×2、`run-tests.ps1`、`run-tests.bat`、`build-release.ps1`）→ 全部改 `$PSScriptRoot` 自定位；签名私钥路径支持 `SENSEND_SIGN_KEY` 覆盖
+- `run-tests.bat` 自己重写了一套环境加载（与 ps1 重复，且 `cd /d` 写死）→ 改为只转调 ps1，环境逻辑单一真源
+- `build-release.ps1 -Upload` 用 `--notes $Notes` 直传中文会乱码 → 改 `--notes-file` + UTF-8 无 BOM
+
+**沉淀的判据**：
+
+1. 文档里出现「最快 / 最常用 / 自动」这类形容词，必须核对它背后**实际执行的命令**；形容词和命令对不上，就是下一次事故的引信。
+2. 「能编译」≠「功能在程序里」。样式类配置改完必须验产物（`grep dist/`）；发布类改动必须验 Release 资产列表。
+3. 测试环境只能用 `.dev` 身份。任何新增的启动脚本都要显式带 `--config src-tauri/tauri.dev.conf.json`。

@@ -76,8 +76,8 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 
 - **现象**：`npm run tauri build` 报 `error: failed to remove file ...sensend.exe` / `拒绝访问 (os error 5)` / `RUST BUILD FAILED`。
 - **根因**：有 sensend.exe 进程还开着（上次启动的应用窗口没关），Windows 不让删除/覆盖正在运行的文件。
-- **修复位置**：[scripts/run-app.ps1](file:///f:/fzz-Project/2-sensend/sensend/scripts/run-app.ps1) 构建前自动 `Get-Process -Name "sensend"` 并 `Stop-Process -Force`。
-- **排查要点**：报 os error 5 时先查 `Get-Process sensend`，有进程就杀掉再构建；一键脚本已内置，双击 run-app.bat 不会再踩。
+- **修复位置**：[scripts/run-app.ps1](file:///f:/fzz-Project/2-sensend/sensend/scripts/run-app.ps1) 构建前会杀掉**路径等于 `src-tauri\target\release\sensend.exe`** 那个进程（按 Path 精确匹配，**不会碰你机器上安装的正式版**）。
+- **排查要点**：报 os error 5 时先查 `Get-Process sensend`，确认是哪个路径的进程占用；双击 run-app.bat 会自动处理它自己那一个。安装版的进程要你自己从托盘退出。
 
 ### 1.7 出站：FlowUs 表格单元格多 rich_text 丢失（P1，d09a413；2026-11-16 修正）
 

@@ -32,7 +32,7 @@ Sensend 悬浮于桌面之上，`Alt+Shift+F` 一键唤醒，写完 `Ctrl+Enter`
 - **悬浮即写** — 窗口浮在所有应用之上，全局快捷键唤醒，无需切换工作流
 - **富文本编辑** — 标题、列表、引用、代码块、待办清单、下划线，所见即所得
 - **一闪即达** — `@Notion` / `@FlowUs` / `@飞书` 提及即发送，格式保真，表格 / 代码块 / 嵌套列表完整保留
-- **四主题切换** — 草绿 / 暗夜 / 秋珀 / 魅蓝，顶栏一键切换，双窗口实时同步
+- **七主题切换** — 浅色 5 套（草绿 / 天青 / 魅蓝 / 墨白 / 秋珀）+ 深色 2 套（夜山 / 暗夜），顶栏一键切换，双窗口实时同步
 - **极简省内存** — 隐藏 10 秒自动瘦身，把闲置内存还给系统；唤起首下不卡顿
 - **自动保存** — 输入即存，退出前等待在途写入，不丢最后一个字
 
@@ -103,13 +103,19 @@ Sensend 只做一件事：**在你需要的时刻，接住那个想法，然后�
 
 ```bash
 npm install          # 安装依赖
-npm run tauri dev    # 开发模式
-npm run tauri build  # 构建发布版本
 ```
 
-> Windows 打包若 Rust / VS Build Tools 装在自定义路径，推荐使用打包脚本：
-> `powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"`
-> 详见 [docs/BUILD-GUIDE.md](docs/BUILD-GUIDE.md)。
+**日常开发（改样式 / 调交互）**：双击仓库根目录的 `启动开发模式.bat`，或：
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\run-dev.ps1
+```
+
+走 vite 热更新——改 CSS / 组件**秒看到，不用重新编译**。
+
+> ⚠️ 本机 Rust 与 VS Build Tools 不在系统 PATH，**别裸跑 `npm run tauri dev` / `npm run tauri build`**，会报"找不到 cargo / cl.exe"。
+> 打包发布：`powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\build-release.ps1"`
+> 完整路径说明见 [docs/BUILD-GUIDE.md](docs/BUILD-GUIDE.md)。
 
 ### 技术栈
 

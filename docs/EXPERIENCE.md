@@ -36,14 +36,15 @@ Sensend 的核心设计理念：
 ### 1.2 工作流程：单目录直接开发（v0.3.0 起）
 
 > 历史：v0.1.0 时期因沙箱限制采用"双目录开发模式"（sensend-du → F:\sensend）。
-> v0.3.0 起沙箱可直接访问项目目录，双目录模式已弃用，统一在 `F:\fzz-Project\sensend\sensend` 开发。
+> v0.3.0 起沙箱可直接访问项目目录，双目录模式已弃用，统一在仓库根直接开发。
 
 **当前工作流程**：
-1. 在 `F:\fzz-Project\sensend\sensend` 直接修改代码
-2. 后端测试：`powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run-tests.ps1"`
-3. 看效果：`scripts\run-app.ps1`（自动加载 Rust/MSVC 环境）
-4. 打包：`scripts\build-release.ps1`（唯一正确构建方式，见 BUILD-GUIDE §〇）
-5. 提交并推送到 GitHub，打 tag，创建 Release
+1. 在仓库根（本文件向上两级）直接修改代码
+2. **边改边看**：双击仓库根 `启动开发模式.bat`（等价 `scripts\run-dev.ps1`）——vite 热更新，改样式秒生效**不重编译**
+3. 后端测试：`powershell -NoProfile -ExecutionPolicy Bypass -File "scripts\run-tests.ps1"`
+4. 验证编出来的成品：`scripts\run-app.ps1`（全量构建，慢是正常的）
+5. 打包：`scripts\build-release.ps1`（唯一正确构建方式，见 BUILD-GUIDE §〇）
+6. 提交并推送到 GitHub，打 tag，创建 Release（记得三个产物一起传，见 BUILD-GUIDE §4.4）
 
 ### 1.3 需求理解：修改前先确认
 
