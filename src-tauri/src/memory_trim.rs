@@ -4,6 +4,9 @@
 //! SetProcessWorkingSetSizeEx(-1, -1) 修剪工作集，把闲置物理内存还给系统。
 //! 唤起（窗口重新显示）会使 pending 的修剪失效，保证唤起首下不被拖慢。
 //!
+//! [n-05] 修剪前会核对进程映像名（本程序 / msedgewebview2.exe），
+//! 防止「快照之后 pid 被系统复用给别的程序」时误修剪无关进程。
+//!
 //! 零新增依赖：直接声明 kernel32 FFI。
 
 use std::collections::HashSet;
@@ -20,6 +23,8 @@ const TRIM_DELAY: Duration = Duration::from_secs(10);
 
 const TH32CS_SNAPPROCESS: u32 = 0x2;
 const PROCESS_SET_QUOTA: u32 = 0x0100;
+/// [n-05] 读进程映像名所需的最小权限（不要求 PROCESS_VM_READ）
+const PROCESS_QUERY_LIMITED_INFORMATION: u32 = 0x1000;
 const INVALID_HANDLE: isize = -1;
 
 #[repr(C)]
@@ -46,6 +51,42 @@ extern "system" {
     fn CloseHandle(hObject: isize) -> i32;
     fn GetCurrentProcessId() -> u32;
     fn SetProcessWorkingSetSizeEx(hProcess: isize, dwMin: usize, dwMax: usize, flags: u32) -> i32;
+    fn QueryFullProcessImageNameW(
+        hProcess: isize,
+        dwFlags: u32,
+        lpExeName: *mut u16,
+        lpdwSize: *mut u32,
+    ) -> i32;
+}
+
+/// [n-05] 取进程映像文件名（小写）。拿不到就返回 None（调用方按「不认识」处理，跳过不修剪）。
+///
+/// 为什么必须校验：快照只记 pid/ppid，而从「收集快照」到「OpenProcess」之间隔着几毫秒，
+/// 目标进程可能已经退出、pid 被系统分给别的程序。旧代码直接按 pid 打开并修剪工作集，
+/// 那个「别的程序」就会莫名被抽走物理内存（不至于损坏数据，但完全不该发生）。
+/// 名字对不上就跳过，是这条链路唯一便宜的兜底。
+unsafe fn process_image_name(handle: isize) -> Option<String> {
+    let mut buf = vec![0u16; 1024];
+    let mut size = buf.len() as u32;
+    if QueryFullProcessImageNameW(handle, 0, buf.as_mut_ptr(), &mut size) == 0 {
+        return None;
+    }
+    let path = String::from_utf16_lossy(&buf[..size as usize]);
+    let name = path.rsplit(|c| c == '\\' || c == '/').next().unwrap_or(&path);
+    Some(name.to_ascii_lowercase())
+}
+
+/// 允许修剪的进程映像名：本程序自身 + WebView2 各子进程。
+/// 取自身名而不是写死 "sensend.exe"：改名/带后缀的调试产物也能盖住。
+fn trim_allowlist() -> HashSet<String> {
+    let mut set = HashSet::new();
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(name) = exe.file_name() {
+            set.insert(name.to_string_lossy().to_ascii_lowercase());
+        }
+    }
+    set.insert("msedgewebview2.exe".to_string());
+    set
 }
 
 /// 窗口隐藏时调用：10 秒后若无可见性变化，则修剪整个进程树的工作集
@@ -113,21 +154,71 @@ fn trim_process_tree() {
         }
 
         // 逐一修剪工作集
+        let allow = trim_allowlist();
         let mut trimmed = 0;
+        let mut skipped = 0;
         for &pid in &tree {
-            let handle = OpenProcess(PROCESS_SET_QUOTA, 0, pid);
+            let handle = OpenProcess(
+                PROCESS_SET_QUOTA | PROCESS_QUERY_LIMITED_INFORMATION,
+                0,
+                pid,
+            );
             if handle != 0 && handle != INVALID_HANDLE {
-                // (usize::MAX, usize::MAX) 即 (-1, -1)：把工作集修剪到最小
-                if SetProcessWorkingSetSizeEx(handle, usize::MAX, usize::MAX, 0) != 0 {
-                    trimmed += 1;
+                // 名字校验：pid 可能已被系统复用给别的程序（见 process_image_name 注释）
+                match process_image_name(handle) {
+                    Some(name) if allow.contains(&name) => {
+                        // (usize::MAX, usize::MAX) 即 (-1, -1)：把工作集修剪到最小
+                        if SetProcessWorkingSetSizeEx(handle, usize::MAX, usize::MAX, 0) != 0 {
+                            trimmed += 1;
+                        }
+                    }
+                    _ => skipped += 1,
                 }
                 CloseHandle(handle);
             }
         }
-        log::debug!(
-            "memory_trim: 修剪 {}/{} 个进程的工作集",
-            trimmed,
-            tree.len()
-        );
+        // 日志级别用 info/warn（release 只在 Info 及以上落盘）：
+        // 用 debug 的话「全部被跳过 = 修剪静默失效」在用户机器上一条痕迹都不留
+        if skipped > 0 {
+            log::warn!(
+                "memory_trim: 修剪 {}/{} 个进程，跳过 {} 个非本程序进程（pid 可能已被复用）",
+                trimmed,
+                tree.len(),
+                skipped
+            );
+        } else {
+            log::info!("memory_trim: 修剪 {}/{} 个进程的工作集", trimmed, tree.len());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// 白名单必须含「自身映像名」和 WebView2 进程名，否则修剪永远打不到目标
+    #[test]
+    fn allowlist_covers_self_and_webview() {
+        let allow = trim_allowlist();
+        assert!(allow.contains("msedgewebview2.exe"), "白名单缺 WebView2: {:?}", allow);
+        let exe = std::env::current_exe().expect("拿不到自身路径");
+        let name = exe.file_name().unwrap().to_string_lossy().to_ascii_lowercase();
+        assert!(allow.contains(&name), "白名单缺自身映像名 {}: {:?}", name, allow);
+    }
+
+    /// [n-05] FFI 自检：能从 pid 读出映像名。
+    /// 这条测试的价值在于——如果 QueryFullProcessImageNameW 的参数或常量写错，
+    /// 名字永远返回 None，白名单会把**所有**进程都跳过（修剪静默失效，且日志看不出来）。
+    #[test]
+    fn image_name_resolves_for_current_process() {
+        unsafe {
+            let pid = GetCurrentProcessId();
+            let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+            assert!(handle != 0 && handle != INVALID_HANDLE, "OpenProcess 失败");
+            let name = process_image_name(handle);
+            CloseHandle(handle);
+            let name = name.expect("QueryFullProcessImageNameW 未取到映像名（FFI 可能写错）");
+            assert!(name.ends_with(".exe"), "意料之外的映像名: {}", name);
+        }
     }
 }

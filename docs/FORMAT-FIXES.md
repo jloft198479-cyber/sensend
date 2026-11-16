@@ -79,12 +79,13 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 - **修复位置**：[scripts/run-app.ps1](file:///f:/fzz-Project/2-sensend/sensend/scripts/run-app.ps1) 构建前自动 `Get-Process -Name "sensend"` 并 `Stop-Process -Force`。
 - **排查要点**：报 os error 5 时先查 `Get-Process sensend`，有进程就杀掉再构建；一键脚本已内置，双击 run-app.bat 不会再踩。
 
-### 1.7 出站：FlowUs 表格单元格多 rich_text 丢失（P1，d09a413）
+### 1.7 出站：FlowUs 表格单元格多 rich_text 丢失（P1，d09a413；2026-11-16 修正）
 
 - **现象**：FlowUs 表格单元格内文本有混合样式（如"**粗体**+普通+*斜体*"）时，只保留了第一段，后续格式或内容丢失。
-- **根因**：`flowus.rs` 表格单元格映射用 `rt[0].clone()` 只取 rich_text 数组首元素，而单元格实际接受整个数组。
-- **修复位置**：[flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) 改为 `row_cells.extend(rt)` 传入完整数组。这是 Notion 侧 d2d8909 同款缺陷在 FlowUs 的复现，两处现在对齐。
-- **测试**：`fix_p1_table_cell_keeps_all_rich_text_segments`（flowus.rs）。
+- **根因（修正后）**：`flowus.rs` 表格单元格映射用 `rt[0].clone()`，把整个 rich_text 数组压成了一个元素。
+- **d09a413 的修法不彻底**：当时改成 `row_cells.extend(rt)`，把格内每一段都摊成 cells 里的独立一项。但 FlowUs 的 `cells` 是**二维数组**——外层每项是一列，每列本身才是 rich_text 数组，列数必须等于 `table_width`（见 FlowUs 操作手册「表格」一节，结构与 `notion.rs` 同构）。摊平后「一格两段」会占两个列位，整行右移，列数与 `table_width` 也对不上。
+- **当前修法**：`row_cells.push(json!(rt))`——一格一个数组，格内保留全部样式段（不丢格式、不打乱列数）；补列时用 `empty_cell()` 返回同样的二维元素。
+- **测试**：`fix_p1_table_cell_keeps_all_rich_text_segments`（断言 1 列表格 `cells.len()==1`、该格内 2 段）、`table_col_count_matches_columns_not_segment_count`（2 列 × 2 段，列数恒为 2）、`fix5_table_cell_keeps_annotations`（取 `cells[0][0]`）；golden `table_with_inline` 已重生成。
 
 ### 1.8 出站：Notion 代码块语言映射缺失（P1，d09a413）
 
@@ -105,7 +106,7 @@ Rust 端 IR 中间表示（src-tauri/src/adapters/ir.rs，唯一遍历点）
 - **现象**：发往 FlowUs 的内容带表格时整个发送 400 失败（此前只做过本地快照测试，未真机验证）。
 - **根因**：`flowus.rs` 把 `table_row` 块当普通块直发到页面 children，但 FlowUs v1 API **不接受裸 table_row**——必须先建 `table` 壳，再把行挂到壳下（同 Notion 官方结构）。
 - **修复位置**：[flowus.rs](file:///f:/fzz-Project/2-sensend/sensend/src-tauri/src/adapters/flowus.rs) Table 分支输出 `table` 块（行随顶层 `children` 携带）；`append_children` 遇 table 拆两步：`flush_batch`（普通块攒批）→ `append_table`（建壳 → 取返回 id → 行按 100/批挂壳下）。
-- **真机验证**：壳 200 / 行挂壳下 200，混合多段 rich_text 单元格完整落库。
+- **验证边界（如实记录）**：当时参考脚本发的还是裸 `table_row`、且 cells 用的是二维结构，与本仓库当时的代码路径不一致，**不能作为"多段单元格落库"的证据**。表格结构本身以 FlowUs 操作手册（`cells` 二维、列数 = `table_width`）为准，当前代码已按该结构对齐并有单测锁定；真机多段单元格落库仍待复验。
 - **测试**：`fix5_table_cell_keeps_annotations` / `fix_p1_table_cell_keeps_all_rich_text_segments` 改为断言 table 壳结构；golden `table_with_inline` 重生成。
 
 ### 1.11 出站：FlowUs 待办块类型名错误，静默降级成段落（P2，2026-11-16 真机验证）

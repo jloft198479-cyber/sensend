@@ -2,17 +2,9 @@
 import { ref, onMounted, onUnmounted } from 'vue'
 import { currentTheme, setTheme, THEMES } from '../composables/useTheme'
 
-interface FontOption {
-  value: string
-  label: string
-}
-
 defineProps<{
   isPinned: boolean
   isSending: boolean
-  showFontMenu: boolean
-  fontOptions: FontOption[]
-  currentFont: string
   saveStatus: 'idle' | 'saved' | 'saving' | 'unsaved'
 }>()
 
@@ -20,10 +12,6 @@ defineEmits<{
   'toggle-pin': []
   'publish': []
   'hide': []
-  'toggle-font-menu': []
-  'select-font': [opt: FontOption]
-  'add-font': []
-  'open-config': []
 }>()
 
 // ── 主题菜单（主窗口唯一入口，主题列表来自 useTheme 注册表）──
@@ -67,44 +55,8 @@ onMounted(() => {
       </Transition>
     </div>
     <div class="title-actions">
-      <!-- 字体切换 -->
-      <div class="font-picker">
-        <button class="action-btn" @click.stop="$emit('toggle-font-menu')" title="切换字体" aria-label="切换字体">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="4 7 4 4 20 4 20 7"/>
-            <line x1="9" y1="20" x2="15" y2="20"/>
-            <line x1="12" y1="4" x2="12" y2="20"/>
-          </svg>
-        </button>
-        <div v-if="showFontMenu" class="font-menu" @click.stop>
-          <div class="font-menu-title">编辑器字体</div>
-          <button
-            v-for="opt in fontOptions"
-            :key="opt.value"
-            class="font-menu-item"
-            :class="{ active: currentFont === opt.value }"
-            @click="$emit('select-font', opt)"
-          >
-            <span :style="{ fontFamily: opt.value }">{{ opt.label }}</span>
-            <svg v-if="currentFont === opt.value" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          </button>
-          <div class="font-menu-divider"></div>
-          <button class="font-menu-item font-menu-action" @click="$emit('add-font')" aria-label="管理字体">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round">
-              <path d="M12 5v14M5 12h14"/>
-            </svg>
-            <span>管理字体…</span>
-          </button>
-        </div>
-      </div>
-
       <!-- 主题切换 -->
-      <div class="font-picker">
+      <div class="menu-picker">
         <button class="action-btn" @click.stop="showThemeMenu = !showThemeMenu" title="切换主题" aria-label="切换主题">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -115,8 +67,8 @@ onMounted(() => {
             <circle cx="18.5" cy="11.5" r="1" fill="currentColor"/>
           </svg>
         </button>
-        <div v-if="showThemeMenu" class="font-menu" @click.stop>
-          <button v-for="t in THEMES" :key="t.id" class="font-menu-item"
+        <div v-if="showThemeMenu" class="dropdown-menu" @click.stop>
+          <button v-for="t in THEMES" :key="t.id" class="dropdown-item"
             :class="{ active: currentTheme === t.id }" @click="pickTheme(t.id)">
             <span class="theme-dot" :style="{ background: t.preview }"></span>
             <span>{{ t.name }}</span>
@@ -159,7 +111,7 @@ onMounted(() => {
 
       <!-- 最小化到托盘 -->
       <button class="action-btn close-btn" @click.stop="$emit('hide')" title="最小化到托盘" aria-label="最小化到托盘">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2.5" stroke-linecap="round">
           <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
         </svg>
@@ -238,11 +190,11 @@ onMounted(() => {
   background: transparent;
   color: var(--fg-secondary);
   cursor: pointer;
-  border-radius: var(--btn-radius);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast);
 }
 .action-btn:hover {
   background: var(--bg-hover);
@@ -277,9 +229,9 @@ onMounted(() => {
   background: var(--accent-fill);
   color: var(--fg-on-accent);
   cursor: pointer;
-  border-radius: var(--btn-radius);
+  border-radius: var(--radius-sm);
   margin-left: var(--space-4);
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast);
 }
 .send-btn:hover:not(:disabled) {
   background: var(--accent-fill-hover);
@@ -294,11 +246,11 @@ onMounted(() => {
 
 
 
-/* 字体选择器 */
-.font-picker {
+/* 下拉菜单（主题切换） */
+.menu-picker {
   position: relative;
 }
-.font-menu {
+.dropdown-menu {
   position: absolute;
   top: 100%;
   right: 0;
@@ -312,13 +264,7 @@ onMounted(() => {
   z-index: var(--z-dropdown);
   font-family: var(--font-sans);
 }
-.font-menu-title {
-  font-size: var(--text-2xs);
-  color: var(--muted);
-  padding: var(--space-4) var(--space-10) var(--space-6);
-  font-weight: 500;
-}
-.font-menu-item {
+.dropdown-item {
   display: flex;
   align-items: center;
   gap: var(--space-8);
@@ -336,25 +282,12 @@ onMounted(() => {
   cursor: pointer;
   transition: background var(--dur-fast);
 }
-.font-menu-item:hover {
+.dropdown-item:hover {
   background: var(--bg-hover);
 }
-.font-menu-item.active {
+.dropdown-item.active {
   color: var(--accent-strong);
   font-weight: 500;
-}
-.font-menu-divider {
-  height: 1px;
-  background: var(--border-color);
-  margin: var(--space-4) 0;
-}
-.font-menu-action {
-  color: var(--muted);
-  gap: var(--space-4);
-}
-.font-menu-action:hover {
-  color: var(--fg);
-  background: var(--bg-hover);
 }
 
 /* 主题菜单预览色点 */

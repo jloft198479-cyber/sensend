@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { getInstanceDisplayName, toInstanceItem } from '../types/platform'
 import type { InstanceItem, PlatformInstance, PlatformTypeInfo } from '../types/platform'
 import InstanceMenu from './InstanceMenu.vue'
@@ -9,7 +9,6 @@ const props = defineProps<{
   platformTypes: PlatformTypeInfo[]
   currentTarget: PlatformInstance | null
   wordCount: number
-  charCount: number
 }>()
 
 const emit = defineEmits<{
@@ -23,6 +22,26 @@ const emit = defineEmits<{
 
 const showMenu = ref(false)
 const showPicker = ref(false)
+// [m-21] 目标列表的键盘导航在 InstanceMenu 内部实现（defineExpose），底栏只负责把按键递进去：
+// 列表是纯展示组件，不该自己监听 document；之前没桥接 → 键盘用户只能用鼠标点。
+const menuRef = ref<{ onKeyDown: (e: KeyboardEvent) => boolean } | null>(null)
+const pickerBtnRef = ref<HTMLButtonElement | null>(null)
+
+function onPickerKeydown(e: KeyboardEvent) {
+  if (!showPicker.value) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault()
+      showPicker.value = true
+    }
+    return
+  }
+  if (e.key === 'Escape') {
+    e.preventDefault()
+    showPicker.value = false
+    return
+  }
+  if (menuRef.value?.onKeyDown(e)) e.preventDefault()
+}
 
 // 统一条目格式：映射规则在 types/platform.ts；列表格式真源是共享组件 InstanceMenu
 //（与编辑器 @ 列表共用一份行格式与键盘行为）
@@ -46,6 +65,9 @@ function onClearClick() {
 function pickTarget(item: InstanceItem) {
   emit('select-target', item.id)
   showPicker.value = false
+  // 菜单被 v-if 摘掉后焦点会掉回 body：回车选中后必须把焦点还回触发按钮，
+  // 否则键盘用户下一步无处可去（Tab 从文档头重新开始）
+  nextTick(() => pickerBtnRef.value?.focus())
 }
 
 function toggleMenu() {
@@ -107,7 +129,7 @@ function onDocClick(e: MouseEvent) {
       <!-- 无平台：提示配置 -->
       <button v-if="instances.length === 0" class="target-btn no-target" @click.stop="$emit('open-config')"
         title="配置发送页面" aria-label="配置发送页面">
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
           <line x1="12" y1="16" x2="12.01" y2="16"/>
@@ -116,8 +138,9 @@ function onDocClick(e: MouseEvent) {
       </button>
 
       <!-- 有平台：可点击选择目标 -->
-      <div v-else class="target-picker-wrap">
-        <button class="target-picker-btn" @click="togglePicker" title="选择发送目标" aria-label="选择发送目标">
+      <div v-else class="target-picker-wrap" @keydown="onPickerKeydown">
+        <button class="target-picker-btn" ref="pickerBtnRef" @click="togglePicker" title="选择发送目标" aria-label="选择发送目标"
+          aria-haspopup="true" :aria-expanded="showPicker">
           <span v-if="currentTarget" class="target-mention platform-mention">
             <span class="tm-text">@{{ getInstanceDisplayName(platformTypes, currentTarget) }}</span>
           </span>
@@ -134,6 +157,7 @@ function onDocClick(e: MouseEvent) {
         <!-- 平台选择列表（格式真源：InstanceMenu，与编辑器 @ 列表共用） -->
         <div v-if="showPicker" class="picker-anchor">
           <InstanceMenu
+            ref="menuRef"
             :items="instanceItems"
             :active-id="currentTarget?.id ?? null"
             @select="pickTarget"
@@ -145,7 +169,8 @@ function onDocClick(e: MouseEvent) {
       <!-- 清空笔记（两步确认防误触） -->
       <button class="footer-btn clear-btn" :class="{ confirming: confirmingClear }"
         @click.stop="onClearClick"
-        :title="confirmingClear ? '再次点击确认清空' : '清空笔记'" aria-label="清空笔记">
+        :title="confirmingClear ? '再次点击确认清空' : '清空笔记'"
+        :aria-label="confirmingClear ? '再次点击确认清空笔记' : '清空笔记'">
         <svg v-if="!confirmingClear" width="14" height="14" viewBox="0 0 24 24" fill="none"
           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"/>
@@ -331,11 +356,11 @@ function onDocClick(e: MouseEvent) {
   background: transparent;
   color: var(--fg-secondary);
   cursor: pointer;
-  border-radius: var(--btn-radius);
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all var(--transition-fast);
+  transition: all var(--dur-fast);
 }
 .footer-btn:hover {
   background: var(--bg-hover);

@@ -24,7 +24,8 @@ pub fn is_encrypted(value: &str) -> bool {
 }
 
 /// 加密单个凭证。空串原样返回；已是密文幂等返回。
-/// 非 Windows 平台暂不支持 DPAPI，原样返回明文（当前仅发布 Windows 包）。
+/// [n-04 修复] 非 Windows 平台没有 DPAPI：直接报错，绝不静默返回明文
+/// （否则 config.json 会以为"已加密"而实际写着明文，属于安全假象）。
 pub fn protect(secret: &str) -> Result<String, String> {
     if secret.is_empty() || is_encrypted(secret) {
         return Ok(secret.to_string());
@@ -35,7 +36,10 @@ pub fn protect(secret: &str) -> Result<String, String> {
         return Ok(format!("{}{}", ENC_PREFIX, BASE64.encode(cipher)));
     }
     #[cfg(not(windows))]
-    Ok(secret.to_string())
+    {
+        let _ = secret;
+        Err("凭证加密需要 Windows DPAPI，当前平台不支持；请勿在非 Windows 平台保存平台令牌".to_string())
+    }
 }
 
 /// 解密单个凭证。空串/无前缀（旧版明文）原样返回，兼容旧配置。
@@ -43,12 +47,22 @@ pub fn unprotect(value: &str) -> Result<String, String> {
     if value.is_empty() || !is_encrypted(value) {
         return Ok(value.to_string());
     }
-    let b64 = &value[ENC_PREFIX.len()..];
-    let blob = BASE64
-        .decode(b64)
-        .map_err(|_| "凭证密文格式异常（base64 解码失败），请重新填写授权码".to_string())?;
-    let plain = dpapi::unprotect(&blob)?;
-    String::from_utf8(plain).map_err(|_| "凭证解密结果不是有效文本，请重新填写授权码".to_string())
+    // [n-04 修复] 非 Windows 平台无 DPAPI：密文无法还原，明确报错而不是编译失败。
+    // 当前只发布 Windows 包；此分支让代码在非 Windows（如 CI / 本机调试）也能编译。
+    #[cfg(not(windows))]
+    {
+        let _ = value;
+        return Err("凭证解密需要 Windows DPAPI，当前平台不支持".to_string());
+    }
+    #[cfg(windows)]
+    {
+        let b64 = &value[ENC_PREFIX.len()..];
+        let blob = BASE64
+            .decode(b64)
+            .map_err(|_| "凭证密文格式异常（base64 解码失败），请重新填写授权码".to_string())?;
+        let plain = dpapi::unprotect(&blob)?;
+        String::from_utf8(plain).map_err(|_| "凭证解密结果不是有效文本，请重新填写授权码".to_string())
+    }
 }
 
 // ── DPAPI 实现（仅 Windows） ──
@@ -69,9 +83,15 @@ mod dpapi {
     }
 
     /// 取回输出 blob 内容并释放系统缓冲
+    /// [m-12 修复] 释放前把系统缓冲里的明文令牌清零，缩短明文在内存的驻留窗口。
+    /// 用 write_volatile 防止编译器把"写完马上 free"的清零优化掉。
     unsafe fn take_out(out: CRYPT_INTEGER_BLOB) -> Vec<u8> {
-        let slice = std::slice::from_raw_parts(out.pbData, out.cbData as usize);
+        let slice = std::slice::from_raw_parts_mut(out.pbData, out.cbData as usize);
         let v = slice.to_vec();
+        // 清零 DPAPI 输出缓冲（明文凭证），再释放
+        for byte in slice.iter_mut() {
+            std::ptr::write_volatile(byte, 0u8);
+        }
         LocalFree(out.pbData.cast());
         v
     }

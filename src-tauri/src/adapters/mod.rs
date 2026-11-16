@@ -20,6 +20,33 @@ pub fn http_client() -> &'static reqwest::Client {
 
 fn default_publish_mode() -> String { "page".to_string() }
 
+// ── 出站请求的限流重试（M-11 配套）──
+//
+// 分片写入（Notion/FlowUs 100 块一批、飞书 50 块一批）中途被 429 打断时，
+// 已写入的分片留在平台上；用户手动重点一次就会重复写入。分片内没法做幂等
+// （平台 API 不支持「按内容去重」），所以只能把「服务端明确没处理」的失败
+// 就地吸收掉，减少用户手动重试的机会。
+
+/// 值得重试的状态码。
+/// - **429 限流**：请求被服务端明确拒绝、没处理过，任何方法都能安全重放；
+/// - **502/503/504 网关错误**：只对 GET 放宽——网关超时时后端的写操作可能已经落地，
+///   重放 POST/PATCH 会重复创建（Notion 会多出一整个页面）。
+/// - 网络超时 / 连接错误一律不重试：同样是因为无法判断服务端到底写了没有。
+pub fn is_retryable_status(status: u16, method: &str) -> bool {
+    if status == 429 {
+        return true;
+    }
+    matches!(status, 502 | 503 | 504) && method.eq_ignore_ascii_case("GET")
+}
+
+/// 重试退避：429 的 Retry-After 通常是秒级，两次固定退避足够吸收抖动
+pub fn retry_backoff(attempt: u32) -> std::time::Duration {
+    std::time::Duration::from_millis(if attempt <= 1 { 1_000 } else { 3_000 })
+}
+
+/// 单个请求最多重试次数（不含首次）
+pub const MAX_RETRIES: u32 = 2;
+
 /// 平台实例配置（用户自定义）
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct PlatformInstance {
@@ -152,43 +179,53 @@ pub fn resolve_target_id(platform_type: &str, raw: &str) -> String {
 /// 例如: 
 ///   个人空间: https://www.notion.so/my-page-34a6a7109f4580f4b78df783f9905cd4 → 34a6a7109f4580f4b78df783f9905cd4
 ///   团队空间: https://www.notion.so/{space-id}/{page-id}-{slug} → {page-id}
+///   UUID 形态: https://www.notion.so/笔记-34a6a710-9f45-80f4-b78d-f783f9905cd4 → 34a6a710...
 fn resolve_notion_id(raw: &str) -> String {
     // 先剥 query 与 #锚点：块分享链接（…#32hex）的锚点同样是 32 位 hex，
-    // 不剥会被下方「从右找最后一个 32hex」误当成页面 ID
+    // 不剥会被下方「找 32hex」误当成页面 ID
     let base = raw.split(['?', '#']).next().unwrap_or(raw);
-    let chars: Vec<char> = base.chars().collect();
-    let hex = |c: char| c.is_ascii_hexdigit();
+    // 只看路径最后一段：Notion 的页面 ID 一定在最后一段里。
+    // 全域扫描会被前面的 workspace / space id 抢走——团队空间链接里有两段 32 位 hex。
+    // 先剥尾部斜杠：`.../{id}/` 是常见的复制形态，不剥会取到空段
+    let trimmed = base.trim_end_matches('/');
+    let last_seg = trimmed.rsplit('/').next().unwrap_or(trimmed);
+    let chars: Vec<char> = last_seg.chars().collect();
+    let is_hex = |c: char| c.is_ascii_hexdigit();
+    let len = chars.len();
 
-    // 从右到左扫描，找最后一个 32 位连续 hex
-    let mut i = chars.len();
-    while i > 0 {
-        i -= 1;
-        // 找 hex 结束位置（当前是 hex，下一个不是 hex 或到边界）
-        if hex(chars[i]) && (i + 1 >= chars.len() || !hex(chars[i + 1])) {
-            // 向左找起始位置
-            let mut j = i;
-            while j > 0 && hex(chars[j - 1]) {
-                j -= 1;
+    // 情形 1：整段就是 ID（无连字符 32hex，或 8-4-4-4-12 的 UUID）
+    let whole: String = chars.iter().copied().filter(|&c| c != '-').collect();
+    if whole.len() == 32 && whole.chars().all(is_hex) {
+        return whole;
+    }
+
+    // 情形 2：ID 嵌在 slug 里 —— `{slug}-{32hex}` 或 `{uuid}-{slug}`。
+    // 从左往右找第一个「去连字符后恰好 32 位 hex」的子串：
+    // 32 位是硬约束，slug 里正常会带非 hex 字母，所以不会误吞 slug。
+    for start in 0..len {
+        // 不从一个更长的 hex 串中间起算（否则会截出半截 ID）
+        if start > 0 && is_hex(chars[start - 1]) {
+            continue;
+        }
+        // 32 位 hex 最多占 36 个字符（UUID 形态多 4 个连字符）
+        for end in (start + 32)..=(len.min(start + 36)) {
+            // 右边还是 hex → 这是更长 hex 串的前半截，不能截断当 ID
+            // （只排 hex，不排连字符：`{uuid}-slug` 形态的右边就是 `-`）
+            if end < len && is_hex(chars[end]) {
+                continue;
             }
-            // 检查长度
-            if i - j + 1 >= 32 {
-                let segment: String = chars[j..=i].iter().collect();
-                // 确认前面是分隔符或开头
-                if j == 0 || !hex(chars[j - 1]) {
-                    return segment.replace("-", "");
-                }
+            let digits: String = chars[start..end]
+                .iter()
+                .copied()
+                .filter(|&c| c != '-')
+                .collect();
+            if digits.len() == 32 && digits.chars().all(is_hex) {
+                return digits;
             }
         }
     }
 
-    // UUID 格式（带 - 的版本）
-    if base.len() == 36 && base.chars().filter(|&c| c == '-').count() == 4 {
-        if is_uuid(base) {
-            return base.replace("-", "");
-        }
-    }
-
-    // 兜底：原样返回（已剥 query/hash）
+    // 兜底：原样返回（已剥 query/hash），让用户看到自己填的东西
     base.to_string()
 }
 
@@ -203,14 +240,6 @@ fn resolve_flowus_id(raw: &str) -> String {
         return last.to_string();
     }
     raw.to_string()
-}
-
-/// 检查是否为 UUID 格式（8-4-4-4-12）
-fn is_uuid(s: &str) -> bool {
-    let parts: Vec<&str> = s.split('-').collect();
-    if parts.len() != 5 { return false; }
-    let hex = |s: &str| s.len() > 0 && s.chars().all(|c| c.is_ascii_hexdigit());
-    hex(parts[0]) && hex(parts[1]) && hex(parts[2]) && hex(parts[3]) && hex(parts[4])
 }
 
 #[cfg(test)]
@@ -249,5 +278,85 @@ mod tests {
             resolve_notion_id("34a6a7109f4580f4b78df783f9905cd4"),
             "34a6a7109f4580f4b78df783f9905cd4"
         );
+    }
+
+    #[test]
+    fn resolve_notion_id_handles_hyphenated_uuid_in_url() {
+        // [m-05 修复] 用户从 Notion「复制链接」默认给的正是带连字符的 UUID 形态。
+        // 旧实现只扫连续 32 位 hex、且 36 位分支要求整串输入都是 UUID，
+        // 结果是整条 URL 原样当 target_id 存下，之后每次发送都 400。
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/My-Page-34a6a710-9f45-80f4-b78d-f783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/34a6a710-9f45-80f4-b78d-f783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        // 纯 UUID 输入（无 URL 外壳）
+        assert_eq!(
+            resolve_notion_id("34a6a710-9f45-80f4-b78d-f783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        // 带 query 的 UUID 链接
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/笔记-34a6a710-9f45-80f4-b78d-f783f9905cd4?v=1#block"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+    }
+
+    #[test]
+    fn resolve_notion_id_keeps_unknown_input() {
+        // 认不出 ID 时原样返回（让用户看到自己填的东西，而不是被改写成半截）
+        assert_eq!(resolve_notion_id("我的笔记"), "我的笔记");
+        assert_eq!(resolve_notion_id("https://www.notion.so/alice"), "https://www.notion.so/alice");
+    }
+
+    #[test]
+    fn resolve_notion_id_prefers_last_path_segment() {
+        // 团队空间链接里有两段 32 位 hex（workspace + page）：
+        // 必须取「最后一段」里的页面 ID，全域扫描会取到 workspace_id
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/11111111222222223333333344444444/Notes-34a6a7109f4580f4b78df783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/11111111222222223333333344444444/34a6a710-9f45-80f4-b78d-f783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+    }
+
+    #[test]
+    fn resolve_notion_id_handles_id_followed_by_slug() {
+        // ID 在前、slug 在后（团队空间常见形态）：不能因为后面还有字符就流产
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/34a6a710-9f45-80f4-b78d-f783f9905cd4-My-Page"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        // slug 恰好是纯 hex 词（deadbeef）时，仍要取前面那个 32 位 ID，不能拼成垃圾串
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/34a6a710-9f45-80f4-b78d-f783f9905cd4-deadbeef"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+    }
+
+    #[test]
+    fn resolve_notion_id_handles_trailing_slash() {
+        // 复制链接常带尾斜杠，不能因此取到空段而原样返回整条 URL
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/34a6a7109f4580f4b78df783f9905cd4/"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/Notes-34a6a7109f4580f4b78df783f9905cd4/?v=2"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+    }
+
+    #[test]
+    fn resolve_notion_id_rejects_overlong_hex() {
+        // 超过 32 位的连续 hex 不是 Notion ID，不能截前 32 位当 ID
+        let overlong = "https://www.notion.so/deadbeefdeadbeefdeadbeefdeadbeefdead";
+        assert_eq!(resolve_notion_id(overlong), overlong, "36 位 hex 不应被截断成 32 位");
     }
 }

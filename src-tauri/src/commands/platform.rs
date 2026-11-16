@@ -268,7 +268,114 @@ pub async fn set_token_memory(
 
 // ── 启动迁移：把残留的明文凭证一次性加密落盘（幂等，无明文不写盘） ──
 
+/// [M-02] 明文底稿名单。两个名字同属一处泄露面，新增备份名务必同步这里：
+/// - `config.json.bak`：当前迁移逻辑写入的回滚底稿；
+/// - `config.json.pre-encrypt-backup`：实测用户数据目录里存在、内容为明文，但全仓代码零引用
+///   （来源已不可考，仓库历史也查不到）→ 没人会清它，只能靠这里兜住。
+const PLAINTEXT_BACKUPS: [&str; 2] = ["config.json.bak", "config.json.pre-encrypt-backup"];
+
+/// 删除明文备份。**只允许在凭证迁移已确认完成时调用。**
+/// 拆成独立函数是为了让"启动清理"与"迁移后当场删"走同一条路径——
+/// 两处各写一遍必然漂移（曾经就只删 .bak、留下孤儿文件多活一个启动周期）。
+fn remove_plaintext_backups(dir: &std::path::Path) {
+    for name in PLAINTEXT_BACKUPS {
+        let path = dir.join(name);
+        if !path.exists() {
+            continue;
+        }
+        match std::fs::remove_file(&path) {
+            Ok(()) => log::info!("凭证迁移已确认完成，清理明文备份 {}", path.display()),
+            // exists() 与 remove 之间被外部（杀软/清理工具）删掉：不算失败，别刷假 warn
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            // 其余删不掉（占用/只读/ACL）必须留痕：否则用户以为清了，实际明文还躺在盘上
+            Err(e) => log::warn!("清理明文备份失败 {}: {}", path.display(), e),
+        }
+    }
+}
+
+/// [M-02 修复] 清理已无必要的明文备份。
+///
+/// [补刀 1] 判定必须直接读文件 + 独立解析，不能用 store.get 判断：
+/// tauri-plugin-store 加载时是 `let _ = store_inner.load()`（store.rs:222），
+/// 文件半截/损坏时解析错误被吞掉、缓存留空，store.get 全返回 None
+/// → 会被误判为"已无明文" → 删掉唯一可回滚的备份。
+/// 而配置非原子写（fs::write 截断写）恰好能产生半截文件——最需要备份的场景反而丢备份。
+///
+/// [补刀 2] 判据必须与迁移后的回读校验**完全一致**（config_fully_encrypted = 可解析 +
+/// 至少有一个凭证 + 每个凭证既能解密），否则迁移时因"解不开"而刻意保留的备份，
+/// 会被这里按"有 enc1: 前缀"直接删掉，白留。跨机器/跨 Windows 账户拷来的配置正是
+/// 这种情况：JSON 合法、全前缀，但 DPAPI 解不开——此时明文备份是唯一可恢复副本。
+fn cleanup_stale_backup(app: &AppHandle) {
+    let dir = match app.path().app_data_dir() {
+        Ok(d) => d,
+        Err(_) => return,
+    };
+    if !PLAINTEXT_BACKUPS.iter().any(|name| dir.join(name).exists()) {
+        return;
+    }
+    if config_fully_encrypted(app) {
+        remove_plaintext_backups(&dir);
+    } else {
+        log::warn!(
+            "config.json 未通过密文校验（损坏 / 跨机不可解 / 仍有明文 / 无凭证），保留明文备份 {:?}",
+            PLAINTEXT_BACKUPS
+        );
+    }
+}
+
+/// [M-02 补刀] 回读校验：config.json 可解析，且文档里每个非空凭证都是密文、且真能解开。
+/// 用于判断"密文是否已确实可用"——只有确认可用，才敢丢掉唯一的明文底稿。
+///
+/// [补刀 3] **零凭证不算通过**。原实现对空文档返回 true（`all()` 对空集合恒真），
+/// 于是 store 读空 / 用户重置 / 重装残留导致 config.json 变成"合法但无凭证"时，
+/// 就会把两份明文备份一起删掉——而那恰恰是唯一需要备份的灾难态。
+/// 因此必须要求"至少存在一个非空的、能解开的凭证"。
+fn config_fully_encrypted(app: &AppHandle) -> bool {
+    let Ok(dir) = app.path().app_data_dir() else { return false };
+    let Ok(bytes) = std::fs::read(dir.join("config.json")) else { return false };
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(&bytes) else { return false };
+    credentials_all_encrypted(&value)
+}
+
+/// 纯判定（拆出来是为了可测）：文档里至少存在一个非空凭证，且每个非空凭证都能解密。
+/// 递归任意层级的 `token` / `token2`（platform_instances 数组、token_memory 映射都在其中）。
+fn credentials_all_encrypted(value: &serde_json::Value) -> bool {
+    fn walk(value: &serde_json::Value, seen: &mut usize, ok: &mut bool) {
+        match value {
+            serde_json::Value::Object(map) => {
+                for (k, v) in map {
+                    if k == "token" || k == "token2" {
+                        // 凭证字段不是字符串 = 形态未知，不能当作"合格"放行（这是删备份的闸门）
+                        let Some(s) = v.as_str() else {
+                            *ok = false;
+                            continue;
+                        };
+                        if s.is_empty() {
+                            continue; // 空串无需加密，也不计入"有凭证"
+                        }
+                        *seen += 1;
+                        // 非空必须是「密文前缀 + 能成功解密」
+                        if !(security::is_encrypted(s) && security::unprotect(s).is_ok()) {
+                            *ok = false;
+                        }
+                    } else {
+                        walk(v, seen, ok);
+                    }
+                }
+            }
+            serde_json::Value::Array(items) => items.iter().for_each(|v| walk(v, seen, ok)),
+            _ => {}
+        }
+    }
+
+    let (mut seen, mut ok) = (0usize, true);
+    walk(value, &mut seen, &mut ok);
+    seen > 0 && ok
+}
+
 pub fn migrate_credentials_at_startup(app: &AppHandle) {
+    // [M-02 修复] 先清理历史明文备份，再做本次迁移检查
+    cleanup_stale_backup(app);
     let result = (|| -> Result<(), String> {
         let store = app.store("config.json").map_err(|e| e.to_string())?;
         let mut changed = false;
@@ -320,6 +427,16 @@ pub fn migrate_credentials_at_startup(app: &AppHandle) {
             backup_config_before_migration(app)?;
             store.save().map_err(|e| e.to_string())?;
             log::info!("明文凭证已迁移为 DPAPI 密文（原文件备份为 config.json.bak）");
+            // [M-02 补刀] 写盘后立刻回读校验：文件能解析 + 至少一个凭证 + 每个凭证都可解密，
+            // 才说明迁移真的落地了。校验通过就当场删掉**全部**明文备份——不给明文令牌留驻留窗口；
+            // 校验不过则全部保留，等下个启动周期由 cleanup_stale_backup 再试 / 供人工回滚。
+            if config_fully_encrypted(app) {
+                if let Ok(dir) = app.path().app_data_dir() {
+                    remove_plaintext_backups(&dir);
+                }
+            } else {
+                log::warn!("密文回读校验未通过，保留明文备份以便回滚");
+            }
         }
         Ok(())
     })();
@@ -384,4 +501,78 @@ pub async fn set_theme(app: AppHandle, theme: String, window_bg: String) -> Resu
     // 窗口底色跟随 + 通知所有窗口
     apply_window_bg(&app, parse_hex(&window_bg).unwrap_or(tauri::window::Color(0xff, 0xff, 0xff, 255)));
     app.emit("theme-updated", &theme).map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    /// 零凭证（空文档 / 只有主题）绝不能算"已全密文"：
+    /// 它是 config.json 被读空或重置后的形态，恰恰最需要保留明文备份。
+    /// 曾经的实现用 `all()` 对空集合恒真 → 会在灾难态下把备份一起删掉。
+    #[test]
+    fn empty_config_is_not_encrypted() {
+        assert!(!credentials_all_encrypted(&json!({})));
+        assert!(!credentials_all_encrypted(&json!({ "theme": "light" })));
+        assert!(!credentials_all_encrypted(&json!({ "platform_instances": [] })));
+    }
+
+    /// 全空串凭证 = 没有凭证，同样不许当"已加密"放行
+    #[test]
+    fn all_blank_tokens_is_not_encrypted() {
+        let v = json!({ "platform_instances": [{ "token": "", "token2": "" }] });
+        assert!(!credentials_all_encrypted(&v));
+    }
+
+    /// 还有明文凭证 → 不通过（迁移尚未完成）
+    #[test]
+    fn leftover_plaintext_blocks() {
+        let v = json!({ "platform_instances": [{ "token": "ntn_plain_token" }] });
+        assert!(!credentials_all_encrypted(&v));
+    }
+
+    /// 凭证字段形态异常（数字/对象）→ 不通过，不能当作合格。
+    /// 必须让"同文档里还有一个有效凭证"成立，否则用例会因为 seen=0 而恒 false，
+    /// 测不出「非字符串分支有没有 correctly 置 ok=false」这一性质。
+    #[test]
+    #[cfg(windows)]
+    fn non_string_token_blocks() {
+        let enc = security::protect("real-token").unwrap();
+        assert!(!credentials_all_encrypted(&json!({ "token": 123, "token2": enc })));
+        let enc2 = security::protect("real-token").unwrap();
+        assert!(!credentials_all_encrypted(&json!({ "token": { "nested": "x" }, "token2": enc2 })));
+    }
+
+    /// 嵌套的 token_memory 里混进明文也要被发现。
+    /// 顶层必须是**能解开的**密文，否则 ok 早就 false，测不出递归遍历是否漏了 token_memory。
+    #[test]
+    #[cfg(windows)]
+    fn nested_plaintext_blocks() {
+        let v = json!({
+            "platform_instances": [{ "token": security::protect("ok-token").unwrap() }],
+            "token_memory": { "id1": { "token": "still-plaintext" } }
+        });
+        assert!(!credentials_all_encrypted(&v));
+    }
+
+    /// 密文全部可解 → 通过（依赖 DPAPI，仅 Windows 可跑）；空串不影响判定
+    #[test]
+    #[cfg(windows)]
+    fn fully_encrypted_passes() {
+        let enc = security::protect("real-token").unwrap();
+        let v = json!({
+            "platform_instances": [{ "token": enc, "token2": "" }],
+            "token_memory": { "id1": { "token": security::protect("t2").unwrap() } }
+        });
+        assert!(credentials_all_encrypted(&v));
+    }
+
+    /// 跨机/换账户拷来的密文（前缀对但 DPAPI 解不开）→ 不通过，必须保留明文备份
+    #[test]
+    #[cfg(windows)]
+    fn undecryptable_ciphertext_blocks() {
+        let v = json!({ "platform_instances": [{ "token": "enc1:bm90LWEtcmVhbC1kcGFwaS1ibG9i" }] });
+        assert!(!credentials_all_encrypted(&v));
+    }
 }

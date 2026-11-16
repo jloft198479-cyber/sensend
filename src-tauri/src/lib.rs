@@ -82,6 +82,7 @@ pub fn run() {
             commands::note::save_note,
             commands::note::hide_window,
             commands::note::open_data_dir,
+            commands::note::open_path,
             commands::note::request_quit,
             commands::platform::open_config_window,
             commands::platform::get_platform_types,
@@ -98,10 +99,8 @@ pub fn run() {
             commands::platform::set_theme,
             commands::hotkey::get_hotkeys,
             commands::hotkey::save_hotkeys,
-            commands::font::scan_user_fonts,
-            commands::font::open_fonts_dir,
-            commands::font::delete_user_font,
             commands::updater::detect_proxy_for_update,
+            commands::updater::restore_update_proxy,
         ])
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("无法获取应用数据目录");

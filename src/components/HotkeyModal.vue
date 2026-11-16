@@ -33,7 +33,26 @@ watch(() => props.visible, async (v) => {
 
 // focus trap：Tab / Shift+Tab 不出弹窗
 function onPanelKeydown(e: KeyboardEvent) {
+  // 按住 Esc 会连续触发 keydown（e.repeat）：取消录制的那一击之后，
+  // 重复事件不该顺手把整个弹窗也关掉
+  if (e.key === 'Escape' && e.repeat) {
+    e.preventDefault()
+    return
+  }
+
+  // 录制态判定必须在 emit 之前取：录制逻辑会同步把 field 清空，
+  // 之后再读就分不清「这次 Esc 是取消录制」还是「关弹窗」
+  const wasRecording = props.hotkeyEditState.field !== null
   emit('keydown', e)
+
+  // [m-22] Esc：录制中 → 只取消录制（由 useHotkey 处理）；非录制 → 关闭弹窗。
+  // 之前 Esc 完全没接，弹窗只能靠点关闭按钮或遮罩才能退出。
+  if (e.key === 'Escape' && !wasRecording) {
+    e.preventDefault()
+    emit('close')
+    return
+  }
+
   if (e.key !== 'Tab') return
   const panel = panelRef.value
   if (!panel) return

@@ -32,7 +32,7 @@ import { SentMarkExtension, markSent } from './useSentMark'
 /**
  * 编辑器核心 composable
  * 职责：TipTap 初始化、自动保存、字数统计、@mention
- * 格式操作 → useEditorFormat，字体管理 → useEditorFont
+ * 格式操作 → useEditorFormat
  */
 export function useSensendEditor(
   instances: Ref<PlatformInstance[]>,
@@ -69,12 +69,22 @@ export function useSensendEditor(
   type SaveStatus = 'idle' | 'saved' | 'saving' | 'unsaved'
   const saveStatus = ref<SaveStatus>('idle')
   const wordCount = ref(0)
-  const charCount = ref(0)
 
   // ── [OPT] 差异检测状态 ──
   let lastMentionId: string | null = null          // mention 缓存
   let wordCountTimer: ReturnType<typeof setTimeout> | null = null  // 字数防抖
   let lastSavedContent: string | null = null       // 保存差异检测
+
+  // ── [C-01 修复] 笔记读取成功前禁止保存 ──
+  // 读取失败/还没读完时，编辑器是空的、lastSavedContent 仍为 null，此时任何输入触发的
+  // doSave 都会因差异检测恒成立而覆盖原笔记。用闸门拦住：默认关闭(noteLoadReady=false)，
+  // 只有读到内容（含首用的空串）并把 lastSavedContent 初始化后才解锁；"加载中"和"读失败"
+  // 两种状态一律不写盘——慢失败场景下也能堵住（若只在 catch 里拦，慢失败时会漏）。
+  let noteLoadReady = false
+  // 读取失败的可见状态：App.vue 据它渲染常驻提示条（含「重试」「打开数据目录」两个出口）。
+  // 不用 toast —— toast 整条可点击关闭（ToastLayer.vue:16），点掉后既没有第二次触发入口，
+  // 也会让用户误以为已经恢复，实际编辑器仍锁着，只能重启。
+  const noteLoadFailed = ref(false)
 
   // ── @mention 工具函数 ──
 
@@ -156,7 +166,6 @@ export function useSensendEditor(
     const chinese = text.match(/[\u4e00-\u9fa5]/g) || []
     const english = text.match(/[a-zA-Z]+/g) || []
     wordCount.value = chinese.length + english.length
-    charCount.value = text.length
   }
 
   // ── 编辑器 ──
@@ -374,6 +383,10 @@ export function useSensendEditor(
       // 2. 删过字符（退格/选中删除可能删掉 mention，from !== to）
       // 3. 文中已有 mention（lastMentionId 非空时任何变化都可能影响它）
       // 注：不能用 stepType !== 'replace' 判断——插入也是 ReplaceStep，恰好会漏掉唯一需检测的场景
+      // 已知成本（[m-28] 评审提过）：条件 3 成立期间，每个按键都会全量遍历一次文档（O(文档大小)）。
+      // 这是有意的「正确性优先」取舍——改成「把 mention 位置按 tr.mapping 映射后只查那一个点」
+      // 看起来更快，但 setContent / 整段替换时映射会给出失效位置，一旦误判成「mention 已删除」
+      // 就会把底栏目标静默切走，代价远大于这点遍历。要优化必须先有长文档卡顿的实测证据。
       if (onMentionChange) {
         const isMentionReplace = tr.getMeta('mentionReplace') === true
         const deletedSomething = tr.steps.some(s => (s as any).from !== (s as any).to)
@@ -405,6 +418,10 @@ export function useSensendEditor(
 
   async function doSave() {
     if (!editor.value) return
+    // [C-01 修复] 读取笔记未成功确认前禁止保存（双保险）：加载中/读失败时编辑器已禁用，
+    // 正常不会触发到这里；仍保留守卫拦截任何绕过路径（退出保存、快捷键、编程式改动），
+    // 静默返回避免刷屏提示。
+    if (!noteLoadReady) return
     // 防止并发保存（数据损坏级）：在途保存必须先串行等待落地。
     // 不能只看 saveStatus==='saving' 守卫——打字的 onUpdate 会把状态改回 'unsaved'，
     // 使下一次防抖到点绕过守卫；而 save_note 共用同一临时文件，并发写会交错损坏 note.json。
@@ -452,27 +469,67 @@ export function useSensendEditor(
     await invoke('request_quit')
   }
 
-  // ── 生命周期 ──
-  onMounted(async () => {
+  // ── 笔记加载（可重试）──
+  // [C-01 修复] 加载一发起就锁编辑器+关保存闸门，只有读取成功才解锁。
+  // 这样"加载中"和"读失败"两种状态都不写盘，慢失败场景也不会覆盖原笔记。
+  let noteLoading = false   // 防重入：连点"重试"时只允许一个读取在途
+
+  /** 读取笔记，带超时。invoke 若永不 settle，界面会卡在"编辑器锁死 + 没有任何提示"
+   *  的状态里，重试也会被 noteLoading 吞掉——必须自己给一个上限。 */
+  function readNoteWithTimeout(ms = 15_000): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error('读取笔记超时')), ms)
+      invoke<string>('read_note').then(
+        (v) => { clearTimeout(timer); resolve(v) },
+        (e) => { clearTimeout(timer); reject(e) },
+      )
+    })
+  }
+
+  async function loadNote(): Promise<void> {
+    if (noteLoading) return
+    noteLoading = true
+    // 发起读取前先锁死：加载中的窗口内用户打字也不会触发保存/被 setContent 覆盖
+    if (editor.value) editor.value.setEditable(false, false)  // 第二参 false：不 emit 伪 update
     try {
-      const content = await invoke<string>('read_note')
+      const content = await readNoteWithTimeout()
       if (content && editor.value) {
         try {
           const parsed = JSON.parse(content)
-          editor.value.commands.setContent(parsed)
+          editor.value.commands.setContent(parsed, { emitUpdate: false })
         } catch {
-          editor.value.commands.setContent(content)
+          editor.value.commands.setContent(content, { emitUpdate: false })
         }
-        // [OPT] 初始化 lastSavedContent，避免首次 setContent 后立即触发保存
+      }
+      // 只有读取成功到这里才初始化基线并解锁保存（空串=首次使用，基线为空，属正常）
+      if (editor.value) {
         lastSavedContent = JSON.stringify(editor.value.getJSON())
-        // [OPT] 同步 lastMentionId 与已加载文档（setContent 不触发 onUpdate，缓存需手动对齐）
         lastMentionId = getMentionId()
         updateWordCount(editor.value)
+        editor.value.setEditable(true, false)   // 读成功才恢复可编辑，且不 emit 伪 update
+        // 闸门必须与"基线已初始化"同时成立：原来写在 if 外面，editor 尚未就绪时会
+        // 解锁保存但 lastSavedContent 仍是 null → 差异检测恒成立 → 又回到覆盖原笔记
+        noteLoadReady = true
+        noteLoadFailed.value = false
+      } else {
+        // editor 没就绪：保持闸门关闭，别假装加载成功（提示条与闸门必须同进同出）
+        noteLoadReady = false
+        noteLoadFailed.value = true
       }
     } catch (e) {
+      // 读取失败：保持闸门关闭 + 编辑器禁用（杜绝"白写"和覆盖），由 App.vue 的提示条给重试出口
+      noteLoadReady = false
+      noteLoadFailed.value = true
+      if (editor.value) editor.value.setEditable(false, false)
       console.error('加载笔记内容失败:', e)
+    } finally {
+      noteLoading = false
     }
+  }
 
+  // ── 生命周期 ──
+  onMounted(async () => {
+    await loadNote()
     unlistenExit = await getCurrentWindow().listen('app-exit-request', handleExitRequest)
   })
 
@@ -487,11 +544,13 @@ export function useSensendEditor(
     editor,
     saveStatus,
     wordCount,
-    charCount,
     getMentionId,
     setMention,
     setOnMentionChange,
     markSent,
+    // 读取失败的可见状态 + 重试入口（App.vue 常驻提示条使用）
+    noteLoadFailed,
+    retryLoadNote: () => { void loadNote() },
     // 供自动更新安装前善后调用（安装器会直接退出应用，不走 app-exit-request）
     saveNow: doSave,
     // 双保险 flush：等 doSave 落地并兜底等在途保存（与 handleExitRequest 同款模式），

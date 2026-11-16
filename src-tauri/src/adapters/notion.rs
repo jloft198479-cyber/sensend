@@ -80,40 +80,57 @@ impl NotionAdapter {
 
         log::debug!("[Notion] {} {}", method, url);
 
-        let mut req = match method {
-            "GET" => client.get(&url),
-            "POST" => client.post(&url),
-            "PATCH" => client.patch(&url),
-            "DELETE" => client.delete(&url),
-            _ => return Err(format!("不支持的 HTTP 方法: {}", method)),
-        };
+        let mut attempt: u32 = 0;
+        loop {
+            let mut req = match method {
+                "GET" => client.get(&url),
+                "POST" => client.post(&url),
+                "PATCH" => client.patch(&url),
+                "DELETE" => client.delete(&url),
+                _ => return Err(format!("不支持的 HTTP 方法: {}", method)),
+            };
 
-        req = req
-            .header("Authorization", format!("Bearer {}", token))
-            .header("Notion-Version", NOTION_VERSION);
+            req = req
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Notion-Version", NOTION_VERSION);
 
-        if let Some(b) = body {
-            req = req.json(&b);
-            log::debug!("[Notion] 请求体: {}", serde_json::to_string(&b).unwrap_or_default());
+            if let Some(b) = &body {
+                req = req.json(b);
+                // [m-11 修复] 只记录请求体大小，不打印正文——正文是用户笔记
+                log::debug!("[Notion] 请求体字节数: {}", serde_json::to_string(b).map(|s| s.len()).unwrap_or(0));
+            }
+
+            let res = req.send().await.map_err(|e| format!("请求失败: {}", e))?;
+            let status = res.status();
+
+            // [M-11] 限流/网关抖动就地吸收：分片写入中途 429 会让用户手动重试，
+            // 已写入的分片就会重复。只重试服务端明确没处理的状态码（见 is_retryable_status）
+            if !status.is_success()
+                && super::is_retryable_status(status.as_u16(), method)
+                && attempt < super::MAX_RETRIES
+            {
+                attempt += 1;
+                log::warn!("[Notion] {} 返回 {}，第 {} 次重试", path, status, attempt);
+                tokio::time::sleep(super::retry_backoff(attempt)).await;
+                continue;
+            }
+
+            let body: Value = res.json().await.unwrap_or_default();
+
+            log::debug!("[Notion] 响应状态: {}", status);
+            // [m-11 修复] 只记录响应体大小，不打印正文（错误详情在下面单独按字段提取）
+            log::debug!("[Notion] 响应体字节数: {}", serde_json::to_string(&body).map(|s| s.len()).unwrap_or(0));
+
+            if !status.is_success() {
+                let default_msg = format!("HTTP 错误 ({})", status);
+                let msg = body.get("message").and_then(|m| m.as_str())
+                    .unwrap_or(&default_msg);
+                // 错误消息统一带状态码：resolve_target 依赖它区分 404 与网络错误
+                return Err(format!("Notion API ({}): {}", status, msg));
+            }
+
+            return Ok(body);
         }
-
-        let res = req.send().await.map_err(|e| format!("请求失败: {}", e))?;
-
-        let status = res.status();
-        let body: Value = res.json().await.unwrap_or_default();
-
-        log::debug!("[Notion] 响应状态: {}", status);
-        log::debug!("[Notion] 响应体: {}", serde_json::to_string(&body).unwrap_or_default());
-
-        if !status.is_success() {
-            let default_msg = format!("HTTP 错误 ({})", status);
-            let msg = body.get("message").and_then(|m| m.as_str())
-                .unwrap_or(&default_msg);
-            // 错误消息统一带状态码：resolve_target 依赖它区分 404 与网络错误
-            return Err(format!("Notion API ({}): {}", status, msg));
-        }
-
-        Ok(body)
     }
 
     // ── IR → Notion Blocks 转换 ──
@@ -167,7 +184,9 @@ impl NotionAdapter {
                     "object": "block",
                     "type": "code",
                     "code": {
-                        "rich_text": [{ "type": "text", "text": { "content": code } }],
+                        // [M-08] 单个 rich_text 的 content 上限 2000 字符，
+                        // 整段代码塞一个元素里，超长代码块会让整篇 POST /pages 直接 400
+                        "rich_text": split_rich_text_content(code),
                         "language": map_language(language)
                     }
                 }));
@@ -350,25 +369,58 @@ impl NotionAdapter {
         // 再判：页面内嵌 child_database（children 是类型判断的关键探测，失败必须区分原因）
         match children_res {
             Ok(body) => {
-                if let Some(arr) = body.get("results").and_then(|r| r.as_array()) {
-                    for block in arr {
-                        if block.get("type").and_then(|t| t.as_str()) == Some("child_database") {
-                            let db_id = block.get("id").and_then(|id| id.as_str())
-                                .ok_or("child_database 缺少 id")?
-                                .to_string();
+                // [m-06] 跟 next_cursor 翻页：内嵌多维表可能排在第二屏之后，
+                // 只看首屏会把它误判成普通页面，内容被追加到容器页末尾而不是多维表里
+                const MAX_SCAN_PAGES: usize = 10; // 最多扫 1000 块，防病态分页拖死
+                let mut current = body;
+                let mut cursor = Self::next_cursor(&current);
+                let mut pages = 1usize;
 
-                            // 获取数据库 schema
-                            let schema_body = self.request("GET", &format!("/databases/{}", db_id), token, None).await?;
-                            let properties = schema_body.get("properties")
-                                .and_then(|p| p.as_object())
-                                .ok_or("数据库 schema 中找不到 properties")?;
+                loop {
+                    // 当前屏里找 child_database
+                    let found = current
+                        .get("results")
+                        .and_then(|r| r.as_array())
+                        .and_then(|arr| {
+                            arr.iter()
+                                .find(|b| b.get("type").and_then(|t| t.as_str()) == Some("child_database"))
+                                .and_then(|b| b.get("id").and_then(|id| id.as_str()))
+                                .map(|s| s.to_string())
+                        });
 
-                            let schema = Self::extract_schema_from_properties(properties)?;
-                            return Ok(TargetType::Database { db_id, schema });
-                        }
+                    if let Some(db_id) = found {
+                        // 获取数据库 schema
+                        let schema_body = self
+                            .request("GET", &format!("/databases/{}", db_id), token, None)
+                            .await?;
+                        let properties = schema_body
+                            .get("properties")
+                            .and_then(|p| p.as_object())
+                            .ok_or("数据库 schema 中找不到 properties")?;
+                        let schema = Self::extract_schema_from_properties(properties)?;
+                        return Ok(TargetType::Database { db_id, schema });
                     }
+
+                    let Some(c) = cursor else { break };
+                    if pages >= MAX_SCAN_PAGES {
+                        log::warn!("[Notion] 目标页块数超过 {} 屏，停止继续查找内嵌多维表", pages);
+                        break;
+                    }
+                    // 翻页失败要上抛：把"探测不全"当成"没有多维表"会导致静默错投
+                    let next = self
+                        .request(
+                            "GET",
+                            &format!("/blocks/{}/children?page_size=100&start_cursor={}", target_id, c),
+                            token,
+                            None,
+                        )
+                        .await?;
+                    cursor = Self::next_cursor(&next);
+                    current = next;
+                    pages += 1;
                 }
-                // children 拉取成功但无 child_database → 真普通页面
+
+                // 全部分页拉完仍无 child_database → 真普通页面
                 Ok(TargetType::Page)
             }
             Err(e) => {
@@ -383,6 +435,16 @@ impl NotionAdapter {
     }
 
     // ── 创建页面 ──
+
+    /// 从分页响应里取下一页游标（has_more 为假或游标缺失都返回 None）
+    fn next_cursor(body: &Value) -> Option<String> {
+        if !body.get("has_more").and_then(|h| h.as_bool()).unwrap_or(false) {
+            return None;
+        }
+        body.get("next_cursor")
+            .and_then(|c| c.as_str())
+            .map(|s| s.to_string())
+    }
 
     async fn create_page(
         &self,
@@ -400,7 +462,9 @@ impl NotionAdapter {
                 "title": [{ "text": { "content": title } }]
             }));
             if let Some(date_name) = &schema.date_prop {
-                let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S").to_string();
+                // [m-07] ISO 8601 必须带时区偏移：不带偏移的"本地时间"会被平台
+                // 当 UTC 解释，非 UTC 时区用户的日期属性会整体偏移几小时
+                let now = chrono::Local::now().format("%Y-%m-%dT%H:%M:%S%:z").to_string();
                 props.insert(date_name.clone(), json!({
                     "date": { "start": now }
                 }));
@@ -470,6 +534,8 @@ impl NotionAdapter {
         page_id: &str,
         blocks: Vec<Value>,
     ) -> Result<(), String> {
+        let total = blocks.len();
+        let mut written = 0usize;
         for chunk in blocks.chunks(100) {
             let body = json!({ "children": chunk });
             self.request(
@@ -477,7 +543,17 @@ impl NotionAdapter {
                 &format!("/blocks/{}/children", page_id),
                 token,
                 Some(body),
-            ).await?;
+            )
+            .await
+            .map_err(|e| {
+                // [M-11] 带上进度：分片写到一半失败，平台上已经留下了前 N 块，
+                // 用户不知道就重点一次 → 重复内容。至少把"已写多少"说清楚
+                format!(
+                    "已写入 {}/{} 块后中断：{}（平台上已保留这 {} 块，请先删除再重试，否则会重复）",
+                    written, total, e, written
+                )
+            })?;
+            written += chunk.len();
         }
         Ok(())
     }
@@ -678,6 +754,20 @@ fn map_rich_text(inlines: &[super::ir::Inline]) -> Vec<Value> {
         rt.push(json!({ "type": "text", "text": { "content": "" } }));
     }
     rt
+}
+
+/// 纯文本 → Notion rich_text 数组，按 2000 字符上限切片。
+/// 代码块专用：不带任何 annotations，只保证内容完整、不超单元素上限。
+fn split_rich_text_content(text: &str) -> Vec<Value> {
+    if text.is_empty() {
+        return vec![json!({ "type": "text", "text": { "content": "" } })];
+    }
+    // 按 Unicode scalar 切，不会切断多字节字符
+    text.chars()
+        .collect::<Vec<char>>()
+        .chunks(2000)
+        .map(|c| json!({ "type": "text", "text": { "content": c.iter().collect::<String>() } }))
+        .collect()
 }
 
 #[cfg(test)]

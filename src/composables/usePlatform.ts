@@ -10,6 +10,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import type { UnlistenFn } from '@tauri-apps/api/event'
 import { openUrl } from '@tauri-apps/plugin-opener'
 import type { PlatformInstance, PlatformTypeInfo, PublishResult } from '../types/platform'
 import { useToast } from './useToast'
@@ -71,6 +72,17 @@ export function usePlatform() {
     return raw
   }
 
+  /// 打开发送结果：http(s) 用系统浏览器，其余（本地文件夹写入返回的是磁盘路径）
+  /// 必须走 open_path。openUrl 只接受 URL，传磁盘路径会被 opener 的 scope 拒掉 → 点了没反应。
+  function openResultUrl(url: string) {
+    const fail = (e: unknown) => toastError('打开失败: ' + ((e as any)?.message || String(e)))
+    if (/^https?:\/\//i.test(url)) {
+      openUrl(url).catch(fail)
+    } else {
+      invoke('open_path', { path: url }).catch(fail)
+    }
+  }
+
   /// 发送笔记（overrideTargetId 由 App.vue 的 resolvedTarget 提供）
   /// 返回 true 表示发送成功
   async function publishNote(editorValue: any, overrideTargetId: string | null): Promise<boolean> {
@@ -114,7 +126,7 @@ export function usePlatform() {
       })
 
       const url = result.url
-      toastSuccess('发送成功', url ? { label: '查看 ↗', onClick: () => openUrl(url) } : undefined)
+      toastSuccess('发送成功', url ? { label: '查看 ↗', onClick: () => openResultUrl(url) } : undefined)
 
       // 记忆本次发送目标
       activeInstanceId.value = targetId
@@ -132,6 +144,16 @@ export function usePlatform() {
   }
 
   // ── 启动时加载 ──
+  // [M-12] 卸载清理必须**同步**注册：onMounted 的 await 之后 Vue 已复位 currentInstance，
+  // 在那里调 onBeforeUnmount 只会得到一条警告且钩子不生效 → 监听器泄漏。
+  let unlisten: UnlistenFn | null = null
+  let disposed = false
+  onBeforeUnmount(() => {
+    disposed = true
+    unlisten?.()
+    unlisten = null
+  })
+
   onMounted(async () => {
     // [OPT] 并行发起两个独立 IPC 调用，不再串行等待
     // 两个 invoke 同时发出（Promise 立即执行），各自 .then() 独立处理结果
@@ -163,10 +185,12 @@ export function usePlatform() {
 
     // 监听配置窗口的实例更新事件
     const mainWindow = getCurrentWindow()
-    const unlisten = await mainWindow.listen('instances-updated', () => {
+    const stop = await mainWindow.listen('instances-updated', () => {
       reloadInstances()
     })
-    onBeforeUnmount(() => { unlisten() })
+    // 卸载发生在 await 期间：拿到句柄时已经没机会挂到 onBeforeUnmount 上了，就地销毁
+    if (disposed) stop()
+    else unlisten = stop
   })
 
   return {

@@ -25,7 +25,6 @@
   --accent-strong: #1B7F4B;    /* 可读：浅底上的主色文字 / 图标 */
   --accent-fill: #1B7F4B;      /* 填充：主按钮 / 发送按钮底色 */
   --accent-fill-hover: #187246;
-  --accent-hover: #25a05c;     /* 兼容旧引用，批 4 收口 */
   --accent-light: #EAF7EF;
 
   /* 语义色 — 成功/错误/警告 */
@@ -54,7 +53,8 @@
 
   /* 交互状态 */
   --bg-hover: rgba(0, 0, 0, 0.06);
-  --focus-ring: rgba(44, 175, 104, 0.35);
+  --focus-ring: #1B7F4B;        /* 键盘焦点环：实色，对 --bg ≥3:1（check-contrast 门禁） */
+  --focus-ring-soft: rgba(44, 175, 104, 0.35);  /* 氛围层：列表选中行内描边，可低透明 */
 
   /* 主色之上的文字（accent-fill 底按钮文字等） */
   --fg-on-accent: #ffffff;

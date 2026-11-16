@@ -33,7 +33,7 @@ const {
 const titlebarRef = ref<HTMLElement | null>(null)
 const closeWindow = () => { getCurrentWindow().close() }
 
-// 删除二次确认：3 秒未操作自动回退（方案 M-6，与清空/删字体同一交互）
+// 删除二次确认：3 秒未操作自动回退（方案 M-6，与清空笔记同一交互）
 let deleteTimer: ReturnType<typeof setTimeout> | null = null
 watch(showDeleteConfirm, (id) => {
   if (deleteTimer) { clearTimeout(deleteTimer); deleteTimer = null }
@@ -67,14 +67,14 @@ onMounted(() => {
           </svg>
           <span>返回</span>
         </button>
-        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="管理页面">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="新增页面">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          <span>管理页面</span>
+          <span>新增页面</span>
         </button>
         <button class="close-win-btn" @click="closeWindow" title="关闭" aria-label="关闭">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
           </svg>
@@ -152,7 +152,7 @@ onMounted(() => {
         <div class="form-actions">
           <button class="action-btn test-btn" :disabled="!canSave || isTesting"
             @click="testConnection" aria-label="测试连接">
-            <svg v-if="isTesting" class="spin-icon" width="13" height="13" viewBox="0 0 24 24" fill="none"
+            <svg v-if="isTesting" class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <path d="M21 12a9 9 0 11-6.219-8.56"/>
             </svg>
@@ -180,7 +180,7 @@ onMounted(() => {
           <path d="M12 8v8M8 12h8"/>
         </svg>
         <p>还没有配置任何发送页面</p>
-        <p class="empty-hint">点击上方「管理页面」开始配置</p>
+        <p class="empty-hint">点击上方「新增页面」开始配置</p>
       </div>
       <div v-else class="instance-list">
         <div v-for="inst in instances" :key="inst.id" class="instance-card">
@@ -200,7 +200,7 @@ onMounted(() => {
             </button>
             <template v-else>
               <button class="icon-btn" @click="openEditModal(inst)" title="编辑" aria-label="编辑">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>

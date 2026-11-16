@@ -59,16 +59,24 @@ export function useConfig() {
   })
 
   // ── 初始化 ──
+  // [m-27] 两个 IPC 无依赖，并行发起（与 usePlatform 启动一致）；
+  // 失败必须让用户看见——静默只 console.error 会让配置窗口显示空列表而毫无解释。
   async function loadData() {
-    try {
-      platformTypes.value = await invoke<PlatformTypeInfo[]>('get_platform_types')
-    } catch (e) {
-      console.error('加载平台类型失败:', e)
+    const [typesRes, listRes] = await Promise.allSettled([
+      invoke<PlatformTypeInfo[]>('get_platform_types'),
+      invoke<PlatformInstance[]>('list_platform_instances'),
+    ])
+    if (typesRes.status === 'fulfilled') {
+      platformTypes.value = typesRes.value
+    } else {
+      console.error('加载平台类型失败:', typesRes.reason)
+      useToast().error(`加载平台类型失败：${(typesRes.reason as any)?.message ?? typesRes.reason}`)
     }
-    try {
-      instances.value = await invoke<PlatformInstance[]>('list_platform_instances')
-    } catch (e) {
-      console.error('加载平台实例失败:', e)
+    if (listRes.status === 'fulfilled') {
+      instances.value = listRes.value
+    } else {
+      console.error('加载平台实例失败:', listRes.reason)
+      useToast().error(`加载页面列表失败：${(listRes.reason as any)?.message ?? listRes.reason}`)
     }
   }
 
@@ -109,7 +117,12 @@ export function useConfig() {
     configForm.token2 = inst.token2 || ''
     configForm.target_id = inst.target_id
     configForm.publish_mode = normalizeMode(inst.publish_mode || 'page')
-    testResult.value = 'ok'
+    // [m-27] 这三项必须跟「新建」一样重置，否则会从上一次操作残留：
+    // testResult 之前直接置 'ok' → 明明没测过却显示「连接成功，可以保存了」；
+    // showToken 残留会让密钥以明文呈现（编辑窗口默认必须是打码态）。
+    testResult.value = 'idle'
+    testErrorMsg.value = ''
+    showToken.value = false
     showForm.value = true
   }
 

@@ -6,13 +6,17 @@ const { toasts, remove } = useToast()
 
 <template>
   <Teleport to="body">
-    <div class="toast-layer">
+    <!-- [m-20] 无障碍：每条自带语义（success/info → role="status" 即 polite；
+         error/warning → role="alert" 即 assertive），这两个角色**本身就是 live region**，
+         所以外层不再叠 aria-live —— 叠了会被读屏软件重复播报一遍。 -->
+    <div class="toast-layer" role="region" aria-label="提示消息">
       <TransitionGroup name="toast">
         <div
           v-for="t in toasts"
           :key="t.id"
           class="toast-item"
           :class="t.type"
+          :role="t.type === 'error' || t.type === 'warning' ? 'alert' : 'status'"
           @click="remove(t.id)"
         >
           <!-- 语义图标（四类）+ 左侧 3px 色条：不只靠颜色区分状态 -->
@@ -36,8 +40,8 @@ const { toasts, remove } = useToast()
             class="toast-action"
             @click.stop="t.action!.onClick()"
           >{{ t.action.label }}</button>
-          <button class="toast-close" @click.stop="remove(t.id)">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          <button class="toast-close" @click.stop="remove(t.id)" aria-label="关闭提示">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
         </div>
       </TransitionGroup>
@@ -99,15 +103,16 @@ const { toasts, remove } = useToast()
 .toast-close {
   border: none;
   background: none;
+  /* [m-20] 原来 opacity:0.4 把叉号对比度压到约 2.3:1（低于非文本 3:1 门槛）。
+     改成实色 --muted（各主题均 ≥4.5:1），用颜色而非透明度表达层级。 */
   color: var(--muted);
   cursor: pointer;
   padding: var(--space-2);
   display: flex;
   align-items: center;
-  opacity: 0.4;
-  transition: opacity var(--dur-fast);
+  transition: color var(--dur-fast);
 }
-.toast-close:hover { opacity: 1; }
+.toast-close:hover { color: var(--fg); }
 
 /* 过渡 */
 .toast-enter-active { transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out); }

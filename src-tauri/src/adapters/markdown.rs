@@ -26,30 +26,58 @@ pub fn extract_title(content: &Value) -> String {
     full.chars().take(18).collect()
 }
 
-/// 提取文档标题全量文本（不截断，用于平台页面标题与去重比较）
+/// 提取文档标题全量文本（不截断到 18 字，用于平台页面标题与去重比较；
+/// 仍设一个宽松上限，避免把整篇正文塞进平台标题）
 pub fn extract_title_full(content: &Value) -> String {
     if let Some(children) = content.get("content").and_then(|c| c.as_array()) {
         // 优先取第一个 heading
         for node in children {
             if node.get("type").and_then(|t| t.as_str()) == Some("heading") {
                 if let Some(text) = extract_plain_text(node) {
-                    if !text.is_empty() {
-                        return text;
+                    if !text.trim().is_empty() {
+                        return clamp_title(text.trim());
                     }
                 }
             }
         }
-        // 兜底：取第一个非空段落
+        // 兜底：取第一个非空块的「首段」文本。
+        // [m-01] 原来对任意节点无差别递归 extract_plain_text——首块若是列表/表格，
+        // 会把整篇内容拼成一整行当标题（还可能超过平台标题长度上限导致发送失败）。
         for node in children {
-            if let Some(text) = extract_plain_text(node) {
-                let trimmed = text.trim();
-                if !trimmed.is_empty() {
-                    return trimmed.to_string();
+            if let Some(text) = first_block_text(node) {
+                if !text.trim().is_empty() {
+                    return clamp_title(text.trim());
                 }
             }
         }
     }
     "Sensend 笔记".to_string()
+}
+
+/// 标题字符上限：平台页面标题不该是整篇正文。
+/// 取 2000（Notion 标题属性上限）而不是更小的值——`extract_title_full` 同时被
+/// notion/flowus 用来和「首块 heading 全文」比较去重，两侧一旦截断长度不一致，
+/// 页面标题和正文里的 H1 就会同时出现（去重失效）。
+const MAX_TITLE_CHARS: usize = 2000;
+
+fn clamp_title(s: &str) -> String {
+    if s.chars().count() <= MAX_TITLE_CHARS {
+        s.to_string()
+    } else {
+        s.chars().take(MAX_TITLE_CHARS).collect()
+    }
+}
+
+/// 取单个块的「首段」纯文本：下钻到第一个有文字的段落/单元格就停，
+/// 不把整块内容（整个列表、整张表格）拼接成一行
+fn first_block_text(node: &Value) -> Option<String> {
+    match node.get("type").and_then(|t| t.as_str()).unwrap_or("") {
+        "paragraph" | "heading" => extract_plain_text(node),
+        _ => node
+            .get("content")
+            .and_then(|c| c.as_array())
+            .and_then(|children| children.iter().find_map(first_block_text)),
+    }
 }
 
 /// 提取纯文本（忽略格式，用于标题等场景）
@@ -75,11 +103,13 @@ pub fn extract_plain_text(node: &Value) -> Option<String> {
 // ── IR → Markdown 渲染 ──
 
 /// hardBreak 的渲染方式（不同上下文行为不同）
+#[derive(Clone, Copy)]
 enum BreakMode {
     /// 段落内：渲染为 Markdown 硬换行 "  \n"
     Line,
-    /// 表格单元格内：丢弃
-    Suppress,
+    /// 表格单元格内：GFM 表格一行就是一条记录，真换行会把表格打断，
+    /// 用 `<br>` 保留换行（[m-02] 原来直接丢弃，单元格内的换行静默消失）
+    Inline,
 }
 
 fn render_block(block: &Block, out: &mut String, list_depth: usize) {
@@ -207,7 +237,7 @@ fn render_table(table: &Table, out: &mut String) {
         let mut row: Vec<String> = Vec::new();
         for cell in cells {
             let mut cell_text = String::new();
-            render_inlines(cell, &mut cell_text, BreakMode::Suppress);
+            render_inlines(cell, &mut cell_text, BreakMode::Inline);
             row.push(cell_text.trim().to_string());
         }
         while row.len() < max_cols {
@@ -248,8 +278,9 @@ fn render_inlines(inlines: &[Inline], out: &mut String, break_mode: BreakMode) {
     for inline in inlines {
         match inline {
             Inline::Break => {
-                if let BreakMode::Line = break_mode {
-                    out.push_str("  \n");
+                match break_mode {
+                    BreakMode::Line => out.push_str("  \n"),
+                    BreakMode::Inline => out.push_str("<br>"),
                 }
             }
             Inline::Mention(label) => {
@@ -395,5 +426,95 @@ mod tests {
 
         let empty = json!({ "type": "doc", "content": [] });
         assert_eq!(extract_title_full(&empty), "Sensend 笔记");
+    }
+
+    // ── [m-01] 标题兜底不能把整篇内容拼成标题 ──
+
+    #[test]
+    fn title_from_list_uses_first_item_only() {
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "bulletList",
+                "content": [
+                    { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "第一项" }] }] },
+                    { "type": "listItem", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "第二项" }] }] }
+                ]
+            }]
+        });
+        assert_eq!(
+            extract_title_full(&doc), "第一项",
+            "首块是列表时标题只取首项，不能把整个列表拼成一行"
+        );
+    }
+
+    #[test]
+    fn title_from_table_uses_first_cell_only() {
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "content": [{
+                    "type": "tableRow",
+                    "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "列A" }] }] },
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [{ "type": "text", "text": "列B" }] }] }
+                    ]
+                }]
+            }]
+        });
+        assert_eq!(extract_title_full(&doc), "列A", "首块是表格时只取第一个单元格");
+    }
+
+    #[test]
+    fn title_clamped_for_huge_first_paragraph() {
+        // 极端长首段（整篇一段）不能原样当标题，否则可能超平台标题上限。
+        // 上限取 2000（Notion 标题属性上限），与去重比较用的长度一致
+        let long = "超".repeat(2500);
+        let doc = json!({ "type": "doc", "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": long }] }
+        ]});
+        assert_eq!(extract_title_full(&doc).chars().count(), 2000);
+        // 未超上限时不截断（去重比较依赖全长）
+        let short = "超".repeat(1800);
+        let doc2 = json!({ "type": "doc", "content": [
+            { "type": "paragraph", "content": [{ "type": "text", "text": short }] }
+        ]});
+        assert_eq!(extract_title_full(&doc2).chars().count(), 1800);
+    }
+
+    // ── [m-02] 表格单元格内的换行 ──
+
+    #[test]
+    fn table_cell_hardbreak_becomes_br() {
+        // 单元格内两段（M-10 产出的 Break）+ 段内 hardBreak（m-02）
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "content": [{
+                    "type": "tableRow",
+                    "content": [{
+                        "type": "tableCell",
+                        "content": [
+                            { "type": "paragraph", "content": [
+                                { "type": "text", "text": "第一行" },
+                                { "type": "hardBreak" },
+                                { "type": "text", "text": "第二行" }
+                            ]},
+                            { "type": "paragraph", "content": [{ "type": "text", "text": "第三行" }] }
+                        ]
+                    }]
+                }]
+            }]
+        });
+        let md = tiptap_to_markdown(&doc);
+        assert!(
+            md.contains("第一行<br>第二行<br>第三行"),
+            "单元格内换行应渲染为 <br>（既不能丢，也不能输出真换行打断表格）: {}",
+            md
+        );
+        // 表格仍是表头 + 1 数据行 = 2 行，没有被打断
+        assert!(md.matches('|').count() >= 4, "表格列结构应完整: {}", md);
     }
 }

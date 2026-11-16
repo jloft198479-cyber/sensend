@@ -12,7 +12,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vue-tsc --noEmit && vite build",
+    "check": "npm run check:tokens && npm run check:contrast",
+    "build": "npm run check && vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "check:contrast": "node scripts/check-contrast.mjs",
     "check:tokens": "node scripts/check-tokens.mjs",

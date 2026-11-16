@@ -88,7 +88,7 @@
 .editor-wrapper .tiptap a:hover { color: var(--accent-fill-hover); text-decoration-thickness: 2px; }
 .editor-wrapper .tiptap hr {
   border: none;
-  border-top: 1.5px solid color-mix(in srgb, var(--control-border) 40%, transparent);
+  border-top: 1.5px solid color-mix(in srgb, var(--control-border) 60%, transparent);
   margin: 1.5em 0;
 }
 
@@ -127,7 +127,7 @@
 /* ═══ 发送成功标记（ProseMirror widget decoration） ═══ */
 .sent-mark-badge {
   display: inline-block;
-  font-size: var(--text-xs);
+  font-size: var(--text-2xs);
   font-weight: 600;
   color: var(--success-text);
   background: var(--success-bg);

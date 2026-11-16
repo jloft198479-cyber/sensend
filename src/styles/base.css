@@ -8,7 +8,7 @@
 @import '@fontsource/dm-sans/700.css';
 @import '@fontsource/dm-sans/700-italic.css';
 
-/* 编辑器字体默认使用系统字体栈，用户可通过字体选择器切换 */
+/* 编辑器字体固定使用系统字体栈（v0.5.x 起移除自定义字体功能，不再支持切换） */
 
 /* 全局 reset */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
@@ -84,19 +84,21 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   --shadow-e2: 0 6px 18px color-mix(in srgb, var(--shadow-color) 12%, transparent);
   --shadow-e3: 0 24px 64px color-mix(in srgb, var(--shadow-color) 20%, transparent),
                0 8px 20px color-mix(in srgb, var(--shadow-color) 8%, transparent);
-  /* 焦点环（几何入 token，禁止组件散写 0 0 0 Npx） */
+  /* 焦点环（几何入 token，禁止组件散写 0 0 0 Npx）
+     [m-25] 拆成两个 token：--focus-ring 是**实色**（键盘可见的焦点指示，须 ≥3:1），
+     --focus-ring-soft 是低透明度版（只用于列表选中行的内描边这类"氛围"层）。
+     原来两者共用一个 0.35 透明度的值，键盘焦点对白底只有约 1.4~2.5:1，等于看不见。 */
   --focus-ring-width: 3px;
   --shadow-focus: 0 0 0 var(--focus-ring-width) var(--focus-ring);
-  --shadow-ring-inset: inset 0 0 0 1px var(--focus-ring);
+  --shadow-ring-inset: inset 0 0 0 1px var(--focus-ring-soft);
   --shadow-pulse: 0 0 0 var(--focus-ring-width) var(--accent-light);
 
   /* === 顶栏 === */
   --btn-size: 28px;
-  --btn-radius: 6px;
   --btn-gap: 4px;
 
   /* === 弹层层级（从低到高，新弹层按语义入档，勿跳档）=== */
-  --z-dropdown: 100;  /* 下拉菜单 / 弹出列表（目标弹窗、@列表、设置菜单、字体菜单） */
+  --z-dropdown: 100;  /* 下拉菜单 / 弹出列表（目标弹窗、@列表、设置菜单、主题菜单） */
   --z-sticky: 1;      /* 组件内部 sticky 占位条（局部层叠，不参与全局层级） */
   --z-scrim: 200;     /* 全屏遮罩 */
   --z-modal: 300;     /* 模态对话框 */
@@ -108,7 +110,6 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   --dur-slow: 220ms;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
-  --transition-fast: 0.2s ease;  /* 兼容旧引用，批 4 收口 */
 }
 
 /* 焦点可见性：键盘导航统一 2px 焦点环（鼠标点击不触发） */

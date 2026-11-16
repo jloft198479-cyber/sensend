@@ -2,7 +2,7 @@
 
 > 超轻量级桌面悬浮记事本 — 代码百科文档
 > 版本：v0.4.0 ｜ 仓库：[github.com/jloft198479-cyber/sensend](https://github.com/jloft198479-cyber/sensend)
-> 最近更新：2026-08-19（文档同步：四主题系统 / 目录结构 / 新功能 / 死链修复）
+> 最近更新：2026-11-16（第 4 批：命令数 23、五主题（含墨白）、焦点环双 token、样式门禁、保存锁、进程名白名单）
 
 ---
 
@@ -35,11 +35,10 @@
 | 极速启动 | 悬浮窗口 + 全局快捷键唤醒，随时记录 |
 | 富文本编辑 | 基于 TipTap，支持标题、列表、引用、代码块、行内样式、待办清单、下划线 |
 | 多平台分发 | Notion / FlowUs / 飞书 / 本地文件夹，统一适配器接口 |
-| 自定义字体 | 用户可将 `.ttf/.otf/.woff2` 字体文件放入字体目录加载 |
 | 极简设计 | 无边框窗口、自定义标题栏、托盘常驻 |
 | 自动保存 | 编辑内容防抖 800ms 自动落盘到 `note.json`（v0.4.0 起从 note.md 迁移） |
 | 默认目标记忆 | 上次发送/选择的平台实例 ID 存后端 `config.json`（v0.3.0 起，不再用 localStorage） |
-| 四主题系统 | 草绿 / 暗夜 / 秋珀 / 魅蓝四主题，两窗口实时同步（v0.4.0 新增） |
+| 五主题系统 | 草绿 / 暗夜 / 秋珀 / 魅蓝 / 墨白，两窗口实时同步（v0.4.0 四主题，墨白后加） |
 | 发送成功标记 | 发送后编辑区末尾显示"✓ 已发送"徽章，3 秒自动消失（v0.4.0 新增） |
 
 ### 1.3 技术栈
@@ -81,7 +80,7 @@
 │  │  ┌─────────────────┐  │◀────▶│  ┌──────────────────┐  │  │
 │  │  │  main 窗口     │  │invoke│  │  commands/       │  │  │
 │  │  │  (编辑器)       │  │      │  │  note/platform/  │  │  │
-│  │  └─────────────────┘  │emit  │  │  hotkey/font     │  │  │
+│  │  └─────────────────┘  │emit  │  │  hotkey/updater  │  │  │
 │  │  ┌─────────────────┐  │◀─────│  └────────┬─────────┘  │  │
 │  │  │  config 窗口   │  │      │           │             │  │
 │  │  │  (平台管理)     │  │      │  ┌────────▼─────────┐   │  │
@@ -174,17 +173,15 @@ sensend/
 │   ├── vite-env.d.ts
 │   │
 │   ├── components/             # Vue 组件
-│   │   ├── TitleBar.vue        # 自定义标题栏（主题/字体/置顶/发送/隐藏）
+│   │   ├── TitleBar.vue        # 自定义标题栏（主题/置顶/发送/隐藏）
 │   │   ├── FooterBar.vue       # 底栏（目标选择/菜单/字数）
 │   │   ├── HotkeyModal.vue     # 快捷键设置弹窗
-│   │   ├── FontManager.vue     # 字体管理弹窗
 │   │   ├── MentionList.vue      # @提及下拉列表
 │   │   └── ToastLayer.vue     # Toast 提示浮层
 │   │
 │   ├── composables/            # 组合式函数（业务逻辑层）
 │   │   ├── useEditor.ts        # TipTap 编辑器核心
 │   │   ├── useEditorFormat.ts  # 格式操作（粗体/标题/列表…）
-│   │   ├── useEditorFont.ts    # 字体切换与加载
 │   │   ├── useTheme.ts         # 主题注册表（SSOT）与切换逻辑（v0.4.0 新增）
 │   │   ├── usePlatform.ts      # 平台实例与发送逻辑
 │   │   ├── useConfig.ts        # 配置窗口表单状态机
@@ -224,7 +221,7 @@ sensend/
         │   ├── note.rs         # 笔记读写/窗口隐藏/退出
         │   ├── platform.rs     # 平台实例 CRUD/测试/发送
         │   ├── hotkey.rs       # 全局快捷键注册与保存
-        │   └── font.rs         # 用户字体扫描/删除/打开目录
+        │   └── updater.rs      # 更新代理探测与环境变量还原
         │
         └── adapters/           # ── 平台适配器层 ──
             ├── mod.rs          # 公共 trait/类型/ID 解析/HTTP 客户端
@@ -254,8 +251,7 @@ sensend/
 1. 调用 `usePlatform()` 获取平台实例列表与发送能力。
 2. 调用 `useSensendEditor(instances, platformTypes)` 初始化 TipTap 编辑器，并接收 mention 同步回调。
 3. 调用 `useEditorFormat(editor)` 获取格式操作。
-4. 调用 `useEditorFont()` 获取字体管理。
-5. 调用 `useHotkey(publishNote, () => editor.value, isSending)` 注册发送快捷键拦截。
+4. 调用 `useHotkey(publishNote, () => editor.value, isSending)` 注册发送快捷键拦截。
 
 **mention ↔ 底栏双向同步**（核心设计）：
 
@@ -263,7 +259,7 @@ sensend/
 - 底栏选择目标 → `handleFooterSelect` → 调用 `selectTarget` + `setMention`（清除旧 mention、在文档开头插入新 mention）。
 - `resolvedTarget` 计算属性：mention 优先于底栏默认目标，作为最终发送目标。
 
-**模板结构**：`TitleBar` + `ToastLayer` + 编辑区（含 `BubbleMenu` + `EditorContent`）+ `FooterBar` + `HotkeyModal` + `FontManager`。
+**模板结构**：`TitleBar` + `ToastLayer` + 编辑区（含 `BubbleMenu` + `EditorContent`）+ `FooterBar` + `HotkeyModal`。
 
 ### 4.3 配置窗口：`src/ConfigWindow.vue`
 
@@ -279,10 +275,9 @@ sensend/
 
 | 组件 | 文件 | 职责 |
 |------|------|------|
-| TitleBar | [src/components/TitleBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/TitleBar.vue) | 自定义标题栏；递归标记拖拽区域（`data-tauri-drag-region`）；主题菜单（数据来自 useTheme 注册表）、字体菜单、置顶、发送、隐藏按钮 |
+| TitleBar | [src/components/TitleBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/TitleBar.vue) | 自定义标题栏；递归标记拖拽区域（`data-tauri-drag-region`）；主题菜单（数据来自 useTheme 注册表）、置顶、发送、隐藏按钮 |
 | FooterBar | [src/components/FooterBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/FooterBar.vue) | 底栏；目标选择器（picker）、设置菜单（配置/快捷键/数据目录）、清空笔记（两步确认 + 撤销）、字数统计 |
 | HotkeyModal | [src/components/HotkeyModal.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/HotkeyModal.vue) | 快捷键设置弹窗；焦点陷阱（Tab 循环）、焦点恢复 |
-| FontManager | [src/components/FontManager.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/FontManager.vue) | 字体管理弹窗；列出用户字体、删除、打开字体目录 |
 | MentionList | [src/components/MentionList.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/MentionList.vue) | `@提及` 下拉项；键盘上下选择、自动滚动、hover 态 |
 | ToastLayer | [src/components/ToastLayer.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/ToastLayer.vue) | 全局 Toast 浮层（Teleport 到 body）；success/error/info 三类 |
 
@@ -302,8 +297,17 @@ sensend/
 
 - `vars.css`：样式唯一入口，`@import` 引入 `base.css` + 全部主题文件（v0.4.0 起）。
 - `base.css`：基础样式（字体栈、全局 reset、非颜色变量、动画），`@fontsource/dm-sans` 引入。
-- `themes/{light,dark,wenyi,tech}.css`：每主题一个文件定义颜色变量，经 `data-theme` 属性切换。v0.4.0 起主题组件化，新增主题只需加文件 + `useTheme.ts` 注册表登记。
+- `themes/{light,dark,wenyi,tech,ink}.css`：每主题一个文件定义颜色变量，经 `data-theme` 属性切换。v0.4.0 起主题组件化，新增主题只需加文件 + `useTheme.ts` 注册表登记（**清单由脚本从目录派生并与注册表交叉校验**，见下）。
 - `editor.css`：TipTap 编辑器内容样式（标题、列表、代码块、blockquote、placeholder 等），含 `.sent-mark-badge` 发送成功标记样式（v0.4.0 新增）。
+
+**焦点环拆成两个 token**（2026-11-16 m-25）：`--focus-ring` 是**实色**（键盘焦点指示，对 `--bg` 须 ≥3:1）；`--focus-ring-soft` 是低透明度版，只用于列表选中行的内描边这类氛围层。此前两者共用一个 0.35 透明度值，实测键盘焦点对白底只有 1.42:1，等于看不见。
+
+**样式门禁**（`npm run check`，已串进 `npm run build`）：
+
+| 脚本 | 查什么 |
+|------|--------|
+| `scripts/check-tokens.mjs` | 颜色字面量（含 `.ts` 代码，仅 `useTheme.ts` 与 `themes/*.css` 作为 token 源头豁免）、字号字重白名单、间距/圆角/阴影/z-index 必须走 token |
+| `scripts/check-contrast.mjs` | 5 主题 × 14 组色对按 WCAG 2.1 复算（含焦点环 3:1）；主题清单从目录派生并与 `useTheme.ts` 交叉校验；`windowBg` 必须等于该主题 `--bg`；同名变量重复定义会报错 |
 
 ---
 
@@ -314,7 +318,7 @@ sensend/
 - `main.rs`：二进制入口，仅调用 `sensend_lib::run()`；release 模式下隐藏控制台窗口。
 - `lib.rs`：应用主体，`pub fn run()` 中完成：
   - 插件注册：`log`（日志后端） / `opener` / `dialog` / `store` / `global-shortcut` / `single-instance` / `updater`。
-  - 命令注册：`invoke_handler!` 注册全部 24 个命令（v0.4.0 新增 `get_theme` / `set_theme`）。
+  - 命令注册：`invoke_handler!` 注册全部 23 个命令（v0.4.0 新增 `get_theme` / `set_theme`；2026-11-16 第 4 批新增 `open_path`）。
   - `setup` 钩子：创建应用数据目录、初始化全局快捷键、构建系统托盘（显示/退出菜单 + 左键点击显示窗口）。
   - 窗口事件处理：主窗口关闭请求被拦截为 `hide()`（最小化到托盘）。
   - `single-instance` 回调：二次启动时显示并聚焦主窗口。
@@ -328,10 +332,13 @@ sensend/
 | 命令 | 签名 | 说明 |
 |------|------|------|
 | `read_note` | `(app) -> Result<String>` | 读取 `app_data_dir/note.json`（v0.4.0 起），兜底读旧 `note.md` |
-| `save_note` | `(app, content: String) -> Result<()>` | 写入 `note.json`（tmp 改名原子写入） |
+| `save_note` | `(app, content: String) -> Result<()>` | 写入 `note.json`（tmp 改名原子写入；**进程内串行锁 + pid/序号唯一 tmp 名**） |
 | `hide_window` | `(app) -> Result<()>` | 隐藏主窗口 |
 | `open_data_dir` | `(app) -> Result<()>` | 在文件管理器中打开数据目录 |
+| `open_path` | `(path: String) -> Result<()>` | 打开本地发送结果文件（只接受存在的绝对路径） |
 | `request_quit` | `(app) -> Result<()>` | `app.exit(0)` 退出应用 |
+
+> **保存为什么要锁**（2026-11-16 n-01）：前端 `inFlightSave` 只守在单个编辑器实例上，命令层却是全局入口（重试、退出前 flush、未来多窗口都会进来）。旧实现固定用 `.note.json.tmp` 一个路径，两个 save 并发时后进者会截断先进者正在写的内容，rename 后落盘的就是残缺文件。现在整段「建 tmp → 写 → sync → rename」在 `SAVE_LOCK` 内完成，tmp 名带 pid + 自增序号，绕过锁也撞不上。
 
 #### 5.2.2 `platform.rs` — 平台实例与发送
 
@@ -343,11 +350,10 @@ sensend/
 | `save_platform_instance` | 新增或更新实例，emit `instances-updated` |
 | `delete_platform_instance` | 删除实例，emit `instances-updated` |
 | `test_platform_connection` | 调用适配器 `test_connection` |
-| `probe_target` | 探测目标类型（page/database/bitable）|
 | `publish_note` | 核心：按 `publish_mode` 分发到 `publish` 或 `append_blocks` |
 | `get_default_target` | 读取后端 config.json 中记忆的默认发送目标 ID（v0.3.0 新增）|
 | `set_default_target` | 写入默认发送目标 ID 到后端 config.json（v0.3.0 新增）|
-| `get_theme` | 读取主题 ID（light/dark/wenyi/tech），默认 light（v0.4.0 新增）|
+| `get_theme` | 读取主题 ID（light/dark/wenyi/tech/ink），默认 light（v0.4.0 新增）|
 | `set_theme` | 写入主题 ID + 窗口底色到 config.json + emit `theme-updated` 通知两窗口（v0.4.0 新增）|
 
 **适配器工厂** `get_adapter(platform_type)` 根据 `platform_type` 字符串返回 `Box<dyn PlatformAdapter>`。
@@ -366,15 +372,15 @@ sensend/
 
 > 注：发送快捷键并非全局注册，而是在前端 `useHotkey.ts` 中通过 `document.keydown` 监听拦截（仅当编辑器聚焦时生效）。
 
-#### 5.2.4 `font.rs` — 用户字体
+#### 5.2.4 `memory_trim.rs` — 隐藏即瘦身
 
-| 命令 | 说明 |
+窗口隐藏 10 秒后修剪 `sensend.exe` + 全部 WebView2 子进程的工作集（`SetProcessWorkingSetSizeEx(-1,-1)`），零新增依赖，直接声明 kernel32 FFI。
+
+| 要点 | 说明 |
 |------|------|
-| `scan_user_fonts` | 扫描 `app_data_dir/fonts/` 下的 `ttf/otf/woff2/ttc` 文件，返回 `{name, path}`，path 转为 `https://asset.localhost/...` 供前端 `@font-face` 加载 |
-| `open_fonts_dir` | 打开字体目录（不存在则创建）|
-| `delete_user_font` | 按显示名删除字体文件 |
-
-`strip_font_weight_suffix`：剥离 `-Regular/-Bold/-Italic` 等字重后缀，使同族不同字重合并为单一显示名。
+| `VISIBILITY_TICKET` | 可见性票号：hide/show 都自增，延迟线程只在「票号没变」时执行，避免隐藏后马上唤起被误修剪 |
+| 进程树收集 | `CreateToolhelp32Snapshot` 拿全系统 (pid, ppid)，从自身 pid 做 BFS（`visited` 防环） |
+| **映像名白名单** | 修剪前用 `QueryFullProcessImageNameW` 核对映像名，只认「自身 exe 名 + `msedgewebview2.exe`」（2026-11-16 n-05：快照到 OpenProcess 之间 pid 可能被系统复用给别的程序，不校验就会误修剪无关进程） |
 
 ### 5.3 适配器层：`src-tauri/src/adapters/`
 
@@ -442,7 +448,7 @@ pub trait PlatformAdapter: Send + Sync {
 
 #### `useSensendEditor(instances, platformTypes)` — [useEditor.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditor.ts)
 
-编辑器核心。返回 `editor/saveStatus/wordCount/charCount/getMentionId/setMention/setOnMentionChange/markSent`。
+编辑器核心。返回 `editor/saveStatus/wordCount/getMentionId/setMention/setOnMentionChange/markSent`（`charCount` 于 2026-11-16 作为死代码删除，界面只显示字数）。
 
 关键内部逻辑：
 - **TipTap 初始化**：`StarterKit` + `Placeholder` + `Mention`（自定义 `renderHTML`、`suggestion` 配置）+ `TableKit`（表格扩展，v0.2.0 起）+ `SentMarkExtension`（发送成功标记，v0.4.0 新增）。
@@ -470,10 +476,6 @@ pub trait PlatformAdapter: Send + Sync {
 #### `useEditorFormat(editor)` — [useEditorFormat.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditorFormat.ts)
 
 纯函数集合，封装 TipTap chain 操作（toggleBold/toggleH1/toggleBulletList…）与 `isActive` 判定。
-
-#### `useEditorFont()` — [useEditorFont.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useEditorFont.ts)
-
-字体切换与加载。`applyUserFonts` 动态注入 `@font-face` style，更新 `--font-editor` CSS 变量；当前字体被删除时回退到默认。
 
 #### `useHotkey(publishNote, editorRef, isSending)` — [useHotkey.ts](file:///f:/fzz-Project/2-sensend/sensend/src/composables/useHotkey.ts)
 
@@ -637,7 +639,7 @@ publishNote(editor, resolvedTargetId)
 
 ```
 lib.rs
-  ├── commands::{note, platform, hotkey, font}
+  ├── commands::{note, platform, hotkey, updater}
   │     └── adapters (via platform.rs::get_adapter)
   └── adapters::{mod, ir, markdown, notion, flowus, lark, local, test_helpers}
         ├── mod.rs: PlatformAdapter trait, http_client, 类型
@@ -654,7 +656,6 @@ App.vue
   ├── usePlatform ── useToast
   ├── useSensendEditor ── types/platform, MentionList.vue
   ├── useEditorFormat
-  ├── useEditorFont
   └── useHotkey
 ConfigWindow.vue
   └── useConfig ── types/platform
@@ -709,7 +710,7 @@ npm run tauri build
 - **窗口**：`main` 窗口 `420×210`，`decorations: false`、`alwaysOnTop: true`、`skipTaskbar: true`、`visibleOnAllWorkspaces: true`。
 - **构建**：`beforeDevCommand: npm run dev`、`devUrl: http://localhost:1420`、`frontendDist: ../dist`。
 - **打包**：`targets: ["nsis"]`，安装模式 `currentUser`，语言中英文。
-- **CSP**：`script-src 'self'`（无 unsafe-eval）、`connect-src` 仅 IPC（前端零直连网络），补 `object-src` / `base-uri` / `form-action`；`asset.localhost` 加载本地字体与图片。
+- **CSP**：`script-src 'self'`（无 unsafe-eval）、`connect-src` 仅 IPC（前端零直连网络），补 `object-src` / `base-uri` / `form-action`；不开 asset 协议（无本地资源直读需求）。
 - **标识符**：`com.jloft.sensend`。
 
 ### 9.6 权限声明（`capabilities/default.json`）
@@ -734,7 +735,6 @@ npm run tauri build
 |----------|------|
 | `note.json` | 当前编辑器内容（TipTap JSON 字符串，v0.4.0 起从 note.md 迁移；旧 note.md 自动兜底读取）|
 | `config.json` | 平台实例列表、快捷键配置、默认目标、主题设置 |
-| `fonts/` | 用户字体文件（ttf/otf/woff2/ttc）|
 
 > Windows 默认路径：`C:\Users\<user>\AppData\Roaming\com.jloft.sensend\`
 
@@ -747,9 +747,9 @@ npm run tauri build
 - `hotkey_show`：唤醒快捷键字符串。
 - `hotkey_send`：发送快捷键字符串。
 - `default_target`：上次发送/选择的平台实例 ID，用于启动时恢复默认目标（v0.3.0 起从 localStorage 迁移至此）。
-- `theme`：主题 ID（`light`/`dark`/`wenyi`/`tech`），默认 `light`（v0.4.0 新增）。
+- `theme`：主题 ID（`light`/`dark`/`wenyi`/`tech`/`ink`），默认 `light`（v0.4.0 新增）。
 
-> **凭证加密（v0.5.x 安全加固）**：加解密只发生在 `commands/platform.rs` 的存/读边界——保存实例或授权码时加密落盘，读取时解密，业务层与前端全程拿明文内存值。旧明文兼容读取；启动时 `migrate_credentials_at_startup` 幂等迁移残留明文，首次迁移前备份整份 `config.json` → `config.json.bak`（可回滚）。密文绑死「本机 + 当前 Windows 账户」，拷到别处无法解密（错误提示引导重新填写授权码）。
+> **凭证加密（v0.5.x 安全加固）**：加解密只发生在 `commands/platform.rs` 的存/读边界——保存实例或授权码时加密落盘，读取时解密，业务层与前端全程拿明文内存值。旧明文兼容读取；启动时 `migrate_credentials_at_startup` 幂等迁移残留明文，首次迁移前备份整份 `config.json` → `config.json.bak`（可回滚）。**明文备份不会长期留存**：迁移写盘后回读校验（可解析 + 至少一个凭证 + 每个凭证都能解密）通过即当场删除；历史遗留的 `config.json.pre-encrypt-backup` 一并纳入同一清理名单（`PLAINTEXT_BACKUPS`）。校验不通过（配置损坏 / 跨机解不开 / 仍有明文 / 无凭证）则保留备份并 warn，等下个启动周期再试。密文绑死「本机 + 当前 Windows 账户」，拷到别处无法解密（错误提示引导重新填写授权码）。
 
 ### 10.3 前端 localStorage
 

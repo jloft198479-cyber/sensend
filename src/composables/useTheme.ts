@@ -15,12 +15,19 @@ export interface ThemeMeta {
   windowBg: string
 }
 
+// 本文件是「主题元数据」的唯一真源（token 源头之一，故 check-tokens 对颜色字面量豁免）。
+// 字段约束（check-contrast 门禁会校验，不是君子协定）：
+//   1. id 必须与 styles/themes/<id>.css 一一对应；
+//   2. windowBg 必须等于该主题 CSS 的 --bg —— 否则切主题时窗口会先闪一下别的底色；
+//   3. preview 只是菜单里的身份色点，**不要求**等于 --accent：深色主题的 accent
+//      画成小圆点会糊成一团，取更亮/更中性的近似色反而更好认（ink 就是这个原因取 #5A6570，
+//      见 ink.css 顶部说明）。这条差异是有意的，不是色值漂移。
 export const THEMES: ThemeMeta[] = [
   { id: 'light', name: '草绿', preview: '#2CAF68', windowBg: '#ffffff' },
   { id: 'dark', name: '暗夜', preview: '#1a1a1a', windowBg: '#1a1a1a' },
   { id: 'wenyi', name: '秋珀', preview: '#a17a45', windowBg: '#faf8f3' },
   { id: 'tech', name: '魅蓝', preview: '#3b82f6', windowBg: '#fbfcfe' },
-  { id: 'ink', name: '墨白', preview: '#1a1a1a', windowBg: '#ffffff' },
+  { id: 'ink', name: '墨白', preview: '#5A6570', windowBg: '#ffffff' },
 ]
 
 /** 当前主题（跨组件共享的单一状态） */

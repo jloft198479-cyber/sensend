@@ -31,39 +31,55 @@ impl FlowUsAdapter {
         
         log::debug!("[FlowUs] {} {}", method, url);
         
-        let mut req = match method {
-            "GET" => client.get(&url),
-            "POST" => client.post(&url),
-            "PATCH" => client.patch(&url),
-            "DELETE" => client.delete(&url),
-            _ => return Err(format!("不支持的 HTTP 方法: {}", method)),
-        };
-        
-        req = req.header("Authorization", format!("Bearer {}", token));
-        
-        if let Some(b) = body {
-            req = req.json(&b);
-            log::debug!("[FlowUs] 请求体: {}", serde_json::to_string(&b).unwrap_or_default());
+        let mut attempt: u32 = 0;
+        loop {
+            let mut req = match method {
+                "GET" => client.get(&url),
+                "POST" => client.post(&url),
+                "PATCH" => client.patch(&url),
+                "DELETE" => client.delete(&url),
+                _ => return Err(format!("不支持的 HTTP 方法: {}", method)),
+            };
+            
+            req = req.header("Authorization", format!("Bearer {}", token));
+            
+            if let Some(b) = &body {
+                req = req.json(b);
+                // [m-11 修复] 只记录请求体大小，不打印正文——正文是用户笔记，调试日志不应落盘
+                log::debug!("[FlowUs] 请求体字节数: {}", serde_json::to_string(b).map(|s| s.len()).unwrap_or(0));
+            }
+            
+            let res = req.send().await.map_err(|e| format!("请求失败: {}", e))?;
+            let status = res.status();
+
+            // [M-11] 限流/网关抖动就地吸收，减少"分片写到一半失败 → 用户手动重试 → 重复内容"
+            if !status.is_success()
+                && super::is_retryable_status(status.as_u16(), method)
+                && attempt < super::MAX_RETRIES
+            {
+                attempt += 1;
+                log::warn!("[FlowUs] {} 返回 {}，第 {} 次重试", path, status, attempt);
+                tokio::time::sleep(super::retry_backoff(attempt)).await;
+                continue;
+            }
+            
+            let body: Value = res.json().await.unwrap_or_default();
+            
+            log::debug!("[FlowUs] 响应状态: {}", status);
+            // [m-11 修复] 只记录响应体大小，不打印正文（可能含用户信息/链接）
+            log::debug!("[FlowUs] 响应体字节数: {}", serde_json::to_string(&body).map(|s| s.len()).unwrap_or(0));
+            
+            if !status.is_success() {
+                let default_msg = format!("HTTP 错误 ({})", status);
+                let msg = body.get("message").and_then(|m| m.as_str())
+                    .unwrap_or(&default_msg);
+                // 状态码必须始终入串：resolve_target 的 404 降级判定依赖 contains("404")，
+                // 平台自定义 message（可能是中文）不能顶掉它（对齐 notion.rs 同款约定）
+                return Err(format!("FlowUs API (HTTP {}): {}", status.as_str(), msg));
+            }
+            
+            return Ok(body);
         }
-        
-        let res = req.send().await.map_err(|e| format!("请求失败: {}", e))?;
-        
-        let status = res.status();
-        let body: Value = res.json().await.unwrap_or_default();
-        
-        log::debug!("[FlowUs] 响应状态: {}", status);
-        log::debug!("[FlowUs] 响应体: {}", serde_json::to_string(&body).unwrap_or_default());
-        
-        if !status.is_success() {
-            let default_msg = format!("HTTP 错误 ({})", status);
-            let msg = body.get("message").and_then(|m| m.as_str())
-                .unwrap_or(&default_msg);
-            // 状态码必须始终入串：resolve_target 的 404 降级判定依赖 contains("404")，
-            // 平台自定义 message（可能是中文）不能顶掉它（对齐 notion.rs 同款约定）
-            return Err(format!("FlowUs API (HTTP {}): {}", status.as_str(), msg));
-        }
-        
-        Ok(body)
     }
 
     // ── FlowUs 标准注解 ──
@@ -135,7 +151,8 @@ impl FlowUsAdapter {
                 out.push(json!({
                     "type": "code",
                     "data": {
-                        "rich_text": [make_rich_element(code, &[])],
+                        // [M-08] 单个 rich_text content 有长度上限，整段代码塞一个元素里会被拒收
+                        "rich_text": split_plain_rich(code),
                         "language": lang
                     }
                 }));
@@ -154,16 +171,15 @@ impl FlowUsAdapter {
                 for row in &table.rows {
                     let mut row_cells: Vec<Value> = Vec::new();
                     for cell in row {
-                        // 单元格保留完整多段 rich_text（对齐 Notion d2d8909 修复，不再只取 rt[0]）
+                        // [M-09] `cells` 是二维数组：外层每项是一列，每列本身是一个
+                        // rich_text 数组，列数必须等于 table_width（见 FlowUs 操作手册
+                        // 「表格」一节，与 notion.rs 同构）。原代码 `extend(rt)` 把每格的
+                        // 多个样式段摊成了多个「列位」——一格两段就占两列，后面整体右移。
                         let rt = map_rich_text(cell);
-                        if rt.is_empty() {
-                            row_cells.push(json!({"type": "text", "text": {"content": "", "link": null}}));
-                        } else {
-                            row_cells.extend(rt);
-                        }
+                        row_cells.push(json!(rt));
                     }
                     while row_cells.len() < col_count {
-                        row_cells.push(json!({"type": "text", "text": {"content": "", "link": null }}));
+                        row_cells.push(empty_cell());
                     }
                     rows.push(json!({
                         "type": "table_row",
@@ -332,19 +348,44 @@ impl FlowUsAdapter {
         blocks: Vec<Value>,
     ) -> Result<(), String> {
         // 普通块攒批（每批最多 100 个），表格块两步走
+        let total = blocks.len();
+        let mut written = 0usize;
+        // [M-11] 半途失败要交代进度：平台上已经写进去的块不会自己消失，
+        // 用户不知道就会重点一次，产生重复内容
+        let progress = |e: &str, done: usize| -> String {
+            format!(
+                "已写入 {}/{} 块后中断：{}（平台上已保留这 {} 块，请先删除再重试，否则会重复）",
+                done, total, e, done
+            )
+        };
+
         let mut batch: Vec<Value> = Vec::new();
         for block in blocks {
             if block.get("type").and_then(|t| t.as_str()) == Some("table") {
-                self.flush_batch(token, page_id, &mut batch).await?;
-                self.append_table(token, page_id, block).await?;
+                let n = batch.len();
+                self.flush_batch(token, page_id, &mut batch)
+                    .await
+                    .map_err(|e| progress(&e, written))?;
+                written += n;
+                match self.append_table(token, page_id, block).await {
+                    Ok(()) => written += 1,
+                    // 表格可能已建壳（n=1）或完全没建（n=0），按实际数字报，别少报
+                    Err((n, e)) => return Err(progress(&e, written + n)),
+                }
             } else {
                 batch.push(block);
                 if batch.len() >= 100 {
-                    self.flush_batch(token, page_id, &mut batch).await?;
+                    let n = batch.len();
+                    self.flush_batch(token, page_id, &mut batch)
+                        .await
+                        .map_err(|e| progress(&e, written))?;
+                    written += n;
                 }
             }
         }
-        self.flush_batch(token, page_id, &mut batch).await?;
+        self.flush_batch(token, page_id, &mut batch)
+            .await
+            .map_err(|e| progress(&e, written))?;
         Ok(())
     }
 
@@ -370,12 +411,15 @@ impl FlowUsAdapter {
     }
 
     /// 表格两步走：先建 table 壳（剥离顶层 children），再按 100/批把行挂到壳下
+    /// 建表格：先建壳、再把行挂壳下。
+    /// 失败时返回 (已落地的表格块数, 错误)：建壳失败 = 0，行失败 = 1（壳已存在），
+    /// 供调用方拼出准确的整体进度——报少了用户会残留半张表。
     async fn append_table(
         &self,
         token: &str,
         page_id: &str,
         table_block: Value,
-    ) -> Result<(), String> {
+    ) -> Result<(), (usize, String)> {
         let rows: Vec<Value> = match table_block.get("children") {
             Some(Value::Array(rows)) => rows.clone(),
             _ => Vec::new(),
@@ -390,14 +434,16 @@ impl FlowUsAdapter {
             &format!("/blocks/{}/children", page_id),
             token,
             Some(body),
-        ).await?;
+        ).await.map_err(|e| (0usize, e))?;
         let table_id = res.get("results")
             .and_then(|r| r.as_array())
             .and_then(|arr| arr.first())
             .and_then(|b| b.get("id"))
             .and_then(|id| id.as_str())
-            .ok_or("创建表格失败：未返回表格块 ID")?
+            .ok_or((1usize, "创建表格失败：未返回表格块 ID".to_string()))?
             .to_string();
+        let total_rows = rows.len();
+        let mut written_rows = 0usize;
         for chunk in rows.chunks(100) {
             let body = json!({ "children": chunk });
             self.request(
@@ -405,7 +451,20 @@ impl FlowUsAdapter {
                 &format!("/blocks/{}/children", table_id),
                 token,
                 Some(body),
-            ).await?;
+            )
+            .await
+            .map_err(|e| {
+                // 表格是「壳 + 行」两步写的：壳已经建出来了，光删 1 个块不够，
+                // 必须把整张表删掉，否则重试会多出一张半成品表
+                (
+                    1usize,
+                    format!(
+                        "表格已创建（table_id={}），但行写入失败：已写入 {}/{} 行。请整块删除这张表后重试：{}",
+                        table_id, written_rows, total_rows, e
+                    ),
+                )
+            })?;
+            written_rows += chunk.len();
         }
         Ok(())
     }
@@ -420,9 +479,9 @@ impl PlatformAdapter for FlowUsAdapter {
         
         // 获取页面信息
         match self.request("GET", &format!("/pages/{}", target_id), &instance.token, None).await {
-            Ok(result) => {
+            Ok(_result) => {
                 log::info!("[FlowUs] 测试连接成功");
-                log::debug!("[FlowUs] 页面信息: {}", result);
+                // [m-11 修复] 不再打印页面信息整对象（可能含笔记标题等元数据）
                 Ok(())
             }
             Err(e) => {
@@ -480,7 +539,17 @@ impl PlatformAdapter for FlowUsAdapter {
         
         // 追加内容到新页面
         if !blocks.is_empty() {
-            self.append_children(&instance.token, &page_id, blocks).await?;
+            let block_count = blocks.len();
+            self.append_children(&instance.token, &page_id, blocks)
+                .await
+                .map_err(|e| {
+                    // [m-03] 页面外壳已经建好了，平台上留着一篇空文档。错误必须带上
+                    // 链接和块数，否则用户只看到"发送失败"，不知道平台上多了个空页
+                    format!(
+                        "页面已创建（{}），但正文写入失败（共 {} 块）：{}。请到该页面补内容或删除后重试",
+                        page_url, block_count, e
+                    )
+                })?;
             log::info!("[FlowUs] 追加内容成功");
         }
 
@@ -581,6 +650,24 @@ fn make_rich_element(text: &str, marks: &[super::ir::Mark]) -> Value {
     Value::Object(obj)
 }
 
+/// 空单元格：`cells` 是二维数组，一格 = 一个 rich_text 数组（补列用）
+fn empty_cell() -> Value {
+    json!([make_rich_element("", &[])])
+}
+
+/// 纯文本 → FlowUs rich_text 数组，按 2000 字符切片。
+/// 代码块专用：不带任何 annotations，只保证内容完整、不超单元素长度上限。
+fn split_plain_rich(text: &str) -> Vec<Value> {
+    if text.is_empty() {
+        return vec![make_rich_element("", &[])];
+    }
+    text.chars()
+        .collect::<Vec<char>>()
+        .chunks(2000)
+        .map(|c| make_rich_element(&c.iter().collect::<String>(), &[]))
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -654,7 +741,8 @@ mod tests {
         let fixture = test_helpers::load_fixture("table_with_inline");
         let blocks = convert(&fixture);
         assert_eq!(blocks[0]["type"], "table", "表格必须包 table 壳（裸 table_row 会被 v1 拒 400）");
-        let cell = &blocks[0]["children"][0]["data"]["cells"][0];
+        // cells 是二维数组：cells[行] → [列] → rich_text 数组 → 段
+        let cell = &blocks[0]["children"][0]["data"]["cells"][0][0];
         assert_eq!(cell["annotations"]["bold"], json!(true), "表头第一格粗体应保留");
     }
 
@@ -685,10 +773,67 @@ mod tests {
         let blocks = convert(&doc);
         assert_eq!(blocks[0]["type"], "table");
         let cells = blocks[0]["children"][0]["data"]["cells"].as_array().unwrap();
-        // 单元格应为多段 rich_text（2 段），不是 1 段
-        assert_eq!(cells.len(), 2, "混合样式单元格应保留全部段落: {:?}", cells);
-        assert_eq!(cells[0]["text"]["content"], json!("粗体"));
-        assert_eq!(cells[0]["annotations"]["bold"], json!(true));
-        assert_eq!(cells[1]["text"]["content"], json!("普通"));
+        // [M-09] cells 是二维数组（一格 = 一个 rich_text 数组）：
+        // 1 列表格 = 1 项，且这一项里保留格内的全部样式段（粗体 + 普通 = 2 段）。
+        // 原断言写的是 cells.len()==2，等于把「段数当列数」的错误结构固化成了期望行为。
+        assert_eq!(
+            cells.len(), 1,
+            "1 列表格只能有 1 个 cell（段数不能当列数，否则整行右移）: {:?}", cells
+        );
+        let segs = cells[0].as_array().unwrap();
+        assert_eq!(segs.len(), 2, "格内多段样式必须保留为 2 段 rich_text: {:?}", segs);
+        assert_eq!(segs[0]["text"]["content"], json!("粗体"));
+        assert_eq!(segs[0]["annotations"]["bold"], json!(true));
+        assert_eq!(segs[1]["text"]["content"], json!("普通"));
+    }
+
+    #[test]
+    fn table_col_count_matches_columns_not_segment_count() {
+        // 2 行 × 2 列，每格都含两段样式：cells 长度必须恒等于列数（2），
+        // 而不是段数（4）——否则后续每列都会错位
+        let doc = serde_json::json!({
+            "type": "doc",
+            "content": [{
+                "type": "table",
+                "attrs": { "col_count": 2 },
+                "content": [
+                    { "type": "tableRow", "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [
+                            { "type": "text", "text": "A1", "marks": [{ "type": "bold" }] },
+                            { "type": "text", "text": "-补" }
+                        ]}]},
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [
+                            { "type": "text", "text": "B1" },
+                            { "type": "text", "text": "-补", "marks": [{ "type": "italic" }] }
+                        ]}]}
+                    ]},
+                    { "type": "tableRow", "content": [
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [
+                            { "type": "text", "text": "A2" }, { "type": "text", "text": "x" }
+                        ]}]},
+                        { "type": "tableCell", "content": [{ "type": "paragraph", "content": [
+                            { "type": "text", "text": "B2" }, { "type": "text", "text": "y" }
+                        ]}]}
+                    ]}
+                ]
+            }]
+        });
+        let blocks = convert(&doc);
+        let table_rows = blocks[0]["children"].as_array().unwrap();
+        for (i, row) in table_rows.iter().enumerate() {
+            let cells = row["data"]["cells"].as_array().unwrap();
+            // 列数恒等于 2（不是段数 4），这是 table_width 的唯一依据
+            assert_eq!(cells.len(), 2, "第 {} 行应恰好 2 个 cell: {:?}", i, cells);
+            for (j, cell) in cells.iter().enumerate() {
+                assert_eq!(
+                    cell.as_array().map(|a| a.len()), Some(2),
+                    "第 {} 行第 {} 格应保留 2 段样式: {:?}", i, j, cell
+                );
+            }
+        }
+        assert_eq!(table_rows[0]["data"]["cells"][0][0]["text"]["content"], json!("A1"));
+        assert_eq!(table_rows[0]["data"]["cells"][0][1]["text"]["content"], json!("-补"));
+        assert_eq!(table_rows[0]["data"]["cells"][1][0]["text"]["content"], json!("B1"));
+        assert_eq!(table_rows[0]["data"]["cells"][1][1]["text"]["content"], json!("-补"));
     }
 }

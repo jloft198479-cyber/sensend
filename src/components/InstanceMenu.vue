@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch, nextTick } from 'vue'
+import { ref, watch, nextTick, onMounted } from 'vue'
 import type { InstanceItem } from '../types/platform'
 
 // ═══ 平台实例选择列表 —— 底栏目标弹窗 / 编辑器 @ 列表的唯一格式真源 ═══
@@ -23,10 +23,24 @@ const selectedIndex = ref(0)
 const hoverIndex = ref<number | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 
+/** [m-21] 打开时把高亮定位到「当前目标」而不是永远第一项：
+ *  用户打开列表就是为了确认/改当前目标，光标落在第一项会让人多按一次方向键。 */
+function syncSelectedToActive() {
+  const idx = props.activeId ? props.items.findIndex(i => i.id === props.activeId) : -1
+  selectedIndex.value = idx >= 0 ? idx : 0
+}
+
 watch(() => props.items, () => {
-  selectedIndex.value = 0
+  syncSelectedToActive()
   hoverIndex.value = null
-})
+}, { immediate: true })
+
+// [m-21] activeId 也会自己变：编辑器里改 @mention 目标会同步底栏当前目标（App.vue 的
+// onMentionChange）。只盯 items 的话，重开列表时高亮仍停在上次鼠标点的那项，
+// 一按回车就选错目标。两项都要跟。
+watch(() => props.activeId, () => {
+  syncSelectedToActive()
+}, { immediate: true })
 
 // ── 平台图标字形（唯一规则源：key → 字形；底色在 themes/*.css 的 --plat-* token）──
 // 字形缺省取类型 key 首字母大写；'folder' 渲染文件夹 SVG
@@ -41,12 +55,18 @@ function platGlyph(type: string): string {
 }
 
 // 键盘选中项自动滚动到可见区域
-watch(selectedIndex, async () => {
+async function scrollSelectedIntoView() {
   await nextTick()
   if (!listRef.value || hoverIndex.value !== null) return
   const selected = listRef.value.querySelector('.inst-item.is-selected') as HTMLElement
   if (selected) selected.scrollIntoView({ block: 'nearest' })
-})
+}
+watch(selectedIndex, () => { void scrollSelectedIntoView() })
+
+// [m-21] 首次挂载补一次滚动：高亮在 setup 阶段就由 immediate 的 watch 定好了，
+// selectedIndex 之后不再变化 → 上面的 watch 不会触发。实例超过一屏（默认 8 行）时，
+// 打开弹窗看不到高亮，按一下 ↓ 才突然跳过去。
+onMounted(() => { void scrollSelectedIntoView() })
 
 function onKeyDown(event: KeyboardEvent): boolean {
   if (props.items.length === 0) return false
@@ -71,6 +91,16 @@ function selectItem(index: number) {
   if (item) emit('select', item)
 }
 
+/** [m-21] Tab 焦点进入某行时，把「键盘选中」同步到该行：
+ *  列表里只有一个**选中态**（.is-selected 的 hover 底 + 内描边），
+ *  而「焦点在哪」由 base.css 的 `button:focus-visible` 实色环给出（≥3:1，看得见）。
+ *  注意：这里**不能**写 outline:none —— scoped 选择器特异性高于全局 :focus-visible，
+ *  会把键盘焦点提示整个抹掉（本行原来的 bug）。 */
+function onItemFocus(index: number) {
+  hoverIndex.value = null
+  selectedIndex.value = index
+}
+
 defineExpose({ onKeyDown })
 </script>
 
@@ -85,6 +115,7 @@ defineExpose({ onKeyDown })
         active: item.id === activeId,
       }"
       @click="selectItem(index)"
+      @focus="onItemFocus(index)"
       @mouseenter="hoverIndex = index"
       @mouseleave="hoverIndex = null"
       :aria-label="item.label"
@@ -176,7 +207,8 @@ defineExpose({ onKeyDown })
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
-  outline: none;
+  /* 不再 outline:none —— 那会把全局 :focus-visible 的实色焦点环压掉（scoped 特异性更高），
+     键盘用户 Tab 进来后完全看不出焦点在哪。焦点环走 base.css 统一规则。 */
   transition: background var(--dur-fast);
 }
 .inst-item:hover,

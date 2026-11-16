@@ -13,13 +13,16 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const THEMES = [
-  { id: 'light', name: '草绿', file: 'src/styles/themes/light.css' },
-  { id: 'dark', name: '暗夜', file: 'src/styles/themes/dark.css' },
-  { id: 'wenyi', name: '秋珀', file: 'src/styles/themes/wenyi.css' },
-  { id: 'tech', name: '魅蓝', file: 'src/styles/themes/tech.css' },
-  { id: 'ink', name: '墨白', file: 'src/styles/themes/ink.css' },
-]
+const THEME_DIR = path.join(ROOT, 'src/styles/themes')
+const THEME_REGISTRY = path.join(ROOT, 'src/composables/useTheme.ts')
+
+// [m-26] 主题清单改为从目录派生：手写清单会漏（新增主题忘了加）也会过期（删了还留着）。
+// 唯一真源 = src/styles/themes/*.css；再与 useTheme.ts 的注册表交叉校验，两边必须一一对应。
+const THEMES = fs
+  .readdirSync(THEME_DIR)
+  .filter((f) => f.endsWith('.css'))
+  .sort()
+  .map((f) => ({ id: f.replace(/\.css$/, ''), file: `src/styles/themes/${f}` }))
 
 /** 需要校验的色对（fg/bg 为 CSS 变量名，min 为 WCAG 门槛） */
 const PAIRS = [
@@ -32,6 +35,10 @@ const PAIRS = [
   { label: '可读色/淡底', fg: '--accent-strong', bg: '--accent-light', min: 4.5 },
   { label: '按钮字/底', fg: '--fg-on-accent', bg: '--accent-fill', min: 4.5 },
   { label: '描边/输入底', fg: '--control-border', bg: '--gray-input-bg', min: 3.0 },
+  // [m-25] 焦点环是「非文本 UI 组件」，WCAG 1.4.11 门槛 3:1。
+  // 以前它是 0.35 透明度的主色，实测 1.4~2.5:1 —— 键盘用户根本看不见焦点在哪。
+  { label: '焦点环/主面', fg: '--focus-ring', bg: '--bg', min: 3.0 },
+  { label: '焦点环/次面', fg: '--focus-ring', bg: '--bg-page', min: 3.0 },
   { label: '危险字/底', fg: '--danger', bg: '--danger-bg', min: 4.5 },
   { label: '成功字/底', fg: '--success-text', bg: '--success-bg', min: 4.5 },
   { label: '警告字/底', fg: '--warning-text', bg: '--warning-bg', min: 4.5 },
@@ -40,10 +47,17 @@ const PAIRS = [
 function readVars(file) {
   const css = fs.readFileSync(file, 'utf8')
   const vars = new Map()
+  const problems = []
   for (const m of css.matchAll(/--([\w-]+)\s*:\s*([^;]+);/g)) {
-    vars.set(`--${m[1]}`, m[2].trim())
+    const key = `--${m[1]}`
+    // [m-26] 同名变量重复定义：Map 会静默保留最后一次，读者以为生效的是前者。
+    // 取值相同也算问题——日后再改只会改到一处，立刻变成「改了没生效」的疑难杂症。
+    if (vars.has(key)) {
+      problems.push(`重复定义：${key}（已出现 ${vars.get(key)}，又出现 ${m[2].trim()}）`)
+    }
+    vars.set(key, m[2].trim())
   }
-  return vars
+  return { vars, problems }
 }
 
 /** 解析 #rgb / #rrggbb / rgb() / rgba()，统一按 0-255 + alpha 0-1 返回 */
@@ -107,13 +121,45 @@ const rows = []
 const problems = []
 let referenceKeys = null
 
+// [m-26] 与主题注册表交叉校验：CSS 里有的主题必须在 useTheme.ts 注册（否则菜单里选不到），
+// 反向也一样（注册了却没有 CSS 文件 = 切过去掉默认色）。
+if (fs.existsSync(THEME_REGISTRY)) {
+  const ts = fs.readFileSync(THEME_REGISTRY, 'utf8')
+  const registered = new Set([...ts.matchAll(/id:\s*'([^']+)'/g)].map((m) => m[1]))
+  const onDisk = new Set(THEMES.map((t) => t.id))
+  for (const id of onDisk) if (!registered.has(id)) problems.push(`主题 ${id} 有 CSS 但未在 useTheme.ts 注册`)
+  for (const id of registered) if (!onDisk.has(id)) problems.push(`主题 ${id} 已在 useTheme.ts 注册但缺少 themes/${id}.css`)
+
+  // 窗底色必须等于该主题 --bg：不一致时切主题会先闪一下别的底色（正是这套 windowBg 存在的理由）
+  let windowBgChecked = 0
+  for (const m of ts.matchAll(/\{\s*id:\s*'([^']+)'[^}]*?windowBg:\s*'([^']+)'/g)) {
+    const [, id, windowBg] = m
+    const theme = THEMES.find((t) => t.id === id)
+    if (!theme) continue
+    const { vars } = readVars(path.join(ROOT, theme.file))
+    const bg = (vars.get('--bg') || '').trim().toLowerCase()
+    if (!bg) continue
+    windowBgChecked += 1
+    if (bg !== windowBg.trim().toLowerCase()) {
+      problems.push(`主题 ${id} 的 windowBg(${windowBg}) ≠ themes/${id}.css 的 --bg(${bg})`)
+    }
+  }
+  // 正则改成多行对象/换字段顺序就会一条都匹配不上——门禁空转还显示「全部通过」是最坏的情况
+  if (windowBgChecked === 0) {
+    problems.push('未能从 useTheme.ts 解析出任何 windowBg（正则与文件格式不匹配，门禁已空转）')
+  } else if (windowBgChecked !== THEMES.length) {
+    problems.push(`windowBg 校验覆盖 ${windowBgChecked}/${THEMES.length} 个主题（有主题没被校验到）`)
+  }
+}
+
 for (const theme of THEMES) {
   const file = path.join(ROOT, theme.file)
   if (!fs.existsSync(file)) {
     problems.push(`主题文件缺失：${theme.file}`)
     continue
   }
-  const vars = readVars(file)
+  const { vars, problems: dupProblems } = readVars(file)
+  for (const p of dupProblems) problems.push(`${theme.id}.css ${p}`)
   const keys = [...vars.keys()].sort()
 
   if (referenceKeys === null) {
@@ -122,22 +168,22 @@ for (const theme of THEMES) {
     const missing = referenceKeys.filter((k) => !vars.has(k))
     const extra = keys.filter((k) => !referenceKeys.includes(k))
     problems.push(
-      `${theme.name} 主题变量不同构：缺 [${missing.join(', ') || '无'}]，多 [${extra.join(', ') || '无'}]`,
+      `${theme.id} 主题变量不同构：缺 [${missing.join(', ') || '无'}]，多 [${extra.join(', ') || '无'}]`,
     )
   }
 
   for (const name of REQUIRED) {
-    if (!vars.has(name)) problems.push(`${theme.name} 缺少变量 ${name}`)
+    if (!vars.has(name)) problems.push(`${theme.id} 缺少变量 ${name}`)
   }
 
   for (const pair of PAIRS) {
     if (!vars.has(pair.fg) || !vars.has(pair.bg)) continue
     const ratio = contrast(vars.get(pair.fg), vars.get(pair.bg), vars)
     const pass = ratio >= pair.min - 1e-9
-    rows.push({ theme: theme.name, label: pair.label, ratio, min: pair.min, pass })
+    rows.push({ theme: theme.id, label: pair.label, ratio, min: pair.min, pass })
     if (!pass) {
       problems.push(
-        `${theme.name} ${pair.label}：${ratio.toFixed(2)} < ${pair.min}（${pair.fg} / ${pair.bg}）`,
+        `${theme.id} ${pair.label}：${ratio.toFixed(2)} < ${pair.min}（${pair.fg} / ${pair.bg}）`,
       )
     }
   }
@@ -158,7 +204,7 @@ for (const r of rows) {
 
 console.log(`\n主题变量数：${THEMES.map((t) => {
   const f = path.join(ROOT, t.file)
-  return fs.existsSync(f) ? `${t.name}=${readVars(f).size}` : `${t.name}=缺失`
+  return fs.existsSync(f) ? `${t.id}=${readVars(f).vars.size}` : `${t.id}=缺失`
 }).join('  ')}`)
 
 if (problems.length) {

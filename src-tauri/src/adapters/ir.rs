@@ -176,6 +176,31 @@ fn parse_list(node: &Value, kind: ListKind) -> Block {
                 _ => "listItem",
             };
             if item_type != expected {
+                // [n-03] 不匹配的项不能静默丢：用户在编辑器里看到的内容发出去前消失，
+                // 比报错更难排查。留日志 + 按行内内容兜底提取（文字保住，结构与标记降级）
+                log::warn!(
+                    "列表结构异常：期望 {} 实际 {}，该项按普通行内容提取",
+                    expected, item_type
+                );
+                let inlines = parse_inlines(item);
+                if !inlines.is_empty() {
+                    let checked = if kind == ListKind::Task {
+                        Some(
+                            item.get("attrs")
+                                .and_then(|a| a.get("checked"))
+                                .and_then(|c| c.as_bool())
+                                .unwrap_or(false),
+                        )
+                    } else {
+                        None
+                    };
+                    items.push(ListItem {
+                        inlines,
+                        extra_paras: Vec::new(),
+                        children: Vec::new(),
+                        checked,
+                    });
+                }
                 continue;
             }
             items.push(parse_list_item(item, kind));
@@ -254,13 +279,38 @@ fn parse_table(node: &Value) -> Table {
             let mut cells = Vec::new();
             if let Some(cells_arr) = row.get("content").and_then(|c| c.as_array()) {
                 for cell in cells_arr {
-                    cells.push(parse_inlines(cell));
+                    cells.push(parse_cell_inlines(cell));
                 }
             }
             rows.push(cells);
         }
     }
     Table { rows, col_count_hint }
+}
+
+/// 解析表格单元格：格内多段落之间插 hardBreak 分隔。
+///
+/// [M-10] 原来直接调 parse_inlines，段落边界不产生任何分隔符——用户在单元格里
+/// 按 Enter 分出的第二段会和第一段粘成一句（四个平台同时丢换行），
+/// 而列表项的多段落是做了 `\n` 分隔的，属同一类内容两种待遇。
+fn parse_cell_inlines(cell: &Value) -> Vec<Inline> {
+    let mut out: Vec<Inline> = Vec::new();
+    let Some(children) = cell.get("content").and_then(|c| c.as_array()) else {
+        return out;
+    };
+    for child in children {
+        let mut part: Vec<Inline> = Vec::new();
+        collect_inline(child, &mut part);
+        if part.is_empty() {
+            continue;
+        }
+        // 段与段之间补一次换行；上一节点已是 Break 时不重复
+        if !out.is_empty() && !matches!(out.last(), Some(Inline::Break)) {
+            out.push(Inline::Break);
+        }
+        out.extend(part);
+    }
+    out
 }
 
 /// 把嵌套列表的行内内容按文档顺序拍平，列表项/段落之间以 hardBreak 分隔。

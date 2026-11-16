@@ -10,6 +10,10 @@ use std::time::{Duration, Instant};
 
 const FEISHU_BASE: &str = "https://open.feishu.cn/open-apis";
 
+/// 飞书「触发频控」业务码：多数情况下 HTTP 仍是 200/400，只能看 code 判断，
+/// 语义与 HTTP 429 等价（请求被拒、未被处理，可安全重发）
+const FEISHU_RATE_LIMITED: i64 = 99991400;
+
 // ── 飞书 block_type 常量 ──
 const BLOCK_TEXT: i64 = 2;
 const BLOCK_HEADING1: i64 = 3;
@@ -161,40 +165,64 @@ impl LarkAdapter {
 
         log::debug!("[Lark] {} {}", method, url);
 
-        let mut req = match method {
-            "GET" => client.get(&url),
-            "POST" => client.post(&url),
-            _ => return Err(format!("不支持的 HTTP 方法: {}", method)),
-        };
+        let mut attempt: u32 = 0;
+        loop {
+            let mut req = match method {
+                "GET" => client.get(&url),
+                "POST" => client.post(&url),
+                _ => return Err(format!("不支持的 HTTP 方法: {}", method)),
+            };
 
-        req = req
-            .header("Authorization", format!("Bearer {}", token))
-            .header("Content-Type", "application/json; charset=utf-8");
+            req = req
+                .header("Authorization", format!("Bearer {}", token))
+                .header("Content-Type", "application/json; charset=utf-8");
 
-        if let Some(b) = body {
-            req = req.json(&b);
-            log::debug!("[Lark] 请求体: {}", serde_json::to_string(&b).unwrap_or_default());
-        }
-
-        let res = req.send().await.map_err(|e| format!("请求失败: {}", e))?;
-
-        let status = res.status();
-        let body: Value = res.json().await.unwrap_or_default();
-
-        log::debug!("[Lark] 响应状态: {}", status);
-
-        if let Some(code) = body.get("code").and_then(|c| c.as_i64()) {
-            if code != 0 {
-                let msg = body.get("msg").and_then(|m| m.as_str()).unwrap_or("未知错误");
-                return Err(format!("飞书 API 错误 (code={}): {}", code, msg));
+            if let Some(b) = &body {
+                req = req.json(b);
+                // [m-11 修复] 只记录请求体大小，不打印正文——正文是用户笔记
+                log::debug!("[Lark] 请求体字节数: {}", serde_json::to_string(b).map(|s| s.len()).unwrap_or(0));
             }
-        }
 
-        if !status.is_success() {
-            return Err(format!("HTTP 错误 ({})", status));
-        }
+            let res = req.send().await.map_err(|e| format!("请求失败: {}", e))?;
+            let status = res.status();
 
-        Ok(body)
+            // [M-11] 限流/网关抖动就地吸收，减少"分片写到一半失败 → 用户手动重试 → 重复"
+            if !status.is_success()
+                && super::is_retryable_status(status.as_u16(), method)
+                && attempt < super::MAX_RETRIES
+            {
+                attempt += 1;
+                log::warn!("[Lark] {} 返回 {}，第 {} 次重试", path, status, attempt);
+                tokio::time::sleep(super::retry_backoff(attempt)).await;
+                continue;
+            }
+
+            let body: Value = res.json().await.unwrap_or_default();
+
+            log::debug!("[Lark] 响应状态: {}", status);
+
+            let biz_code = body.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
+
+            // [M-11] 飞书限流主要是「HTTP 200/400 + code 99991400」，光看 HTTP 状态码看不出来。
+            // 与 429 同性质：请求被拒、没处理过，可以安全重发
+            if biz_code == FEISHU_RATE_LIMITED && attempt < super::MAX_RETRIES {
+                attempt += 1;
+                log::warn!("[Lark] 触发频控（code={}），第 {} 次重试", biz_code, attempt);
+                tokio::time::sleep(super::retry_backoff(attempt)).await;
+                continue;
+            }
+
+            if biz_code != 0 {
+                let msg = body.get("msg").and_then(|m| m.as_str()).unwrap_or("未知错误");
+                return Err(format!("飞书 API 错误 (code={}): {}", biz_code, msg));
+            }
+
+            if !status.is_success() {
+                return Err(format!("HTTP 错误 ({})", status));
+            }
+
+            return Ok(body);
+        }
     }
 
     pub fn resolve_lark_id(raw: &str) -> String {
@@ -204,7 +232,10 @@ impl LarkAdapter {
             return trimmed.to_string();
         }
 
-        let without_query = trimmed.split('?').next().unwrap_or(trimmed);
+        // [M-07] 必须连 `#` 一起剥：飞书文档链接常带 `#锚点`（定位到某个块），
+        // 只剥 `?` 会让锚点粘在 document_id 末尾，后续 API 全部报错。
+        // notion/flowus 的解析都是 split(['?','#'])，这里对齐。
+        let without_query = trimmed.split(['?', '#']).next().unwrap_or(trimmed);
         let without_trailing = without_query.trim_end_matches('/');
         let segments: Vec<&str> = without_trailing.split('/').filter(|s| !s.is_empty()).collect();
 
@@ -216,7 +247,14 @@ impl LarkAdapter {
     }
 
     fn is_wiki_url(raw: &str) -> bool {
-        raw.trim().to_lowercase().contains("/wiki/")
+        // [M-07] 先剥 query/hash 再判断：`?from=/wiki/xxx` 这类参数会把普通文档链接
+        // 误判成 wiki 链接，进而去调 get_node 拿不到节点而报错
+        raw.split(['?', '#'])
+            .next()
+            .unwrap_or(raw)
+            .trim()
+            .to_lowercase()
+            .contains("/wiki/")
     }
 
     async fn resolve_document_id(
@@ -267,6 +305,16 @@ impl LarkAdapter {
         blocks: Vec<Value>,
     ) -> Result<(), String> {
         // 按文档顺序分段发送：普通块走 children API，带 children 的嵌套块（表格）走 descendant API
+        let total = blocks.len();
+        let mut written = 0usize;
+        // [M-11] 半途失败要交代进度：已写入的块留在文档里，用户不知道就会重点一次
+        let progress = |e: &str, done: usize| -> String {
+            format!(
+                "已写入 {}/{} 块后中断：{}（文档里已保留这 {} 块，请先删除再重试，否则会重复）",
+                done, total, e, done
+            )
+        };
+
         let mut flat_batch: Vec<Value> = Vec::new();
 
         for block in blocks {
@@ -279,29 +327,47 @@ impl LarkAdapter {
             if has_children {
                 // 先冲刷平铺批次，保证内容顺序
                 if !flat_batch.is_empty() {
-                    self.append_flat_batch(client, token, document_id, &flat_batch).await?;
+                    match self
+                        .append_flat_batch(client, token, document_id, &flat_batch)
+                        .await
+                    {
+                        Ok(n) => written += n,
+                        Err((n, e)) => return Err(progress(&e, written + n)),
+                    }
                     flat_batch.clear();
                 }
-                self.append_nested_block(client, token, document_id, &block).await?;
+                self.append_nested_block(client, token, document_id, &block)
+                    .await
+                    .map_err(|e| progress(&e, written))?;
+                written += 1;
             } else {
                 flat_batch.push(block);
             }
         }
         if !flat_batch.is_empty() {
-            self.append_flat_batch(client, token, document_id, &flat_batch).await?;
+            // 最后一批：成功路径不需要再记总数，失败时才用（written + n）
+            if let Err((n, e)) = self
+                .append_flat_batch(client, token, document_id, &flat_batch)
+                .await
+            {
+                return Err(progress(&e, written + n));
+            }
         }
 
         Ok(())
     }
 
     /// 平铺块：children API，单次上限 50
+    /// 分批追加平铺块。返回已写入块数；
+    /// 失败时把「已写入块数」一并带回，供调用方拼准确的整体进度。
     async fn append_flat_batch(
         &self,
         client: &reqwest::Client,
         token: &str,
         document_id: &str,
         blocks: &[Value],
-    ) -> Result<(), String> {
+    ) -> Result<usize, (usize, String)> {
+        let mut written = 0usize;
         for (chunk_idx, chunk) in blocks.chunks(50).enumerate() {
             log::debug!("[Lark] append chunk {} 共 {} 个 block", chunk_idx, chunk.len());
 
@@ -311,9 +377,12 @@ impl LarkAdapter {
                 &format!("/docx/v1/documents/{}/blocks/{}/children", document_id, document_id),
                 token,
                 Some(json!({ "children": chunk })),
-            ).await?;
+            )
+            .await
+            .map_err(|e| (written, e))?;
+            written += chunk.len();
         }
-        Ok(())
+        Ok(written)
     }
 
     /// 嵌套块（表格）：descendant API，一次请求建整棵树，单次上限 1000 块
@@ -455,6 +524,19 @@ fn empty_element() -> Value {
     json!({ "text_run": { "content": "" } })
 }
 
+/// 纯文本 → 飞书 elements 数组（text_run 链），按 2000 字符切片。
+/// 代码块专用：不带格式，只保证内容完整、不超单元素长度上限。
+fn split_text_elements(text: &str) -> Vec<Value> {
+    if text.is_empty() {
+        return vec![empty_element()];
+    }
+    text.chars()
+        .collect::<Vec<char>>()
+        .chunks(2000)
+        .map(|c| json!({ "text_run": { "content": c.iter().collect::<String>() } }))
+        .collect()
+}
+
 /// IR 块 → 飞书 block(s)
 fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
     use super::ir::Block;
@@ -496,7 +578,9 @@ fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
                 out.push(json!({
                     "block_type": BLOCK_CODE,
                     "code": {
-                        "elements": [{ "text_run": { "content": code } }],
+                        // [M-08] 单个 text_run.content 有长度上限，超长代码块整段塞一个
+                        // 元素会被平台拒收（整篇发送失败）
+                        "elements": split_text_elements(code),
                         "style": { "language": map_language(language) }
                     }
                 }));
@@ -640,7 +724,13 @@ impl PlatformAdapter for LarkAdapter {
             "block_type": BLOCK_DIVIDER,
             "divider": {}
         })];
-        blocks.extend(tiptap_to_lark_blocks(content));
+        let content_blocks = tiptap_to_lark_blocks(content);
+        // [m-04] 空笔记不能只发一条分隔线就报"追加成功"：飞书是追加模式，
+        // 用户在文档尾部会莫名多出一条分割线，却什么内容都没有
+        if content_blocks.is_empty() {
+            return Err("笔记内容为空，未发送".into());
+        }
+        blocks.extend(content_blocks);
 
         self.append_blocks(&client, &token, &document_id, blocks).await?;
 

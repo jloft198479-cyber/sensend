@@ -32,8 +32,19 @@ function walk(dir) {
 }
 
 const problems = []
+// [m-26] 颜色字面量的「token 源头」白名单：文件本身就是颜色的定义处，不是消费处。
+// themes/*.css 是色板本体；useTheme.ts 是主题元数据注册表（preview / windowBg 只能写实色，
+// 且已被 check-contrast 校验与 CSS 一致）。除这两处外的任何颜色字面量都算违规。
+const COLOR_SOURCE_FILES = new Set([path.join(SRC, 'composables', 'useTheme.ts')])
+
 const files = walk(SRC).filter(
   (f) => /\.(vue|css)$/.test(f) && !f.includes(`${path.sep}themes${path.sep}`),
+)
+
+// 脚本/组合式里的颜色同样会漏（旧版一行都不扫 .ts）→ 只查「颜色字面量」这一条，
+// 其余规则（字号/间距/z-index…）是 CSS 语法，扫 .ts 只会产生噪音。
+const codeFiles = walk(SRC).filter(
+  (f) => /\.(ts|js)$/.test(f) && !COLOR_SOURCE_FILES.has(f),
 )
 
 for (const file of files) {
@@ -84,9 +95,22 @@ for (const file of files) {
   })
 }
 
+for (const file of codeFiles) {
+  const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/)
+  lines.forEach((raw, i) => {
+    const line = raw.trim()
+    if (!line || line.startsWith('//') || line.startsWith('*') || line.startsWith('/*')) return
+    if (COLOR.test(line)) {
+      problems.push(
+        `${path.relative(ROOT, file)}:${i + 1}  代码里禁止颜色字面量（hex/rgb/hsl），请走 CSS token  →  ${line}`,
+      )
+    }
+  })
+}
+
 if (problems.length) {
   console.log(`✗ 设计 token 检查未通过（${problems.length} 处）\n`)
   for (const p of problems) console.log(`  ${p}`)
   process.exit(1)
 }
-console.log(`✓ 设计 token 检查通过（扫描 ${files.length} 个文件，无颜色/间距/圆角/阴影/字号/字重/z-index 字面量）`)
+console.log(`✓ 设计 token 检查通过（扫描 ${files.length} 个样式文件 + ${codeFiles.length} 个脚本文件，无颜色/间距/圆角/阴影/字号/字重/z-index 字面量）`)

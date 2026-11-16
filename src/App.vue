@@ -3,7 +3,6 @@
 import TitleBar from './components/TitleBar.vue'
 import FooterBar from './components/FooterBar.vue'
 import HotkeyModal from './components/HotkeyModal.vue'
-import FontManager from './components/FontManager.vue'
 import ToastLayer from './components/ToastLayer.vue'
 import { EditorContent } from '@tiptap/vue-3'
 import { BubbleMenu } from '@tiptap/vue-3/menus'
@@ -14,7 +13,6 @@ import { computed, onMounted, ref } from 'vue'
 // ── Composables ──
 import { useSensendEditor } from './composables/useEditor'
 import { useEditorFormat } from './composables/useEditorFormat'
-import { useEditorFont } from './composables/useEditorFont'
 import { usePlatform } from './composables/usePlatform'
 import { useHotkey } from './composables/useHotkey'
 import { useToast } from './composables/useToast'
@@ -37,12 +35,14 @@ const {
   editor,
   saveStatus,
   wordCount,
-  charCount,
   getMentionId,
   setMention,
   setOnMentionChange,
   markSent,
   flushSave,
+  // [C-01] 读取失败时常驻提示条的两个入口
+  noteLoadFailed,
+  retryLoadNote,
 } = useSensendEditor(instances, platformTypes)
 
 // ── 格式操作 ──
@@ -59,18 +59,6 @@ const {
   toggleCode,
   isActive,
 } = useEditorFormat(editor)
-
-// ── 字体管理 ──
-const {
-  fontOptions,
-  currentFont,
-  showFontMenu,
-  showFontManager,
-  selectFont,
-  addFont,
-  toggleFontMenu,
-  onFontManagerRefreshed,
-} = useEditorFont()
 
 // ── 窗口操作 ──
 const isPinned = ref(true)
@@ -119,6 +107,15 @@ const resolvedTarget = computed(() => {
 })
 
 async function publishNote() {
+  // [M-06] @ 里的目标已被删除时，绝不能静默回落到「底栏默认目标」——
+  // 那会把内容发到用户没指定的地方（通常是本地文件夹），且 toast 还报成功。
+  // 只在「列表已加载出内容」时判定：启动瞬间 instances 还是空的，
+  // 这时候文里的 @ 会被误判成「目标已删除」，用户一按发送就被拦。
+  const mentionId = getMentionId()
+  if (mentionId && instances.value.length > 0 && !instances.value.some(i => i.id === mentionId)) {
+    toastError('@ 的发送目标已不存在，请点底栏重新选择目标后再发送')
+    return
+  }
   const ok = await platformPublishNote(editor.value, resolvedTarget.value?.id ?? null)
   if (ok) markSent(editor.value)
 }
@@ -173,22 +170,14 @@ async function onSaveHotkeys() {
 <template>
   <div class="sensend">
     <!-- ═══ 顶栏 ═══ -->
+    <!-- [m-23] 只传组件真正声明的 prop：多余的会变成 fallthrough attr 落到 <header> 上 -->
     <TitleBar
       :is-pinned="isPinned"
       :is-sending="isSending"
-      :show-font-menu="showFontMenu"
-      :font-options="fontOptions"
-      :current-font="currentFont"
       :save-status="saveStatus"
-      :active-instance-id="activeInstanceId"
-      :instances="instances"
       @toggle-pin="togglePin"
       @publish="publishNote"
       @hide="hideWindow"
-      @toggle-font-menu="toggleFontMenu"
-      @select-font="selectFont"
-      @add-font="addFont"
-      @open-config="openConfigWindow"
     />
 
     <!-- ═══ Toast 浮层 ═══ -->
@@ -236,13 +225,26 @@ async function onSaveHotkeys() {
       <EditorContent :editor="editor" v-if="editor" />
     </div>
 
+    <!-- ═══ 笔记读取失败：常驻提示（点不掉，始终保留恢复入口）═══
+         放编辑区下方而非顶栏下：顶栏那块是 toast 的固定位置（--toast-top: 52px），
+         放上面会被 toast 盖住「重试 / 打开数据目录」两个按钮 -->
+    <div v-if="noteLoadFailed" class="load-error-bar" role="alert">
+      <svg class="load-error-icon" width="13" height="13" viewBox="0 0 24 24" fill="none"
+        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+        <path d="M12 9v4"/><path d="M12 17h.01"/>
+      </svg>
+      <span class="load-error-msg">笔记读取失败，已暂停编辑和保存以保护原有内容</span>
+      <button class="load-error-btn" @click="retryLoadNote">重试</button>
+      <button class="load-error-btn" @click="openDataDir">打开数据目录</button>
+    </div>
+
     <!-- ═══ 底栏（当前发送目标 + 字数统计）═══ -->
     <FooterBar
       :instances="instances"
       :platform-types="platformTypes"
       :current-target="resolvedTarget"
       :word-count="wordCount"
-      :char-count="charCount"
       @open-config="openConfigWindow"
       @open-hotkey="openHotkeyModal"
       @open-data-dir="openDataDir"
@@ -262,17 +264,8 @@ async function onSaveHotkeys() {
       @save="onSaveHotkeys"
       @keydown="onKeyDownForHotkey"
     />
-
-    <!-- ═══ 字体管理弹窗 ═══ -->
-    <FontManager
-      v-if="showFontManager"
-      @close="showFontManager = false"
-      @refreshed="onFontManagerRefreshed"
-    />
   </div>
 </template>
-
-<!-- 编辑器字体：默认使用系统字体栈，用户可通过字体选择器切换系统已安装字体 -->
 
 <style>
 /* ═══ @平台 Mention ═══ */
@@ -345,6 +338,41 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ═══ 笔记读取失败提示条 ═══
+   常驻不可关闭：点掉即失去恢复入口（编辑器和保存都被锁着），所以不用 toast */
+.load-error-bar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-6) var(--space-8);
+  padding: var(--space-8) var(--space-16);
+  background: color-mix(in srgb, var(--danger) 8%, var(--bg));
+  border-top: 1px solid color-mix(in srgb, var(--danger) 22%, transparent);
+  font-size: var(--text-xs);
+  line-height: 1.35;
+  flex: none;
+}
+.load-error-icon { flex: none; color: var(--danger); }
+.load-error-msg { flex: 1 1 132px; min-width: 0; color: var(--fg); }
+.load-error-btn {
+  flex: none;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-strong);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.load-error-btn:hover { text-decoration: underline; }
+.load-error-btn:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
 
 /* ═══ 编辑器容器 ═══ */
