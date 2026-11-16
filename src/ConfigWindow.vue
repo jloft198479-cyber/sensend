@@ -630,7 +630,7 @@ onMounted(() => {
   font-weight: 400 !important;
   color: var(--placeholder);
 }
-/* [ZC-12] 空态主行动按钮：文案之外给真实动线（与顶栏"新增页面"同规格配色） */
+/* [ZC-12] 空态主行动按钮：文案之外给真实动线（与顶栏加号钮同规格配色） */
 .empty-action-btn {
   margin-top: var(--space-12);
   height: var(--control-h-sm);
