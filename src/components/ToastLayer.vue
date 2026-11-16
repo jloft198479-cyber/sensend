@@ -17,7 +17,7 @@ const { toasts, remove } = useToast()
         >
           <!-- 语义图标（四类）+ 左侧 3px 色条：不只靠颜色区分状态 -->
           <svg class="toast-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path v-if="t.type === 'success'" d="M20 6 9 17l-5-5"/>
             <template v-else-if="t.type === 'error'">
               <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>

@@ -146,7 +146,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   color: var(--muted); cursor: pointer;
   border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.15s ease; padding: 0;
+  transition: all var(--dur-fast) ease; padding: 0;
 }
 .modal-close:hover { background: var(--gray-hover); color: var(--fg); }
 
@@ -161,7 +161,7 @@ function onPanelKeydown(e: KeyboardEvent) {
 .hotkey-record-btn {
   display: flex; align-items: center; justify-content: center;
   padding: 8px 12px; border: 1px solid var(--control-border); border-radius: var(--radius-md);
-  background: var(--gray-input-bg); cursor: pointer; transition: all 0.15s;
+  background: var(--gray-input-bg); cursor: pointer; transition: all var(--dur-fast);
   /* button 不继承父级字体（UA 行为），显式拉回 */
   font-family: inherit;
   min-height: 36px;
@@ -195,7 +195,7 @@ function onPanelKeydown(e: KeyboardEvent) {
   font-size: var(--text-sm); font-weight: 600; cursor: pointer;
   /* button 不继承父级字体（UA 行为），显式拉回 */
   font-family: inherit;
-  transition: all 0.15s ease; display: flex; align-items: center;
+  transition: all var(--dur-fast) ease; display: flex; align-items: center;
   justify-content: center; gap: 6px; width: 100%;
 }
 .config-btn:disabled { opacity: 0.45; cursor: not-allowed; }

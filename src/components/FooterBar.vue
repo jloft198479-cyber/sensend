@@ -112,7 +112,7 @@ function onDocClick(e: MouseEvent) {
           <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
           <line x1="12" y1="16" x2="12.01" y2="16"/>
         </svg>
-        <span>配置页面</span>
+        <span>去配置</span>
       </button>
 
       <!-- 有平台：可点击选择目标 -->
@@ -147,7 +147,7 @@ function onDocClick(e: MouseEvent) {
         @click.stop="onClearClick"
         :title="confirmingClear ? '再次点击确认清空' : '清空笔记'" aria-label="清空笔记">
         <svg v-if="!confirmingClear" width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="3 6 5 6 21 6"/>
           <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
@@ -158,24 +158,24 @@ function onDocClick(e: MouseEvent) {
       <div class="settings-group">
         <button class="footer-btn" @click.stop="toggleMenu" title="设置" aria-label="设置">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-            stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3.5"/>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
           </svg>
         </button>
         <Transition name="menu-fade">
           <div v-if="showMenu" class="settings-menu">
-            <button class="settings-item" @click.stop="handleAddPlatform" aria-label="添加和修改页面">
+            <button class="settings-item" @click.stop="handleAddPlatform" aria-label="管理页面">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/>
                 <line x1="8" y1="12" x2="16" y2="12"/>
               </svg>
-              <span>添加和修改页面</span>
+              <span>管理页面</span>
             </button>
             <button class="settings-item" @click.stop="handleHotkey" aria-label="快捷键设置">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="2" y="4" width="20" height="16" rx="2"/>
                 <path d="M6 8h.01M10 8h.01M14 8h.01M18 8h.01M8 12h.01M12 12h.01M16 12h.01M8 16h8"/>
               </svg>
@@ -183,14 +183,14 @@ function onDocClick(e: MouseEvent) {
             </button>
             <button class="settings-item" @click.stop="handleOpenDataDir" aria-label="打开数据文件夹">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
               </svg>
               <span>打开数据文件夹</span>
             </button>
             <button class="settings-item" @click.stop="handleCheckUpdate" aria-label="检查更新">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <polyline points="23 4 23 10 17 10"/>
                 <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
               </svg>
@@ -244,7 +244,7 @@ function onDocClick(e: MouseEvent) {
   background: transparent;
   cursor: pointer;
   border-radius: var(--radius-xs);
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   white-space: nowrap;
   line-height: 1;
 }
@@ -267,7 +267,7 @@ function onDocClick(e: MouseEvent) {
   border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   font-family: var(--font-editor);
 }
 .target-picker-btn:hover {
@@ -297,7 +297,7 @@ function onDocClick(e: MouseEvent) {
 }
 .picker-chevron {
   color: var(--muted);
-  transition: transform 0.15s;
+  transition: transform var(--dur-fast);
   flex-shrink: 0;
 }
 .picker-chevron.open {
@@ -404,7 +404,7 @@ function onDocClick(e: MouseEvent) {
 /* 菜单过渡 */
 .menu-fade-enter-active,
 .menu-fade-leave-active {
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) ease;
 }
 .menu-fade-enter-from,
 .menu-fade-leave-to {

@@ -88,7 +88,7 @@ onMounted(() => {
           >
             <span :style="{ fontFamily: opt.value }">{{ opt.label }}</span>
             <svg v-if="currentFont === opt.value" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="var(--accent-strong)" stroke-width="2.5" stroke-linecap="round">
+              fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </button>
@@ -121,7 +121,7 @@ onMounted(() => {
             <span class="theme-dot" :style="{ background: t.preview }"></span>
             <span>{{ t.name }}</span>
             <svg v-if="currentTheme === t.id" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="var(--accent-strong)" stroke-width="2.5" stroke-linecap="round">
+              fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </button>
@@ -144,12 +144,12 @@ onMounted(() => {
         @click.stop="$emit('publish')"
         title="发送到目标平台" aria-label="发送到目标平台">
         <svg v-if="!isSending" width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <line x1="22" y1="2" x2="11" y2="13"/>
           <polygon points="22 2 15 22 11 13 2 9 22 2"/>
         </svg>
         <svg v-else class="spin-icon" width="14" height="14" viewBox="0 0 24 24" fill="none"
-          stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 12a9 9 0 11-6.219-8.56"/>
         </svg>
       </button>
@@ -197,16 +197,10 @@ onMounted(() => {
 .save-status {
   font-size: var(--text-2xs);
   opacity: 1;
-  transition: opacity 0.4s ease;
+  transition: opacity var(--dur-slow) ease;
 }
 .save-status.saved { color: var(--accent-strong); }
 .save-status.saving { color: var(--muted); }
-
-/* fade 过渡（Vue Transition） */
-.fade-enter-active { transition: all 0.25s ease-out; }
-.fade-leave-active { transition: all 0.4s ease-in; }
-.fade-enter-from { opacity: 0; }
-.fade-leave-to { opacity: 0; }
 
 .saving-dots {
   display: inline-flex;
@@ -295,12 +289,6 @@ onMounted(() => {
 .send-btn:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-.spin-icon {
-  animation: spin 0.8s linear infinite;
-}
-@keyframes spin {
-  to { transform: rotate(360deg); }
 }
 
 

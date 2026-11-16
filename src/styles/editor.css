@@ -108,7 +108,8 @@
   word-break: break-word;
 }
 .editor-wrapper .tiptap table th {
-  background: var(--bg-page);
+  /* 表头分层：按主题前景色混 10%，暗色下也能与 td 拉开层次（方案 P3-7） */
+  background: color-mix(in srgb, var(--fg) 10%, var(--bg));
   font-weight: 600;
   text-align: left;
 }

@@ -107,10 +107,20 @@ input:focus-visible,
 }
 
 /* fade 过渡 — Vue <Transition name="fade"> */
-.fade-enter-active { transition: all 0.2s ease-out; }
-.fade-leave-active { transition: all 0.15s ease-in; }
+.fade-enter-active { transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out); }
+.fade-leave-active { transition: opacity var(--dur-fast) var(--ease-in), transform var(--dur-fast) var(--ease-in); }
 .fade-enter-from { opacity: 0; transform: translateY(-4px); }
 .fade-leave-to { opacity: 0; }
+
+/* 尊重系统"减少动态效果"：只保留状态变化，不播放位移/缩放（方案 4.10） */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
 
 /* 反馈消息 */
 .test-msg { font-size: 12px; font-weight: 500; padding: 8px 12px; border-radius: 8px; text-align: center; margin-top: 10px; }

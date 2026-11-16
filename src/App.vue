@@ -199,20 +199,20 @@ async function onSaveHotkeys() {
       <BubbleMenu v-if="editor" :editor="editor">
         <div class="bubble-menu">
           <button class="bm-btn" :class="{ active: isActive('bold') }" @click="toggleBold" title="粗体" aria-label="粗体">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/></svg>
           </button>
           <button class="bm-btn" :class="{ active: isActive('italic') }" @click="toggleItalic" title="斜体" aria-label="斜体">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="19" y1="4" x2="10" y2="4"/><line x1="14" y1="20" x2="5" y2="20"/><line x1="15" y1="4" x2="9" y2="20"/></svg>
           </button>
           <button class="bm-btn" :class="{ active: isActive('strike') }" @click="toggleStrike" title="删除线" aria-label="删除线">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.3 4.9c-2.3-.6-4.4-1-6.2-.9-2.7 0-5.3.7-5.3 3.6 0 1.4 1 2.3 1.7 2.9h8.2"/><path d="M2.2 10.4c1.6 1.7 4 2.7 7.2 2.7 3.5 0 5.8-.5 7.5-1.2"/><line x1="2" y1="12" x2="22" y2="12"/></svg>
           </button>
           <div class="bm-divider"></div>
           <button class="bm-btn" :class="{ active: isActive('heading', { level: 1 }) }" @click="toggleH1" title="大标题" aria-label="大标题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M21 18h-4c0-4 4-3 4-6 0-1.5-2-2.5-4-1"/></svg>
           </button>
           <button class="bm-btn" :class="{ active: isActive('heading', { level: 2 }) }" @click="toggleH2" title="小标题" aria-label="小标题">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2 2 2 0 0 1-2-2c0-1.5 1.8-2.5 3.5-1.5"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h8"/><path d="M4 18V6"/><path d="M12 18V6"/><path d="M17.5 10.5c1.7-1 3.5 0 3.5 1.5a2 2 0 0 1-2 2 2 2 0 0 1-2-2c0-1.5 1.8-2.5 3.5-1.5"/></svg>
           </button>
           <div class="bm-divider"></div>
           <button class="bm-btn" :class="{ active: isActive('bulletList') }" @click="toggleBulletList" title="无序列表" aria-label="无序列表">
@@ -286,7 +286,7 @@ async function onSaveHotkeys() {
   font-weight: 500;
   cursor: default;
   user-select: none;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
 }
 .platform-mention:hover {
   background: color-mix(in srgb, var(--accent) 10%, var(--accent-light));

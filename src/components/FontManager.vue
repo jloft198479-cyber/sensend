@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
 interface UserFont {
@@ -10,6 +10,22 @@ interface UserFont {
 const fonts = ref<UserFont[]>([])
 const loading = ref(false)
 const deletingFont = ref<string | null>(null)
+// 删除二次确认：第一次点击替换为"确认删除"，3 秒未操作自动回退（方案 M-6）
+const confirmingFont = ref<string | null>(null)
+let confirmTimer: ReturnType<typeof setTimeout> | null = null
+
+function requestDelete(name: string) {
+  if (confirmTimer) { clearTimeout(confirmTimer); confirmTimer = null }
+  if (confirmingFont.value === name) {
+    confirmingFont.value = null
+    void deleteFont(name)
+    return
+  }
+  confirmingFont.value = name
+  confirmTimer = setTimeout(() => { confirmingFont.value = null }, 3000)
+}
+
+onBeforeUnmount(() => { if (confirmTimer) clearTimeout(confirmTimer) })
 
 const emit = defineEmits<{
   close: []
@@ -37,6 +53,7 @@ async function deleteFont(name: string) {
     console.error('删除字体失败:', e)
   } finally {
     deletingFont.value = null
+    confirmingFont.value = null
   }
 }
 
@@ -111,11 +128,13 @@ onMounted(loadFonts)
           <span class="fm-font-name">{{ font.name }}</span>
             <span class="fm-font-ext">{{ font.path.split('.').pop()?.toUpperCase() }}</span>
           </div>
-          <button class="fm-delete-btn"
+          <button class="fm-delete-btn" :class="{ confirming: confirmingFont === font.name }"
             :disabled="deletingFont === font.name"
-            @click="deleteFont(font.name)"
-            title="删除字体" aria-label="删除字体">
-            <svg v-if="deletingFont !== font.name" width="12" height="12" viewBox="0 0 24 24" fill="none"
+            @click="requestDelete(font.name)"
+            :title="confirmingFont === font.name ? '再次点击确认删除' : '删除字体'"
+            :aria-label="confirmingFont === font.name ? '确认删除字体' : '删除字体'">
+            <span v-if="confirmingFont === font.name && deletingFont !== font.name" class="fm-confirm-text">确认删除</span>
+            <svg v-else-if="deletingFont !== font.name" width="12" height="12" viewBox="0 0 24 24" fill="none"
               stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="3 6 5 6 21 6"/>
               <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
@@ -184,7 +203,7 @@ onMounted(loadFonts)
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   padding: 0;
 }
 .fm-close:hover {
@@ -226,7 +245,7 @@ onMounted(loadFonts)
   font-weight: 500;
   color: var(--fg-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   font-family: var(--font-sans);
 }
 .fm-folder-btn:hover {
@@ -245,7 +264,7 @@ onMounted(loadFonts)
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   padding: 0;
 }
 .fm-refresh-btn:hover:not(:disabled) {
@@ -296,7 +315,7 @@ onMounted(loadFonts)
   border: 1px solid var(--border-color);
   border-radius: 8px;
   margin-bottom: 6px;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
 }
 .fm-font-item:hover {
   border-color: var(--gray-border);
@@ -341,7 +360,7 @@ onMounted(loadFonts)
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   padding: 0;
   flex-shrink: 0;
 }
@@ -352,6 +371,20 @@ onMounted(loadFonts)
 .fm-delete-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+/* 二次确认态：按钮原地替换为文字，3 秒未点自动回退 */
+.fm-delete-btn.confirming {
+  width: auto;
+  height: 24px;
+  padding: 0 8px;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger);
+}
+.fm-confirm-text {
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 

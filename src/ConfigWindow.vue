@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { useConfig } from './composables/useConfig'
 import ToastLayer from './components/ToastLayer.vue'
@@ -33,6 +33,14 @@ const {
 const titlebarRef = ref<HTMLElement | null>(null)
 const closeWindow = () => { getCurrentWindow().close() }
 
+// 删除二次确认：3 秒未操作自动回退（方案 M-6，与清空/删字体同一交互）
+let deleteTimer: ReturnType<typeof setTimeout> | null = null
+watch(showDeleteConfirm, (id) => {
+  if (deleteTimer) { clearTimeout(deleteTimer); deleteTimer = null }
+  if (id) deleteTimer = setTimeout(() => { showDeleteConfirm.value = null }, 3000)
+})
+onBeforeUnmount(() => { if (deleteTimer) clearTimeout(deleteTimer) })
+
 onMounted(() => {
   loadData()
   const bar = titlebarRef.value
@@ -54,16 +62,16 @@ onMounted(() => {
     <header ref="titlebarRef" class="config-titlebar">
       <div class="title-actions">
         <button v-if="showForm" class="title-btn back-title-btn" @click="showForm = false" title="返回列表" aria-label="返回列表">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
           <span>返回</span>
         </button>
-        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="添加和修改页面">
+        <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="管理页面">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
-          <span>添加和修改页面</span>
+          <span>管理页面</span>
         </button>
         <button class="close-win-btn" @click="closeWindow" title="关闭" aria-label="关闭">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -172,7 +180,7 @@ onMounted(() => {
           <path d="M12 8v8M8 12h8"/>
         </svg>
         <p>还没有配置任何发送页面</p>
-        <p class="empty-hint">点击上方"添加和修改页面"开始配置</p>
+        <p class="empty-hint">点击上方「管理页面」开始配置</p>
       </div>
       <div v-else class="instance-list">
         <div v-for="inst in instances" :key="inst.id" class="instance-card">
@@ -259,7 +267,7 @@ onMounted(() => {
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
   font-family: var(--font-sans);
   white-space: nowrap;
 }
@@ -294,7 +302,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
   padding: 0;
 }
 .close-win-btn:hover {
@@ -360,7 +368,7 @@ onMounted(() => {
   font-size: var(--text-2xs);
   color: var(--fg-secondary);
   cursor: pointer;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   font-family: var(--font-sans);
 }
 .browse-btn:hover { background: var(--gray-hover); border-color: var(--gray-scrollbar); }
@@ -395,7 +403,7 @@ onMounted(() => {
   outline: none;
   appearance: none;
   font-family: var(--font-sans);
-  transition: border-color 0.15s;
+  transition: border-color var(--dur-fast);
 }
 .platform-select select:focus {
   border-color: var(--accent-strong);
@@ -419,7 +427,7 @@ onMounted(() => {
   background: var(--gray-input-bg);
   outline: none;
   font-family: var(--font-sans);
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color var(--dur-fast), box-shadow var(--dur-fast);
   box-sizing: border-box;
 }
 /* 凭证 / Target ID 用等宽（方案 4.8.2：名称等自然语言字段一律不用等宽） */
@@ -452,7 +460,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
   padding: 0;
 }
 .toggle-visibility:hover {
@@ -474,7 +482,7 @@ onMounted(() => {
   font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -527,7 +535,7 @@ onMounted(() => {
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
 }
 .instance-card:hover {
   border-color: var(--control-border);
@@ -587,7 +595,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.15s ease;
+  transition: all var(--dur-fast) ease;
   padding: 0;
 }
 .icon-btn:hover { background: var(--gray-hover); color: var(--fg); }
@@ -603,13 +611,13 @@ onMounted(() => {
   font-weight: 600;
   cursor: pointer;
   font-family: var(--font-sans);
-  transition: all 0.15s;
+  transition: all var(--dur-fast);
 }
 .confirm-btn:hover { background: var(--danger-bg); }
 
 /* ═══ 视图切换过渡（out-in：旧视图淡出→新视图滑入，两个方向节奏对称）═══ */
-.view-enter-active { transition: opacity 0.16s ease-out, transform 0.16s ease-out; }
-.view-leave-active { transition: opacity 0.1s ease-in, transform 0.1s ease-in; }
+.view-enter-active { transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out); }
+.view-leave-active { transition: opacity var(--dur-fast) var(--ease-in), transform var(--dur-fast) var(--ease-in); }
 .view-enter-from { opacity: 0; transform: translateY(-6px); }
 .view-leave-to { opacity: 0; transform: translateY(-3px); }
 
