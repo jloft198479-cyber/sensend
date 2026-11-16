@@ -106,7 +106,9 @@ onMounted(loadFonts)
         </div>
         <div v-for="font in fonts" :key="font.name" class="fm-font-item">
           <div class="fm-font-info">
-            <span class="fm-font-name" :style="{ fontFamily: `'${font.name}', sans-serif` }">{{ font.name }}</span>
+            <!-- 预览不套自定义字体：多 CJK 字体并发解析（单个 ttf 数 MB～几十 MB）会卡开列表；
+               实际字形效果在编辑器内选择该字体即可看到 -->
+          <span class="fm-font-name">{{ font.name }}</span>
             <span class="fm-font-ext">{{ font.path.split('.').pop()?.toUpperCase() }}</span>
           </div>
           <button class="fm-delete-btn"

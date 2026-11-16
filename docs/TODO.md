@@ -67,14 +67,7 @@
 - **它是什么**：多平台知识库批量导入导出搬迁工具（飞书 / 语雀 / Notion / 印象笔记等），Tauri 2 + HTML/JS + Python sidecar，1.4.x
 - **与 sensend 关系**：方向相反 —— 它是「批量搬迁」，我们是「单条速记分发」。仅局部可借鉴，不可整体照抄
 
-**待办清单**（按价值排序）：
-
-| # | 待办 | 落点 | 严重度 | 参考实现 |
-|---|------|------|:---:|---------|
-| 1 | 缺应用内自动更新 | `src-tauri/tauri.conf.json`（无 `plugins.updater`）、`src-tauri/Cargo.toml`（无 tauri-plugin-updater）；当前用户只能手动下载 exe | P2 | wandao `tauri.conf.json` 的 `plugins.updater`：minisign 公钥 + `latest.json` 端点 + 强制签名校验 |
-| 2 | CSP 过松 | `src-tauri/tauri.conf.json` 的 `app.security.csp`：`script-src` 含 `unsafe-eval`、`connect-src` 对全网 `https:` 放行、缺 `object-src` / `base-uri` / `form-action` | P2 | wandao 同字段：无 unsafe-eval、补齐三项限制、另加 `freezePrototype: true` |
-| 3 | 配置写入非原子 | `note.json` 800ms 防抖直写，崩溃可能留半截文件 | P3 | wandao `security.rs` 的 `write_json_atomic` / `write_private_atomic`（临时文件 + rename） |
-| 4 | 本地文件名边界未覆盖 | `src-tauri/src/adapters/local.rs#L13` `safe_title` 仅替换 `\/:*?"<>\|` | P3 | wandao `security.rs::safe_relative_path`：长度上限（Windows 260）、结尾空格/点、保留名（con/nul/aux/com1 等） |
+**待办清单**：四项已全部完成（#1 随 v0.5.1 上线，#2/#3/#4 于 2026-11-16 完成），明细移至「已处理」归档区。
 
 > 注：wandao 参考源 `G:\skills\wandao-main` 已不在原位置（2026-11-16 实测），其思路记录仍有效；如需再对照实现须先重新定位源码。
 
@@ -105,3 +98,28 @@
 | FlowUs 表格单元格多 rich_text 丢失（`rt[0]` → `row_cells.extend(rt)`） | ✅ 已修复 |
 | Notion 代码块语言映射（`NOTION_LANG_MAP`，40 个别名、大小写不敏感、兜底纯文本） | ✅ 已修复 |
 | Notion 嵌套列表深度截断（上限 2 层，第 3 层起子项文本并入父项） | ✅ 已修复 |
+
+### wandao 借鉴项 #1–#4 全部完成（2026-11-16）
+
+| # | 项目 | 实现情况 |
+|---|------|----------|
+| 1 | 应用内自动更新 | v0.5.1 上线：tauri-plugin-updater + minisign 签名校验 + 双端点（useUpdater + commands/updater.rs） |
+| 2 | CSP 收紧 | `script-src` 去 `unsafe-eval`；`connect-src` 去全网 `https:`（前端零直连，全走 IPC）；补 `object-src 'none'` / `base-uri` / `form-action` |
+| 3 | 配置原子写 | `note.rs` tmp + sync_all + rename（tokio 异步）；另加 inFlightSave 并发守卫防交错写 |
+| 4 | 本地文件名边界 | `local.rs::sanitize_title`：控制字符、首尾空白、保留设备名（stem 精确比对，如 con/NUL.backup/com1.md）前缀 `_`，带单元测试 |
+
+> 均只借鉴思路自行实现（规避 AGPL）。
+
+### 复查报告漏网小修批次（2026-11-16 修复，共 12 项）
+
+- WEBVIEW2 附加参数改逐项合并：环境变量部分重叠时 `--js-flags` 等不再丢失（lib.rs）
+- 平台「写入方式」显隐改由后端 `PlatformTypeInfo.supported_modes` 下发，删前端 `'local'/'lark'` 写死；切换/载入时 `publish_mode` 归一到支持档位
+- 字体管理器预览不再套自定义字体（多 CJK 大字体并发解析会卡开列表；实际字形在编辑器内选择查看）
+- `resolve_notion_id` 先剥 `?query`/`#锚点`：块分享链接不再误取锚点当页面 ID（带测试）
+- IR 层修复 blockquote 内嵌列表项拼一行：各项以 hardBreak 分隔，四平台共用（带测试）
+- Notion 超深有序列表溢出文本按位置编号（不再全部 "1. "）
+- markdown 代码块围栏：代码含 ``` 行时加长围栏；闭合围栏前补换行（修复围栏粘在末行代码后）
+- `initTheme` 两个 IPC 并行（省一次串行往返；主题仍在挂载前生效防闪色）
+- 快捷键默认值收敛到后端 `get_hotkeys` 单一来源（前端不再各存一份）
+- 接入 `tauri-plugin-log`：release 落 `%LOCALAPPDATA%\com.jloft.sensend\logs\sensend.log`（512KB 滚动）+ dev stdout；`publish_note` 成功/失败 info/warn 留痕（不含内容与凭证）——结束线上零日志状态
+- CSP 收紧见 wandao #2；本地文件名边界见 wandao #4

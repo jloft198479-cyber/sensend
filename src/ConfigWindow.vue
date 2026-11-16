@@ -17,6 +17,7 @@ const {
   showToken,
   savePulse,
   currentPlatformFields,
+  currentModes,
   canSave,
   loadData,
   openAddModal,
@@ -92,8 +93,8 @@ onMounted(() => {
             </select>
           </div>
         </div>
-        <!-- 写入模式（local 不支持追加，隐藏） -->
-        <div v-if="configForm.platform_type !== 'local' && configForm.platform_type !== 'lark'" class="form-row">
+        <!-- 写入方式：平台是否支持多档由后端 supported_modes 下发（单档平台已在 useConfig 归一，无需选择） -->
+        <div v-if="currentModes.length > 1" class="form-row">
           <label class="form-label">写入方式</label>
           <div class="platform-select">
             <select v-model="configForm.publish_mode">

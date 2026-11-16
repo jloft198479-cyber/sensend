@@ -130,7 +130,19 @@ fn parse_block(node: &Value) -> Vec<Block> {
             let mut paras: Vec<Vec<Inline>> = Vec::new();
             if let Some(children) = node.get("content").and_then(|c| c.as_array()) {
                 for child in children {
-                    paras.push(parse_inlines(child));
+                    match child.get("type").and_then(|t| t.as_str()).unwrap_or("") {
+                        // 嵌套列表不再整体拼一行（四路共用的历史缺陷）：
+                        // 每个列表项拆成独立段，项内多段落用 hardBreak 分隔
+                        "bulletList" | "orderedList" | "taskList" => {
+                            let mut inl = Vec::new();
+                            let mut first = true;
+                            flatten_list_inlines(child, &mut inl, &mut first);
+                            if !inl.is_empty() {
+                                paras.push(inl);
+                            }
+                        }
+                        _ => paras.push(parse_inlines(child)),
+                    }
                 }
             }
             if paras.is_empty() {
@@ -249,6 +261,40 @@ fn parse_table(node: &Value) -> Table {
         }
     }
     Table { rows, col_count_hint }
+}
+
+/// 把嵌套列表的行内内容按文档顺序拍平，列表项/段落之间以 hardBreak 分隔。
+/// 供 blockquote 内嵌列表使用——此前递归收集会把各项文本无分隔拼成一行
+fn flatten_list_inlines(node: &Value, out: &mut Vec<Inline>, first: &mut bool) {
+    match node.get("type").and_then(|t| t.as_str()).unwrap_or("") {
+        "bulletList" | "orderedList" | "taskList" | "listItem" | "taskItem" | "paragraph" => {
+            if let Some(children) = node.get("content").and_then(|c| c.as_array()) {
+                for child in children {
+                    flatten_list_inlines(child, out, first);
+                }
+            }
+        }
+        "hardBreak" => {
+            if *first {
+                *first = false;
+            } else {
+                out.push(Inline::Break);
+            }
+        }
+        _ => {
+            let mut inl = Vec::new();
+            collect_inline(node, &mut inl);
+            if inl.is_empty() {
+                return;
+            }
+            if *first {
+                *first = false;
+            } else {
+                out.push(Inline::Break);
+            }
+            out.extend(inl);
+        }
+    }
 }
 
 /// 解析节点的行内内容（text/hardBreak/mention；其他递归）
@@ -554,6 +600,44 @@ mod tests {
                 assert_eq!(items[0].extra_paras.len(), 1);
             }
             other => panic!("应为列表块，实际: {:?}", other),
+        }
+    }
+
+    #[test]
+    fn ir_parse_blockquote_nested_list_separates_items() {
+        // 引用内嵌列表：各项必须以 hardBreak 分隔，不能拼成一行（修复四路共用缺陷）
+        let doc = json!({
+            "type": "doc",
+            "content": [{
+                "type": "blockquote",
+                "content": [{
+                    "type": "bulletList",
+                    "content": [
+                        { "type": "listItem", "content": [
+                            { "type": "paragraph", "content": [{ "type": "text", "text": "甲" }] }
+                        ]},
+                        { "type": "listItem", "content": [
+                            { "type": "paragraph", "content": [{ "type": "text", "text": "乙" }] }
+                        ]}
+                    ]
+                }]
+            }]
+        });
+        let blocks = parse(&doc);
+        match &blocks[0] {
+            Block::BlockQuote(paras) => {
+                assert_eq!(paras.len(), 1);
+                assert!(
+                    paras[0].iter().any(|i| matches!(i, Inline::Break)),
+                    "列表项之间应有 hardBreak 分隔: {:?}", paras[0]
+                );
+                let texts: Vec<&str> = paras[0].iter().filter_map(|i| match i {
+                    Inline::Text { text, .. } => Some(text.as_str()),
+                    _ => None,
+                }).collect();
+                assert_eq!(texts, vec!["甲", "乙"]);
+            }
+            other => panic!("应为引用块，实际: {:?}", other),
         }
     }
 }

@@ -12,6 +12,8 @@ export interface PlatformTypeInfo {
   key: string
   name: string
   fields: PlatformField[]
+  /** 平台支持的写入模式（SSOT：后端下发；决定「写入方式」显隐与合法性，缺省视为 page/block 均可） */
+  supported_modes?: string[]
 }
 
 export interface PlatformField {

@@ -36,6 +36,18 @@ export function useConfig() {
     return type?.fields || []
   })
 
+  // 当前平台的写入模式列表（SSOT：后端 get_platform_types.supported_modes 下发）。
+  // 元数据缺失时兜底两种都有，保持旧版 notion/flowus 行为
+  const currentModes = computed<string[]>(() => {
+    const modes = platformTypes.value.find(t => t.key === configForm.platform_type)?.supported_modes
+    return modes && modes.length > 0 ? modes : ['page', 'block']
+  })
+
+  /** 把 publish_mode 归一到当前平台支持的档位（切平台/载入实例共用） */
+  function normalizeMode(mode: string): string {
+    return currentModes.value.includes(mode) ? mode : currentModes.value[0]
+  }
+
   const canSave = computed(() => {
     if (!configForm.name.trim()) return false
     for (const field of currentPlatformFields.value) {
@@ -80,7 +92,7 @@ export function useConfig() {
     configForm.token = ''
     configForm.token2 = ''
     configForm.target_id = ''
-    configForm.publish_mode = 'page'
+    configForm.publish_mode = normalizeMode('page')
     testResult.value = 'idle'
     testErrorMsg.value = ''
     showToken.value = false
@@ -96,7 +108,7 @@ export function useConfig() {
     configForm.token = inst.token
     configForm.token2 = inst.token2 || ''
     configForm.target_id = inst.target_id
-    configForm.publish_mode = inst.publish_mode || 'page'
+    configForm.publish_mode = normalizeMode(inst.publish_mode || 'page')
     testResult.value = 'ok'
     showForm.value = true
   }
@@ -112,7 +124,7 @@ export function useConfig() {
     configForm.token = ''
     configForm.token2 = ''
     configForm.target_id = ''
-    configForm.publish_mode = 'page'
+    configForm.publish_mode = normalizeMode('page')
     showToken.value = false
     await applyTokenMemory(configForm.platform_type)
   }
@@ -219,6 +231,7 @@ export function useConfig() {
     showToken,
     savePulse,
     currentPlatformFields,
+    currentModes,
     canSave,
     loadData,
     openAddModal,

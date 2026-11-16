@@ -29,18 +29,18 @@ function applyDom(theme: string) {
   document.documentElement.dataset.theme = theme
 }
 
-/** main.ts 启动时调用：读后端存储 + 监听跨窗口同步 */
+/** main.ts 启动时调用：读后端存储 + 监听跨窗口同步。
+ *  两个 IPC 并行发起（此前串行多付一次往返）；主题仍在挂载前生效，防启动闪色 */
 export async function initTheme() {
-  try {
-    currentTheme.value = await invoke<string>('get_theme')
-  } catch {
-    currentTheme.value = 'light'
-  }
-  applyDom(currentTheme.value)
-  await listen<string>('theme-updated', (e) => {
-    currentTheme.value = e.payload
-    applyDom(e.payload)
-  })
+  const [theme] = await Promise.all([
+    invoke<string>('get_theme').catch(() => 'light'),
+    listen<string>('theme-updated', (e) => {
+      currentTheme.value = e.payload
+      applyDom(e.payload)
+    }),
+  ])
+  currentTheme.value = theme
+  applyDom(theme)
 }
 
 /** 切换主题：立即改 DOM（跟手），再把 id + 窗口底色交给后端存下并广播 */

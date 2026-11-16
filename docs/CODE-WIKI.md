@@ -313,7 +313,7 @@ sensend/
 
 - `main.rs`：二进制入口，仅调用 `sensend_lib::run()`；release 模式下隐藏控制台窗口。
 - `lib.rs`：应用主体，`pub fn run()` 中完成：
-  - 插件注册：`opener` / `dialog` / `store` / `global-shortcut` / `single-instance`。
+  - 插件注册：`log`（日志后端） / `opener` / `dialog` / `store` / `global-shortcut` / `single-instance` / `updater`。
   - 命令注册：`invoke_handler!` 注册全部 24 个命令（v0.4.0 新增 `get_theme` / `set_theme`）。
   - `setup` 钩子：创建应用数据目录、初始化全局快捷键、构建系统托盘（显示/退出菜单 + 左键点击显示窗口）。
   - 窗口事件处理：主窗口关闭请求被拦截为 `hide()`（最小化到托盘）。
@@ -384,7 +384,7 @@ sensend/
 
 - **`http_client()`**：全局 `reqwest::Client`（`OnceLock` 单例，15s 超时，连接池复用）。
 - **`PlatformInstance`**：用户配置的平台实例结构（id/name/platform_type/token/token2/target_id/publish_mode）。
-- **`PlatformTypeInfo` / `ConfigField`**：平台类型元数据，驱动前端表单动态渲染。
+- **`PlatformTypeInfo` / `ConfigField`**：平台类型元数据，驱动前端表单动态渲染；`supported_modes` 下发各平台支持的写入模式，是「写入方式」显隐与归一的唯一依据。
 - **`PlatformAdapter` trait**：统一适配器接口（见 [6.1](#61-platformadapter-trait)）。
 - **`PublishResult` / `ProbeResult`**：发布与探测结果。
 - **`get_platform_types()`**：返回四种平台的字段定义。
@@ -631,6 +631,7 @@ publishNote(editor, resolvedTargetId)
 | `open` | 跨平台打开目录 |
 | `winreg` 0.55 | Windows 注册表（平台检测）|
 | `log` | 日志 |
+| `tauri-plugin-log` 2 | 日志后端：文件滚动落盘（release）+ stdout（dev），接入后 `log::` 调用才真正有输出 |
 
 ### 8.3 模块间依赖（Rust）
 
@@ -708,7 +709,7 @@ npm run tauri build
 - **窗口**：`main` 窗口 `420×210`，`decorations: false`、`alwaysOnTop: true`、`skipTaskbar: true`、`visibleOnAllWorkspaces: true`。
 - **构建**：`beforeDevCommand: npm run dev`、`devUrl: http://localhost:1420`、`frontendDist: ../dist`。
 - **打包**：`targets: ["nsis"]`，安装模式 `currentUser`，语言中英文。
-- **CSP**：允许 `ipc:`、`https:` 连接，允许 `asset.localhost` 加载本地字体与图片。
+- **CSP**：`script-src 'self'`（无 unsafe-eval）、`connect-src` 仅 IPC（前端零直连网络），补 `object-src` / `base-uri` / `form-action`；`asset.localhost` 加载本地字体与图片。
 - **标识符**：`com.jloft.sensend`。
 
 ### 9.6 权限声明（`capabilities/default.json`）

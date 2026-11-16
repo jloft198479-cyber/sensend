@@ -257,12 +257,12 @@ impl NotionAdapter {
             .iter()
             .filter_map(|c| match c {
                 super::ir::Block::List { items: sub_items, kind: sub_kind } => {
-                    Some(sub_items.iter().map(|it| {
+                    Some(sub_items.iter().enumerate().map(|(idx, it)| {
                         if can_nest {
                             self.map_list_item(*sub_kind, it, depth + 1)
                         } else {
-                            // 超过 2 层：收集文本稍后拼进父项（collect_list_texts 复用多段逻辑）
-                            collect_list_texts(*sub_kind, it, &mut overflow_texts);
+                            // 超过 2 层：收集文本稍后拼进父项（有序列表按位置编号，不再全是 "1. "）
+                            collect_list_texts(*sub_kind, it, &mut overflow_texts, idx + 1);
                             Value::Null
                         }
                     }).collect::<Vec<Value>>())
@@ -587,8 +587,13 @@ impl PlatformAdapter for NotionAdapter {
 }
 
 /// 超深子列表 → 纯文本收集（Notion 嵌套上限 2 层，溢出文本拼进父项 rich_text 防丢失）
-/// 前缀保留层级语义：无序 - / 有序 1. / 待办 [x]
-fn collect_list_texts(kind: super::ir::ListKind, item: &super::ir::ListItem, out: &mut Vec<String>) {
+/// 前缀保留层级语义：无序 - / 有序 N.（按位置编号，不再全部 "1. "）/ 待办 [x]
+fn collect_list_texts(
+    kind: super::ir::ListKind,
+    item: &super::ir::ListItem,
+    out: &mut Vec<String>,
+    ordinal: usize,
+) {
     use super::ir::{Inline, ListKind};
 
     let text = item.inlines.iter()
@@ -600,10 +605,10 @@ fn collect_list_texts(kind: super::ir::ListKind, item: &super::ir::ListItem, out
         })
         .collect::<String>();
     let prefix = match kind {
-        ListKind::Bullet => "- ",
-        ListKind::Ordered => "1. ",
+        ListKind::Bullet => "- ".to_string(),
+        ListKind::Ordered => format!("{}. ", ordinal),
         ListKind::Task => {
-            if item.checked.unwrap_or(false) { "[x] " } else { "[ ] " }
+            if item.checked.unwrap_or(false) { "[x] ".to_string() } else { "[ ] ".to_string() }
         }
     };
     let line = if text.trim().is_empty() { String::new() } else { format!("{}{}", prefix, text) };
@@ -612,8 +617,8 @@ fn collect_list_texts(kind: super::ir::ListKind, item: &super::ir::ListItem, out
     }
     for child in &item.children {
         if let super::ir::Block::List { items: sub_items, kind: sub_kind } = child {
-            for sub in sub_items {
-                collect_list_texts(*sub_kind, sub, out);
+            for (idx, sub) in sub_items.iter().enumerate() {
+                collect_list_texts(*sub_kind, sub, out, idx + 1);
             }
         }
     }

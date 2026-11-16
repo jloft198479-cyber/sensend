@@ -100,9 +100,23 @@ fn render_block(block: &Block, out: &mut String, list_depth: usize) {
         }
         Block::List { kind, items } => render_list(items, *kind, out, list_depth),
         Block::CodeBlock { language, code } => {
-            out.push_str(&format!("```{}\n", language));
+            // 围栏取「代码行最长 ` 连串 + 1」与 3 的较大值：代码含 ``` 行时，3 连反引号会被提前闭合（GFM 规则）
+            let longest = code
+                .lines()
+                .map(|l| l.chars().take_while(|&c| c == '`').count())
+                .max()
+                .unwrap_or(0);
+            let fence = "`".repeat(3.max(longest + 1));
+            out.push_str(&fence);
+            out.push_str(language);
+            out.push('\n');
             out.push_str(code);
-            out.push_str("```\n\n");
+            // 代码末尾无换行时补一个：GFM 要求闭合围栏独占一行，否则粘在末行代码后面不生效
+            if !code.ends_with('\n') {
+                out.push('\n');
+            }
+            out.push_str(&fence);
+            out.push_str("\n\n");
         }
         Block::BlockQuote(paras) => {
             for para in paras {

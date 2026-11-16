@@ -31,6 +31,8 @@ tauri-plugin-global-shortcut = "2.3.1"
 # 应用内自动更新（updater.rs 提供代理探测，前端 useUpdater 驱动检查/下载/安装）
 tauri-plugin-updater = "2"
 log = "0.4"
+# 日志后端：接入后 log:: 调用才真正有输出（文件滚动 + dev stdout），线上可排障
+tauri-plugin-log = "2"
 base64 = "0.21"
 
 # Windows 专用依赖：凭证加密 DPAPI + 更新代理探测（读注册表）

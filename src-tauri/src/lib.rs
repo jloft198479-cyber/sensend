@@ -29,17 +29,46 @@ pub fn run() {
     // - --memory-pressure-threshold=moderate：更早触发 Chromium 内存回收
     // - --js-flags=--max-old-space-size=96：V8 堆封顶 96MB，防 renderer 无界增长
     let base = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").unwrap_or_default();
-    let extra = "--disable-gpu --disable-software-rasterizer --memory-pressure-threshold=moderate --js-flags=--max-old-space-size=96";
-    if base.is_empty() {
-        std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", extra);
-    } else if !base.contains("--disable-gpu") {
-        std::env::set_var(
-            "WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS",
-            format!("{base} {extra}"),
-        );
+    // 逐项合并：环境变量已有部分重叠时只补缺失项（按 "=" 前的参数名去重）。
+    // 此前整段追加只判 --disable-gpu，重叠时 --js-flags 等其余参数永远补不上
+    const EXTRA_ARGS: [&str; 4] = [
+        "--disable-gpu",
+        "--disable-software-rasterizer",
+        "--memory-pressure-threshold=moderate",
+        "--js-flags=--max-old-space-size=96",
+    ];
+    let mut merged: Vec<String> = base.split_whitespace().map(String::from).collect();
+    for arg in EXTRA_ARGS {
+        let prefix = arg.split('=').next().unwrap_or(arg);
+        let exists = merged.iter().any(|a| a.split('=').next().is_some_and(|k| k == prefix));
+        if !exists {
+            merged.push(arg.to_string());
+        }
     }
+    std::env::set_var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", merged.join(" "));
 
     tauri::Builder::default()
+        // 日志最先挂载，收集后续插件与命令的诊断输出：
+        // release 走 LogDir（%LOCALAPPDATA%\com.jloft.sensend\logs\sensend.log，512KB 滚动覆盖），
+        // dev 额外输出 stdout。此前有 log 调用无后端，线上实际零诊断输出
+        .plugin({
+            let mut targets = vec![tauri_plugin_log::Target::new(
+                tauri_plugin_log::TargetKind::LogDir { file_name: Some("sensend".into()) },
+            )];
+            if cfg!(debug_assertions) {
+                targets.push(tauri_plugin_log::Target::new(tauri_plugin_log::TargetKind::Stdout));
+            }
+            tauri_plugin_log::Builder::new()
+                .level(if cfg!(debug_assertions) {
+                    log::LevelFilter::Debug
+                } else {
+                    log::LevelFilter::Info
+                })
+                .max_file_size(512 * 1024)
+                .rotation_strategy(tauri_plugin_log::RotationStrategy::KeepOne)
+                .targets(targets)
+                .build()
+        })
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())

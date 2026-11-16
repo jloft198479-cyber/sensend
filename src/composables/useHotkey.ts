@@ -7,9 +7,11 @@ import { invoke } from '@tauri-apps/api/core'
  */
 export function useHotkey(publishNote: () => void, editorRef: () => any, isSending: Ref<boolean>) {
   const showHotkeyModal = ref(false)
+  // 默认值唯一来源 = 后端 get_hotkeys（首跑无配置时由后端回退并落盘）。
+  // 前端不再各存一份默认串防漂移；加载返回前的空串由 parseHotkeyString 的空 key 守卫兜住
   const hotkeyForm = reactive({
-    show: 'Alt+Shift+F',
-    send: 'Control+Enter',
+    show: '',
+    send: '',
   })
   const hotkeyEditState = reactive({
     field: null as 'show' | 'send' | null,

@@ -40,6 +40,7 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "local".into(),
             name: "本地文件夹".into(),
+            supported_modes: vec!["page".into()],
             fields: vec![
                 ConfigField { key: "token".into(), label: "（无需填写）".into(), hint: "".into(), secret: true, hidden: true, browse: false, default_value: Some("local".into()), optional: true },
                 ConfigField { key: "target_id".into(), label: "文件夹路径".into(), hint: "如 D:\\Notes 或 C:\\Users\\xxx\\Desktop".into(), secret: false, hidden: false, browse: true, default_value: None, optional: false },
@@ -48,6 +49,7 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "notion".into(),
             name: "Notion".into(),
+            supported_modes: vec!["page".into(), "block".into()],
             fields: vec![
                 ConfigField { key: "token".into(), label: "Integration Token".into(), hint: "Notion Integration Token".into(), secret: true, hidden: false, browse: false, default_value: None, optional: false },
                 ConfigField { key: "target_id".into(), label: "Parent Page".into(), hint: "粘贴页面链接，自动解析 ID".into(), secret: false, hidden: false, browse: false, default_value: None, optional: false },
@@ -56,6 +58,7 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "flowus".into(),
             name: "FlowUs".into(),
+            supported_modes: vec!["page".into(), "block".into()],
             fields: vec![
                 ConfigField { key: "token".into(), label: "授权码".into(), hint: "FlowUs MCP 授权码".into(), secret: true, hidden: false, browse: false, default_value: None, optional: false },
                 ConfigField { key: "target_id".into(), label: "目标页面".into(), hint: "粘贴页面链接，自动解析 ID".into(), secret: false, hidden: false, browse: false, default_value: None, optional: false },
@@ -64,6 +67,7 @@ pub fn get_platform_types() -> Vec<PlatformTypeInfo> {
         PlatformTypeInfo {
             key: "lark".into(),
             name: "飞书".into(),
+            supported_modes: vec!["block".into()],
             fields: vec![
                 ConfigField { key: "token".into(), label: "App ID".into(), hint: "飞书应用的 App ID".into(), secret: false, hidden: false, browse: false, default_value: None, optional: false },
                 ConfigField { key: "token2".into(), label: "App Secret".into(), hint: "飞书应用的 App Secret".into(), secret: true, hidden: false, browse: false, default_value: None, optional: false },
@@ -78,6 +82,10 @@ pub struct PlatformTypeInfo {
     pub key: String,
     pub name: String,
     pub fields: Vec<ConfigField>,
+    /// 平台支持的写入模式（"page"=创建子页面 / "block"=追加到页面）。
+    /// SSOT：前端「写入方式」显隐与合法性唯一依据；serde default 兼容旧序列化数据
+    #[serde(default)]
+    pub supported_modes: Vec<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
@@ -145,7 +153,10 @@ pub fn resolve_target_id(platform_type: &str, raw: &str) -> String {
 ///   个人空间: https://www.notion.so/my-page-34a6a7109f4580f4b78df783f9905cd4 → 34a6a7109f4580f4b78df783f9905cd4
 ///   团队空间: https://www.notion.so/{space-id}/{page-id}-{slug} → {page-id}
 fn resolve_notion_id(raw: &str) -> String {
-    let chars: Vec<char> = raw.chars().collect();
+    // 先剥 query 与 #锚点：块分享链接（…#32hex）的锚点同样是 32 位 hex，
+    // 不剥会被下方「从右找最后一个 32hex」误当成页面 ID
+    let base = raw.split(['?', '#']).next().unwrap_or(raw);
+    let chars: Vec<char> = base.chars().collect();
     let hex = |c: char| c.is_ascii_hexdigit();
 
     // 从右到左扫描，找最后一个 32 位连续 hex
@@ -171,14 +182,14 @@ fn resolve_notion_id(raw: &str) -> String {
     }
 
     // UUID 格式（带 - 的版本）
-    if raw.len() == 36 && raw.chars().filter(|&c| c == '-').count() == 4 {
-        if is_uuid(raw) {
-            return raw.replace("-", "");
+    if base.len() == 36 && base.chars().filter(|&c| c == '-').count() == 4 {
+        if is_uuid(base) {
+            return base.replace("-", "");
         }
     }
 
-    // 兜底：原样返回
-    raw.to_string()
+    // 兜底：原样返回（已剥 query/hash）
+    base.to_string()
 }
 
 /// FlowUs URL → 页面 ID（先剥 query/hash，再取最后一个路径段）
@@ -220,6 +231,23 @@ mod tests {
         assert_eq!(
             resolve_flowus_id("https://flowus.cn/xxx/640e8519-4ee1-44f9-97ec-ce3dd9788fb5"),
             "640e8519-4ee1-44f9-97ec-ce3dd9788fb5"
+        );
+    }
+
+    #[test]
+    fn resolve_notion_id_strips_anchor_and_query() {
+        // 块分享链接的 #锚点同样是 32 位 hex，必须剥掉取页面 ID
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/Notes-34a6a7109f4580f4b78df783f9905cd4#b8834a7109f4580f4b78df783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        assert_eq!(
+            resolve_notion_id("https://www.notion.so/34a6a7109f4580f4b78df783f9905cd4?v=2"),
+            "34a6a7109f4580f4b78df783f9905cd4"
+        );
+        assert_eq!(
+            resolve_notion_id("34a6a7109f4580f4b78df783f9905cd4"),
+            "34a6a7109f4580f4b78df783f9905cd4"
         );
     }
 }

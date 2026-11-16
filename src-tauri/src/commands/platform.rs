@@ -172,11 +172,27 @@ pub async fn publish_note(
         .ok_or_else(|| "未找到指定的平台实例".to_string())?;
 
     let adapter = get_adapter(&instance.platform_type)?;
-    if instance.publish_mode == "block" {
+    let result = if instance.publish_mode == "block" {
         adapter.append_blocks(&content, instance).await
     } else {
         adapter.publish(&content, instance).await
+    };
+    // 发送结果留痕（仅平台名/模式/结果消息，不含笔记内容与凭证），线上排障用
+    match &result {
+        Ok(r) => log::info!(
+            "发送成功: 平台={} 模式={} 消息={}",
+            instance.platform_type,
+            instance.publish_mode,
+            r.message
+        ),
+        Err(e) => log::warn!(
+            "发送失败: 平台={} 模式={} 错误={}",
+            instance.platform_type,
+            instance.publish_mode,
+            e
+        ),
     }
+    result
 }
 
 // ── 默认发送目标（存 config.json，比 localStorage 可靠）──
