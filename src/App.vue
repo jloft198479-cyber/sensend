@@ -297,18 +297,19 @@ ul[data-type="taskList"] {
 ul[data-type="taskList"] li[data-checked] {
   display: flex;
   align-items: flex-start;
-  gap: var(--space-8);
+  gap: 0.5em; /* 随字号缩放（框与文字的间距是字阶关系，不用界面间距 token） */
   margin: 0.2em 0;
 }
 ul[data-type="taskList"] li[data-checked] > label {
   flex: none;
-  margin-top: var(--space-2);
+  /* 勾选框对准第一行行盒正中：偏移量从行高 token 关系式算出，字号/行距变了自动跟随 */
+  margin-top: calc((var(--lh-editor, 1.9) - 1) * 0.5em);
   cursor: pointer;
   user-select: none;
 }
 ul[data-type="taskList"] li[data-checked] > label input {
-  width: 16px;
-  height: 16px;
+  width: 1em;
+  height: 1em;
   margin: 0;
   accent-color: var(--accent);
   cursor: pointer;

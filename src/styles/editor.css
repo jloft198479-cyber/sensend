@@ -4,9 +4,11 @@
 
 /* ═══ 内容字阶（内容排版 token 真源；界面字阶在 base.css，两者互不混用）═══ */
 /* 正文 16px/1.9：2026-11-17 实测定稿——15px 为 v0.1.0 起历代原值，此为首次调整。
-   雅黑墨高大，视觉行距密度勿与思源/苹方等字体的行高数字直接对标 */
+   雅黑墨高大，视觉行距密度勿与思源/苹方等字体的行高数字直接对标。
+   纪律：与字号/行距绑定的视觉值一律用 em 关系式或 var() 表达，禁写观测值 px */
 .editor-wrapper {
   --text-editor: 16px;
+  --lh-editor: 1.9;
 }
 
 .editor-wrapper .tiptap {
@@ -14,7 +16,7 @@
   min-height: 100%;
   font-family: var(--font-editor);
   font-size: var(--text-editor);
-  line-height: 1.9;
+  line-height: var(--lh-editor);
   color: var(--fg);
   caret-color: var(--fg);
   -webkit-font-smoothing: antialiased;
@@ -32,7 +34,7 @@
   height: 0;
   font-style: italic;
 }
-.editor-wrapper .tiptap p { margin: 0; line-height: 1.9; }
+.editor-wrapper .tiptap p { margin: 0; line-height: var(--lh-editor); }
 
 /* 标题 */
 .editor-wrapper .tiptap h1,
