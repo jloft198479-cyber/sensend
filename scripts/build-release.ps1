@@ -99,11 +99,13 @@ $manifest = [ordered]@{
         }
     }
 }
-$manifestPath = Join-Path $nsisDir "latest.json"
+# 必须绝对路径：.NET File API 按进程 CWD 解析相对路径，不认 PowerShell 的 Set-Location
+# （发版实测 2026-11-16：相对路径导致 ReadAllBytes 找不到 latest.json）
+$manifestPath = Join-Path (Resolve-Path $nsisDir).Path "latest.json"
 # 必须 UTF-8 无 BOM：PS5.1 的 -Encoding utf8 带 BOM，serde_json 对 BOM 直接解析失败，
 # 且该失败发生在插件 endpoint 循环的 200 分支内（? 中止）→ 连第二端点兜底都不触发
 $manifestJson = $manifest | ConvertTo-Json -Depth 5
-[System.IO.File]::WriteAllText((Resolve-Path $nsisDir).Path + "\latest.json", $manifestJson, (New-Object System.Text.UTF8Encoding($false)))
+[System.IO.File]::WriteAllText($manifestPath, $manifestJson, (New-Object System.Text.UTF8Encoding($false)))
 $first3 = [System.IO.File]::ReadAllBytes($manifestPath)[0..2]
 if ($first3[0] -eq 0xEF -and $first3[1] -eq 0xBB -and $first3[2] -eq 0xBF) {
     Write-Host "ERROR: latest.json 仍带 BOM，updater 将无法解析" -ForegroundColor Red
