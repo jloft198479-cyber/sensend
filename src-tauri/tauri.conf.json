@@ -35,6 +35,7 @@
 "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -47,6 +48,17 @@
         "installMode": "currentUser",
         "languages": ["SimpChinese", "English"]
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "active": true,
+      "dialog": false,
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc4Mjk2RTE4QzE1M0U4MDYKUldRRzZGUEJHRzRwZUR5L2tMTFZWRm1wakNYOENpbXRMR2VOV0Y4cjVpKzhEQ2hqcUV4OFJuR3gK",
+      "endpoints": [
+        "https://github.com/jloft198479-cyber/sensend/releases/latest/download/latest.json",
+        "https://cnb.cool/fzz198479/sensend/-/releases/download/latest/latest.json"
+      ]
     }
   }
 }

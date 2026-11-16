@@ -29,6 +29,8 @@ tokio = { version = "1", features = ["full"] }
 chrono = "0.4"
 tauri-plugin-dialog = "2.7.0"
 tauri-plugin-global-shortcut = "2.3.1"
+# 应用内自动更新（updater.rs 提供代理探测，前端 useUpdater 驱动检查/下载/安装）
+tauri-plugin-updater = "2"
 log = "0.4"
 base64 = "0.21"
 

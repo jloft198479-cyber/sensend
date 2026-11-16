@@ -44,6 +44,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             show_main(app);
         }))
@@ -71,6 +72,7 @@ pub fn run() {
             commands::font::scan_user_fonts,
             commands::font::open_fonts_dir,
             commands::font::delete_user_font,
+            commands::updater::detect_proxy_for_update,
         ])
         .setup(|app| {
             let app_dir = app.path().app_data_dir().expect("无法获取应用数据目录");
