@@ -67,6 +67,30 @@ const COMMANDS: SlashCommandItem[] = [
     when: editor => editor.isActive('table'),
     run: editor => editor.chain().focus().deleteTable().run(),
   },
+  {
+    id: 'blockquote',
+    label: '引用',
+    hint: '本行转为引用块',
+    run: editor => editor.chain().focus().toggleBlockquote().run(),
+  },
+  {
+    id: 'bullet-list',
+    label: '无序列表',
+    hint: '圆点列表',
+    run: editor => editor.chain().focus().toggleBulletList().run(),
+  },
+  {
+    id: 'ordered-list',
+    label: '有序列表',
+    hint: '数字列表',
+    run: editor => editor.chain().focus().toggleOrderedList().run(),
+  },
+  {
+    id: 'task-list',
+    label: '待办',
+    hint: '可勾选清单',
+    run: editor => editor.chain().focus().toggleTaskList().run(),
+  },
 ]
 
 export const SlashCommandExtension = Extension.create({
