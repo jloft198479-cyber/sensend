@@ -302,12 +302,19 @@ ul[data-type="taskList"] li[data-checked] {
 }
 ul[data-type="taskList"] li[data-checked] > label {
   flex: none;
+  /* 独立排版上下文：掐断从 li 继承的 line-height strut（1.7 会把 inline input 基线下沉），
+     否则 calc 关系式的「label 高=1em」假设不成立 */
+  display: flex;
+  align-items: flex-start;
+  line-height: 1;
   /* 勾选框对准第一行行盒正中：偏移量从行高 token 关系式算出，字号/行距变了自动跟随 */
   margin-top: calc((var(--lh-editor, 1.9) - 1) * 0.5em);
   cursor: pointer;
   user-select: none;
 }
 ul[data-type="taskList"] li[data-checked] > label input {
+  /* 表单控件 UA 默认字体 13.33px，1em 会变成 13.33px——必须继承编辑器字号，1em 才等于 16px */
+  font: inherit;
   width: 1em;
   height: 1em;
   margin: 0;
