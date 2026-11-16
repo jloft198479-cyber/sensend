@@ -88,6 +88,8 @@ pub async fn open_config_window(app: AppHandle) -> Result<(), String> {
     if let Some(config_win) = app.get_webview_window("config") {
         let _ = config_win.show();
         let _ = config_win.set_focus();
+        // [ZC-01 配套] 复用窗口不会重新挂载，通知前端重拉数据（否则隐藏期间别处的改动看不到）
+        let _ = app.emit_to("config", "config-window-shown", ());
         return Ok(());
     }
 
@@ -107,12 +109,23 @@ pub async fn open_config_window(app: AppHandle) -> Result<(), String> {
         .resizable(true)
         .decorations(false)
         .always_on_top(true)
-        .visible(true)
+        // [ZC-02] 先隐藏建窗 + 建窗时即上主题底色；由前端挂载完成后主动 show，
+        // 消除「白窗 → 上色」和「窗口可见但内容未就绪」两段闪
+        .visible(false)
+        .background_color(stored_window_bg(&app))
         .build()
         .map_err(|e| e.to_string())?;
 
-    // 新窗口底色跟随当前主题
-    apply_window_bg(&app, stored_window_bg(&app));
+    // [ZC-02] 兜底：前端 500ms 内未 show（挂载报错等），后端强制显示，窗口绝不"消失"
+    let bg_app = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(500));
+        if let Some(win) = bg_app.get_webview_window("config") {
+            if !win.is_visible().unwrap_or(true) {
+                let _ = win.show();
+            }
+        }
+    });
 
     Ok(())
 }

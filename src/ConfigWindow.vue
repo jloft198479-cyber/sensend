@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { listen } from '@tauri-apps/api/event'
 import { useConfig } from './composables/useConfig'
 import ToastLayer from './components/ToastLayer.vue'
 
@@ -19,6 +20,7 @@ const {
   currentPlatformFields,
   currentModes,
   canSave,
+  loaded,
   loadData,
   openAddModal,
   openEditModal,
@@ -43,6 +45,13 @@ onBeforeUnmount(() => { if (deleteTimer) clearTimeout(deleteTimer) })
 
 onMounted(() => {
   loadData()
+  // [ZC-02] 后端建窗为隐藏态（.visible(false) + builder 阶段已上底色）：
+  // 此刻骨架/列表首帧 DOM 已就绪，主动 show，全程无白窗、无假空态。
+  // 浏览器直开（无 Tauri 宿主）时 IPC 会 reject，静默忽略。
+  getCurrentWindow().show().catch(() => {})
+  // [ZC-01 配套] 关闭=隐藏后窗口不重新挂载，每次重新显示时重拉一次数据，
+  // 避免隐藏期间别处改动（主题/实例）导致管理窗展示旧状态
+  void listen('config-window-shown', () => { loadData() }).catch(() => {})
   const bar = titlebarRef.value
   if (!bar) return
   const applyDrag = (el: HTMLElement) => {
@@ -173,7 +182,14 @@ onMounted(() => {
 
     <!-- ═══ 已配置页面列表 ═══ -->
     <div v-else key="list" class="list-section">
-      <div v-if="instances.length === 0" class="empty-state">
+      <!-- [ZC-03] 加载中：骨架占位（卡片几何与真实条目一致，数据到来不跳动）；不许在数据未落地前说"还没有配置" -->
+      <div v-if="!loaded" class="instance-list" aria-hidden="true">
+        <div v-for="i in 3" :key="i" class="instance-card skeleton-card">
+          <span class="skeleton-line w-name"></span>
+          <span class="skeleton-line w-meta"></span>
+        </div>
+      </div>
+      <div v-else-if="instances.length === 0" class="empty-state">
         <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gray-scrollbar)"
           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="18" rx="2"/>
@@ -540,6 +556,33 @@ onMounted(() => {
 .instance-card:hover {
   border-color: var(--control-border);
   box-shadow: var(--shadow-e1);
+}
+
+/* [ZC-03] 加载骨架：复用 .instance-card 几何（同 padding/间距），只把内容换成呼吸占位条；
+   占位条高度 = 真实行字高（--text-md / --text-xs），数据到来时不会跳动 */
+.skeleton-card {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: var(--space-8);
+  cursor: default;
+}
+.skeleton-card:hover {
+  border-color: var(--border-color);
+  box-shadow: none;
+}
+.skeleton-line {
+  display: block;
+  height: var(--text-md);
+  border-radius: var(--radius-sm);
+  background: var(--bg-hover);
+  animation: skeleton-breathe 1.4s ease-in-out infinite;
+}
+.skeleton-line.w-meta { height: var(--text-xs); width: 26%; }
+.skeleton-line.w-name { width: 42%; }
+@keyframes skeleton-breathe {
+  0%, 100% { opacity: 0.55; }
+  50% { opacity: 1; }
 }
 .instance-info {
   display: flex;

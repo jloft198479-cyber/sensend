@@ -152,11 +152,12 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if window.label() == "main" {
-                if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // 主窗与管理窗统一：关闭 = 隐藏，不销毁（管理窗二次打开瞬开，不必每次冷启动）
+                if window.label() == "main" || window.label() == "config" {
                     api.prevent_close();
                     let _ = window.hide();
-                    // 隐藏 10 秒后自动修剪进程树工作集（隐藏即瘦身）
+                    // 隐藏 10 秒后自动修剪进程树工作集（隐藏即瘦身；管理窗一并修剪，D-01）
                     memory_trim::on_window_hidden();
                 }
             }

@@ -14,6 +14,7 @@ import { useEditor as useTiptapEditor } from '@tiptap/vue-3'
 import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
+import { useToast } from './useToast'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItemBase from '@tiptap/extension-task-item'
 import { TableKit } from '@tiptap/extension-table'
@@ -28,6 +29,9 @@ import type { PlatformInstance, PlatformTypeInfo } from '../types/platform'
 import { getInstanceDisplayName, toInstanceItem } from '../types/platform'
 import MentionList from '../components/MentionList.vue'
 import { SentMarkExtension, markSent } from './useSentMark'
+
+// [ZC-06] 零实例引导的会话级去重：一个会话只提示一次，不让每次按 @ 都弹 toast
+let zeroInstanceTipShown = false
 
 /**
  * 编辑器核心 composable
@@ -192,6 +196,16 @@ export function useSensendEditor(
           return ['span', { class: 'platform-mention' }, `@${props.node.attrs.label || props.node.attrs.id}`]
         },
         suggestion: {
+          // [ZC-06] 一个目标都没配时禁止弹出 @ 列表（allow 默认恒 true，会弹"无匹配平台"空壳），
+          // 改为一次性引导用户去配置——allow=false 时按 @ 无反应，必须有这条 toast 才不像"按键坏了"
+          allow: () => {
+            if (instances.value.length > 0) return true
+            if (!zeroInstanceTipShown) {
+              zeroInstanceTipShown = true
+              useToast().info('还没有配置发送目标，点底栏「管理」添加一个')
+            }
+            return false
+          },
           char: '@',
           // 插入新 mention 前先删旧的，保证唯一性
           command: ({ editor: e, range, props: mentionProps }) => {
@@ -232,12 +246,15 @@ export function useSensendEditor(
             e.view.dispatch(tr)
           },
           items: ({ query }: { query: string }) => {
+            // [ZC-05] 先映射成 InstanceItem、再筛选：匹配实例名 / 类型中文显示名（"飞书""本地文件夹"）/
+            // 平台 key。此前只拼 name + platform_type（lark/local），用户照屏幕上的字打永远 0 条。
+            // 映射规则仍然只有 toInstanceItem 一份（types/platform.ts 的 SSOT），此处不做第二份映射
+            const q = query.toLowerCase()
             return instances.value
-              .filter(inst => {
-                const searchStr = `${inst.name} ${inst.platform_type}`.toLowerCase()
-                return searchStr.includes(query.toLowerCase())
-              })
               .map(inst => toInstanceItem(inst, platformTypes.value))
+              .filter(item =>
+                `${item.name} ${item.typeName} ${item.platform_type}`.toLowerCase().includes(q),
+              )
           },
           render: () => {
             let component: any

@@ -12,6 +12,9 @@ export function useConfig() {
   // ── 状态 ──
   const instances = ref<PlatformInstance[]>([])
   const platformTypes = ref<PlatformTypeInfo[]>([])
+  // [ZC-03] 首次加载未落地前列表区渲染骨架，而不是"还没有配置任何发送页面"
+  // （空数组初值会被模板误读成"没有配置"——每次打开都先说一句假话的根源）
+  const loaded = ref(false)
   const showForm = ref(false)
   const editingInstanceId = ref<string | null>(null)
   const configForm = reactive({
@@ -62,21 +65,26 @@ export function useConfig() {
   // [m-27] 两个 IPC 无依赖，并行发起（与 usePlatform 启动一致）；
   // 失败必须让用户看见——静默只 console.error 会让配置窗口显示空列表而毫无解释。
   async function loadData() {
-    const [typesRes, listRes] = await Promise.allSettled([
-      invoke<PlatformTypeInfo[]>('get_platform_types'),
-      invoke<PlatformInstance[]>('list_platform_instances'),
-    ])
-    if (typesRes.status === 'fulfilled') {
-      platformTypes.value = typesRes.value
-    } else {
-      console.error('加载平台类型失败:', typesRes.reason)
-      useToast().error(`加载平台类型失败：${(typesRes.reason as any)?.message ?? typesRes.reason}`)
-    }
-    if (listRes.status === 'fulfilled') {
-      instances.value = listRes.value
-    } else {
-      console.error('加载平台实例失败:', listRes.reason)
-      useToast().error(`加载页面列表失败：${(listRes.reason as any)?.message ?? listRes.reason}`)
+    try {
+      const [typesRes, listRes] = await Promise.allSettled([
+        invoke<PlatformTypeInfo[]>('get_platform_types'),
+        invoke<PlatformInstance[]>('list_platform_instances'),
+      ])
+      if (typesRes.status === 'fulfilled') {
+        platformTypes.value = typesRes.value
+      } else {
+        console.error('加载平台类型失败:', typesRes.reason)
+        useToast().error(`加载平台类型失败：${(typesRes.reason as any)?.message ?? typesRes.reason}`)
+      }
+      if (listRes.status === 'fulfilled') {
+        instances.value = listRes.value
+      } else {
+        console.error('加载平台实例失败:', listRes.reason)
+        useToast().error(`加载页面列表失败：${(listRes.reason as any)?.message ?? listRes.reason}`)
+      }
+    } finally {
+      // [ZC-03] 成败都算"已加载"（失败已 toast），骨架让位给真实状态
+      loaded.value = true
     }
   }
 
@@ -233,6 +241,7 @@ export function useConfig() {
   return {
     instances,
     platformTypes,
+    loaded,
     showForm,
     editingInstanceId,
     configForm,

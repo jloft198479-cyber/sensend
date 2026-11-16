@@ -20,7 +20,6 @@ const emit = defineEmits<{
 }>()
 
 const selectedIndex = ref(0)
-const hoverIndex = ref<number | null>(null)
 const listRef = ref<HTMLElement | null>(null)
 
 /** [m-21] 打开时把高亮定位到「当前目标」而不是永远第一项：
@@ -32,7 +31,6 @@ function syncSelectedToActive() {
 
 watch(() => props.items, () => {
   syncSelectedToActive()
-  hoverIndex.value = null
 }, { immediate: true })
 
 // [m-21] activeId 也会自己变：编辑器里改 @mention 目标会同步底栏当前目标（App.vue 的
@@ -57,7 +55,7 @@ function platGlyph(type: string): string {
 // 键盘选中项自动滚动到可见区域
 async function scrollSelectedIntoView() {
   await nextTick()
-  if (!listRef.value || hoverIndex.value !== null) return
+  if (!listRef.value) return
   const selected = listRef.value.querySelector('.inst-item.is-selected') as HTMLElement
   if (selected) selected.scrollIntoView({ block: 'nearest' })
 }
@@ -70,7 +68,6 @@ onMounted(() => { void scrollSelectedIntoView() })
 
 function onKeyDown(event: KeyboardEvent): boolean {
   if (props.items.length === 0) return false
-  hoverIndex.value = null // 键盘操作时清除悬停态
   if (event.key === 'ArrowUp') {
     selectedIndex.value = (selectedIndex.value + props.items.length - 1) % props.items.length
     return true
@@ -79,11 +76,23 @@ function onKeyDown(event: KeyboardEvent): boolean {
     selectedIndex.value = (selectedIndex.value + 1) % props.items.length
     return true
   }
-  if (event.key === 'Enter') {
-    selectItem(hoverIndex.value ?? selectedIndex.value)
+  if (event.key === 'Enter' || event.key === ' ') {
+    // [ZC-07] 统一 preventDefault：否则 button 原生 Enter/Space click 与外层 keydown
+    // 各触发一次选中（双次发送的来源）；高亮只有 selectedIndex 一套，回车选的就是它
+    event.preventDefault()
+    selectItem(selectedIndex.value)
     return true
   }
   return false
+}
+
+/** [ZC-07] 悬停 = 意图选中：只在鼠标真正移动（mousemove）时把 selectedIndex 同步过来。
+ *  此前是 mouseenter/mouseleave 维护一套独立的 hoverIndex，与键盘 selectedIndex 两套高亮
+ *  打架——键盘停在第 3 行、鼠标恰好滑过第 1 行时按回车，选中的是 hover 行且界面看不出来。
+ *  现在高亮永远只有一个，且与回车将要选中的那一项一致（"最后一次有效输入"为准）。
+ *  mouseleave 不再清高亮：离开列表后高亮留在最后悬停项，仍是"最后一次输入"。 */
+function onItemHover(index: number) {
+  if (selectedIndex.value !== index) selectedIndex.value = index
 }
 
 function selectItem(index: number) {
@@ -97,7 +106,6 @@ function selectItem(index: number) {
  *  注意：这里**不能**写 outline:none —— scoped 选择器特异性高于全局 :focus-visible，
  *  会把键盘焦点提示整个抹掉（本行原来的 bug）。 */
 function onItemFocus(index: number) {
-  hoverIndex.value = null
   selectedIndex.value = index
 }
 
@@ -111,13 +119,12 @@ defineExpose({ onKeyDown })
       :key="item.id"
       class="inst-item"
       :class="{
-        'is-selected': index === selectedIndex && hoverIndex === null,
+        'is-selected': index === selectedIndex,
         active: item.id === activeId,
       }"
       @click="selectItem(index)"
       @focus="onItemFocus(index)"
-      @mouseenter="hoverIndex = index"
-      @mouseleave="hoverIndex = null"
+      @mousemove="onItemHover(index)"
       :aria-label="item.label"
     >
       <span class="inst-icon" :class="`p-${item.platform_type}`">

@@ -33,15 +33,37 @@ export const THEMES: ThemeMeta[] = [
 /** 当前主题（跨组件共享的单一状态） */
 export const currentTheme = ref('light')
 
+// [ZC-04] 主题本地缓存键：setTheme 成功时写入，启动时同步读出先上色
+const THEME_CACHE_KEY = 'sensend:theme'
+
 function applyDom(theme: string) {
   document.documentElement.dataset.theme = theme
 }
 
+/** [ZC-04] 用 localStorage 里的上次主题**同步**上色（无 IPC、无异步）。
+ *  在 mount 之前调用：深色用户不再经历"先浅后深"的闪变。
+ *  没有缓存 / 缓存值非法则什么都不做，等 initTheme() 的后端真值校正。
+ *  注意：localStorage 在两窗口间不共享，管理窗首开可能闪一次浅色——
+ *  但管理窗已由后端在 builder 阶段涂了正确的窗口底色，肉眼只见底色不见内容。 */
+export function applyCachedThemeSync() {
+  try {
+    const cached = localStorage.getItem(THEME_CACHE_KEY)
+    if (cached && THEMES.some(t => t.id === cached)) {
+      currentTheme.value = cached
+      applyDom(cached)
+    }
+  } catch {
+    // localStorage 不可用（隐私模式等）就跳过，不阻塞启动
+  }
+}
+
 /** main.ts 启动时调用：读后端存储 + 监听跨窗口同步。
- *  两个 IPC 并行发起（此前串行多付一次往返）；主题仍在挂载前生效，防启动闪色 */
+ *  两个 IPC 并行发起（此前串行多付一次往返）；挂载不被它阻塞（main.ts 先同步上色再 mount）。
+ *  [ZC-04] 校正语义：**读到了后端真值才覆盖**。此前失败回落 'light' 会把缓存上好的
+ *  深色强行拉回浅色（store 读异常时深色用户每次启动都闪浅色）；失败时保留缓存值。 */
 export async function initTheme() {
   const [theme] = await Promise.all([
-    invoke<string>('get_theme').catch(() => 'light'),
+    invoke<string>('get_theme').catch(() => null),
     // 监听注册失败不能拖垮主题应用（否则启动后主题丢失 + unhandled rejection）
     listen<string>('theme-updated', (e) => {
       currentTheme.value = e.payload
@@ -51,14 +73,22 @@ export async function initTheme() {
       return null
     }),
   ])
-  currentTheme.value = theme
-  applyDom(theme)
+  if (theme) {
+    currentTheme.value = theme
+    applyDom(theme)
+  }
 }
 
 /** 切换主题：立即改 DOM（跟手），再把 id + 窗口底色交给后端存下并广播 */
 export async function setTheme(id: string) {
   currentTheme.value = id
   applyDom(id)
+  // [ZC-04] 同步写本地缓存，下次启动 applyCachedThemeSync 先用它上色
+  try {
+    localStorage.setItem(THEME_CACHE_KEY, id)
+  } catch {
+    // 缓存写失败不影响切换本身
+  }
   const meta = THEMES.find((t) => t.id === id) ?? THEMES[0]
   await invoke('set_theme', { theme: id, windowBg: meta.windowBg })
 }
