@@ -277,7 +277,8 @@ fn flatten_list_inlines(node: &Value, out: &mut Vec<Inline>, first: &mut bool) {
         "hardBreak" => {
             if *first {
                 *first = false;
-            } else {
+            } else if !matches!(out.last(), Some(Inline::Break)) {
+                // 紧邻上一节点已推过 Break 时不重复插入（避免一个 hardBreak 变两个空行）
                 out.push(Inline::Break);
             }
         }
@@ -289,7 +290,7 @@ fn flatten_list_inlines(node: &Value, out: &mut Vec<Inline>, first: &mut bool) {
             }
             if *first {
                 *first = false;
-            } else {
+            } else if !matches!(out.last(), Some(Inline::Break)) {
                 out.push(Inline::Break);
             }
             out.extend(inl);

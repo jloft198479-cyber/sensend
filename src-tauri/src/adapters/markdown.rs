@@ -78,7 +78,7 @@ pub fn extract_plain_text(node: &Value) -> Option<String> {
 enum BreakMode {
     /// 段落内：渲染为 Markdown 硬换行 "  \n"
     Line,
-    /// 表格单元格/引用内：丢弃（与历史行为一致）
+    /// 表格单元格内：丢弃
     Suppress,
 }
 
@@ -101,9 +101,17 @@ fn render_block(block: &Block, out: &mut String, list_depth: usize) {
         Block::List { kind, items } => render_list(items, *kind, out, list_depth),
         Block::CodeBlock { language, code } => {
             // 围栏取「代码行最长 ` 连串 + 1」与 3 的较大值：代码含 ``` 行时，3 连反引号会被提前闭合（GFM 规则）
+            // 闭合围栏允许最多 3 个空格缩进（GFM 规则），统计时先跳过缩进再数反引号；
+            // 4 空格及以上是代码内容，不构成闭合围栏
             let longest = code
                 .lines()
-                .map(|l| l.chars().take_while(|&c| c == '`').count())
+                .map(|l| {
+                    let indent = l.chars().take_while(|&c| c == ' ').count();
+                    if indent > 3 {
+                        return 0;
+                    }
+                    l.chars().skip(indent).take_while(|&c| c == '`').count()
+                })
                 .max()
                 .unwrap_or(0);
             let fence = "`".repeat(3.max(longest + 1));
@@ -121,7 +129,8 @@ fn render_block(block: &Block, out: &mut String, list_depth: usize) {
         Block::BlockQuote(paras) => {
             for para in paras {
                 let mut line = String::new();
-                render_inlines(para, &mut line, BreakMode::Suppress);
+                // 引用内保留硬换行（Line）：IR 用 Break 分隔引用内嵌列表项，Suppress 会把分隔吞掉
+                render_inlines(para, &mut line, BreakMode::Line);
                 for l in line.lines() {
                     out.push_str(&format!("> {}\n", l));
                 }

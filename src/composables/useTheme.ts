@@ -34,9 +34,13 @@ function applyDom(theme: string) {
 export async function initTheme() {
   const [theme] = await Promise.all([
     invoke<string>('get_theme').catch(() => 'light'),
+    // 监听注册失败不能拖垮主题应用（否则启动后主题丢失 + unhandled rejection）
     listen<string>('theme-updated', (e) => {
       currentTheme.value = e.payload
       applyDom(e.payload)
+    }).catch((err) => {
+      console.error('主题同步监听注册失败:', err)
+      return null
     }),
   ])
   currentTheme.value = theme
