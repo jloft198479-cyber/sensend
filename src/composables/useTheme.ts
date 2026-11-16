@@ -13,6 +13,8 @@ export interface ThemeMeta {
   preview: string
   /** 原生窗口底色（切主题时交给后端存下并涂色，防加载闪色） */
   windowBg: string
+  /** 是否深色主题：菜单据此在浅/深之间画一条分隔线（7 套主题不分段太难扫） */
+  dark: boolean
 }
 
 // 本文件是「主题元数据」的唯一真源（token 源头之一，故 check-tokens 对颜色字面量豁免）。
@@ -22,12 +24,15 @@ export interface ThemeMeta {
 //   3. preview 只是菜单里的身份色点，**不要求**等于 --accent：深色主题的 accent
 //      画成小圆点会糊成一团，取更亮/更中性的近似色反而更好认（ink 就是这个原因取 #5A6570，
 //      见 ink.css 顶部说明）。这条差异是有意的，不是色值漂移。
+//   4. 数组顺序 = 菜单顺序：先浅色（冷→暖）后深色，七套不要乱插，用户是按"亮/暗"找东西的。
 export const THEMES: ThemeMeta[] = [
-  { id: 'light', name: '草绿', preview: '#2CAF68', windowBg: '#ffffff' },
-  { id: 'dark', name: '暗夜', preview: '#1a1a1a', windowBg: '#1a1a1a' },
-  { id: 'wenyi', name: '秋珀', preview: '#a17a45', windowBg: '#faf8f3' },
-  { id: 'tech', name: '魅蓝', preview: '#3b82f6', windowBg: '#fbfcfe' },
-  { id: 'ink', name: '墨白', preview: '#5A6570', windowBg: '#ffffff' },
+  { id: 'light', name: '草绿', preview: '#2CAF68', windowBg: '#ffffff', dark: false },
+  { id: 'tianqing', name: '天青', preview: '#007f84', windowBg: '#f3fafa', dark: false },
+  { id: 'tech', name: '魅蓝', preview: '#3b82f6', windowBg: '#fbfcfe', dark: false },
+  { id: 'ink', name: '墨白', preview: '#5A6570', windowBg: '#ffffff', dark: false },
+  { id: 'wenyi', name: '秋珀', preview: '#aa7a46', windowBg: '#fbf9f7', dark: false },
+  { id: 'yeyan', name: '夜山', preview: '#2c3a33', windowBg: '#202823', dark: true },
+  { id: 'dark', name: '暗夜', preview: '#1a1a1a', windowBg: '#1a1a1a', dark: true },
 ]
 
 /** 当前主题（跨组件共享的单一状态） */

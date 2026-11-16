@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { currentTheme, setTheme, THEMES } from '../composables/useTheme'
 
 defineProps<{
@@ -15,6 +15,16 @@ defineEmits<{
 }>()
 
 // ── 主题菜单（主窗口唯一入口，主题列表来自 useTheme 注册表）──
+// 7 套主题平铺不好扫，浅色 5 套与深色 2 套之间插一条分隔线。
+// sepBefore 由相邻两项的 dark 标记推导，不在注册表里重复维护"第几项要分隔"。
+const themeMenu = computed(() => {
+  let prevDark: boolean | null = null
+  return THEMES.map((t) => {
+    const sepBefore = prevDark !== null && t.dark !== prevDark
+    prevDark = t.dark
+    return { ...t, sepBefore }
+  })
+})
 const showThemeMenu = ref(false)
 function pickTheme(id: string) {
   showThemeMenu.value = false
@@ -68,15 +78,17 @@ onMounted(() => {
           </svg>
         </button>
         <div v-if="showThemeMenu" class="dropdown-menu" @click.stop>
-          <button v-for="t in THEMES" :key="t.id" class="dropdown-item"
-            :class="{ active: currentTheme === t.id }" @click="pickTheme(t.id)">
-            <span class="theme-dot" :style="{ background: t.preview }"></span>
-            <span>{{ t.name }}</span>
-            <svg v-if="currentTheme === t.id" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-          </button>
+          <template v-for="t in themeMenu" :key="t.id">
+            <div v-if="t.sepBefore" class="dropdown-sep"></div>
+            <button class="dropdown-item" :class="{ active: currentTheme === t.id }" @click="pickTheme(t.id)">
+              <span class="theme-dot" :style="{ background: t.preview }"></span>
+              <span>{{ t.name }}</span>
+              <svg v-if="currentTheme === t.id" width="14" height="14" viewBox="0 0 24 24"
+                fill="none" stroke="var(--accent-strong)" stroke-width="2" stroke-linecap="round">
+                <polyline points="20 6 9 17 4 12"/>
+              </svg>
+            </button>
+          </template>
         </div>
       </div>
 
@@ -288,6 +300,12 @@ onMounted(() => {
 .dropdown-item.active {
   color: var(--accent-strong);
   font-weight: 500;
+}
+/* 浅色主题组与深色主题组之间的分隔线（7 套主题平铺太密，分一下段） */
+.dropdown-sep {
+  height: 1px;
+  margin: var(--space-4) var(--space-8);
+  background: var(--border-color);
 }
 
 /* 主题菜单预览色点 */

@@ -1,38 +1,47 @@
-/* ═══ 文艺风 — 暖纸书卷 ═══
-   iA Writer 哲学：暖白纸面、碳黑文字、驼色点缀，克制留白
+/* ═══ 秋珀主题 — 暖纸书卷 · 琥珀点缀 ═══
+   iA Writer 哲学：暖白纸面、深墨文字、驼色点缀，克制留白。
+
+   2026-11-17 调优（起因：实际使用中"看着不舒服"）：
+   问题不是暖色不好，而是**整屏同一个色相家族**——
+   底色 #faf8f3 / 文字 #6d6455 / 边框 #e6e0d3 / 代码块 #f1ebdd 全在 h≈76~94° 这一根轴上，
+   字和纸同宗同族，只剩明度差、没有色相差，看久了发闷（"旧报纸感"）；
+   另外文字四档同样塌陷（42.8 / 45.2 / 45.6），跟墨白是同一个病。
+   对策：纸只留一丝暖（去掉蛋黄感，C*2.6→1.2），**字改成中性偏冷的墨**
+   ——这才是印刷品的样子：暖纸 + 冷墨（油墨本身不暖）。琥珀反而更纯（C*36→38），
+   全部留给点缀（按钮 / 可读主色 / 焦点环），一眼就能认出重点。
    规范 v1.0 批 1：主色三档；阴影基色改暖棕（避免暖纸上出现冷黑） */
 
 [data-theme="wenyi"] {
   /* 背景层 */
-  --bg: #faf8f3;
-  --bg-page: #f3efe6;
+  --bg: #fbf9f7;              /* L*98 C*1.2：暖，但不再发黄（原 #faf8f3 C*2.6 偏蛋黄） */
+  --bg-page: #f1efec;         /* L*94.5：与主面拉开一档，同时彩度收到 1.7 防"染黄" */
 
-  /* 文字层级 */
-  --fg: #2c2822;
-  --fg-secondary: #6d6455;
-  --muted: #736A5B;
-  --placeholder: #746B5C;
+  /* 文字层级 — 中性偏冷墨，与暖纸形成冷暖关系（间隔 ≥10 个明度点） */
+  --fg: #26272a;              /* L*15.6 h278：深墨，带极轻冷调 */
+  --fg-secondary: #4d5055;    /* L*33.9：原 42.8（咖啡色），与 muted 只差 2.4 */
+  --muted: #676a6e;           /* L*44.7 */
+  --placeholder: #6d6f73;     /* L*46.8：4.5:1 门槛附近 */
 
-  /* 边框 & 分隔 */
-  --border-color: rgba(90, 70, 40, 0.12);
-  --control-border: #8B7F6B;
+  /* 边框 & 分隔 — 转中性，不再用暖棕（暖棕线在浅暖面上看不见） */
+  --border-color: rgba(48, 44, 38, 0.14);
+  --control-border: #8c8884;
 
-  /* 主色 — 驼褐（浅而轻盈，不取深金褐；三档角色） */
-  --accent: #a17a45;
-  --accent-strong: #7D5A2E;
-  --accent-fill: #8A6534;
-  --accent-fill-hover: #7D5A2E;
-  --accent-light: #f3ecdd;
+  /* 主色 — 琥珀（更纯，浅底上更亮眼；三档角色） */
+  --accent: #aa7a46;          /* 装饰：品牌词标 / 淡底 / 图示 */
+  --accent-strong: #7b5022;   /* 可读：浅底上的主色文字 / 图标 */
+  --accent-fill: #8c5e2c;     /* 填充：主按钮 / 发送按钮底色 */
+  --accent-fill-hover: #7b5022;
+  --accent-light: #f6eee6;    /* 选中行底色：C*5，暖度只在这一层出现 */
 
   /* 语义色 — 砖红/橄榄，柔化不刺眼 */
-  --danger: #b5443c;
-  --danger-bg: #faf1ee;
-  --danger-border: #eed6d0;
-  --success-bg: #f0f4e8;
-  --success-text: #58733F;
-  --success-border: #d9e2c8;
-  --warning-text: #8A5A1F;
-  --warning-bg: #FBF3E4;
+  --danger: #a83f38;
+  --danger-bg: #fbf1ef;
+  --danger-border: #efd8d3;
+  --success-bg: #eef2e6;
+  --success-text: #4E6733;
+  --success-border: #d7e0c3;
+  --warning-text: #845114;
+  --warning-bg: #faf3e5;
 
   /* 平台识别色 — 同 light（品牌身份色，与主题主色无关；新平台在此登记） */
   --plat-local: #94a3b8;
@@ -42,27 +51,27 @@
   --plat-default: #8b949e;
   --plat-glyph: #ffffff;
 
-  /* 灰度色板（暖调灰） */
-  --gray-border: #e6e0d3;
-  --gray-hover: #f2eee4;
-  --gray-input-bg: #f6f2e9;
-  --gray-scrollbar: #d6cfbf;
+  /* 灰度色板（中性微暖灰 — 不再全盘黄调） */
+  --gray-border: #e5e0db;
+  --gray-hover: #f3f1ee;
+  --gray-input-bg: #f6f5f2;
+  --gray-scrollbar: #d9d4cd;
 
   /* 交互状态 */
-  --bg-hover: rgba(90, 70, 40, 0.06);
-  --focus-ring: #7D5A2E;        /* 键盘焦点环：实色，对 --bg ≥3:1（check-contrast 门禁） */
-  --focus-ring-soft: rgba(161, 122, 69, 0.35);  /* 氛围层：列表选中行内描边，可低透明 */
+  --bg-hover: rgba(60, 50, 35, 0.07);
+  --focus-ring: #7b5022;        /* 键盘焦点环：实色，对 --bg ≥3:1（check-contrast 门禁） */
+  --focus-ring-soft: rgba(170, 122, 70, 0.38);  /* 氛围层：列表选中行内描边，可低透明 */
 
   /* 主色之上的文字（accent-fill 底按钮文字等） */
   --fg-on-accent: #ffffff;
   /* 全屏遮罩 / 阴影基色（暖棕，避免冷黑） */
   --scrim-bg: rgba(0, 0, 0, 0.35);
-  --shadow-color: #5A4628;
+  --shadow-color: #4A3A22;
 
   /* 编辑器专用 */
-  --code-bg: #f1ebdd;
+  --code-bg: #f5f2ee;
 
   /* 滚动条 */
-  --scrollbar-thumb: rgba(90, 70, 40, 0.12);
-  --scrollbar-thumb-hover: rgba(90, 70, 40, 0.22);
+  --scrollbar-thumb: rgba(60, 50, 35, 0.12);
+  --scrollbar-thumb-hover: rgba(60, 50, 35, 0.22);
 }

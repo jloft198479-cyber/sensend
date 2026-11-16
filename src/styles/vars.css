@@ -1,5 +1,9 @@
 /* ═══ 样式唯一入口：基础 + 全部主题 ═══
-   新增主题三步：themes/ 下加 CSS 文件 → useTheme.ts 注册 → 自动进菜单
+   新增主题四步（少一步就出问题，2026-11-17 踩过）：
+     ① themes/ 下加 CSS 文件
+     ② 在**本文件** @import 它   ← 漏了这步：菜单里有、切过去却没样式
+     ③ useTheme.ts 注册（name / preview / windowBg / dark）
+     ④ 跑 check-contrast（会校验 ①②③ 是否齐全）
    （dark 必须在 light 之后引入，同特异性下后者覆盖前者） */
 @import './base.css';
 @import './themes/light.css';
@@ -7,3 +11,5 @@
 @import './themes/wenyi.css';
 @import './themes/tech.css';
 @import './themes/ink.css';
+@import './themes/tianqing.css';
+@import './themes/yeyan.css';

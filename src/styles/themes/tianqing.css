@@ -1,0 +1,78 @@
+/* ═══ 天青主题 — 淡青纸 · 青瓷墨 ═══
+   意象：汝窑天青（"雨过天青云破处"）——准确说它偏蓝，不偏绿。
+
+   ⚠ 色相为什么从 182° 推到 202°（2026-11-17 修正）：
+   最初取 h182°，自以为"比草绿冷、比魅蓝温，和四套都不撞"。实际色相环上
+   草绿 152° → 天青 182° 只差 30 度，肉眼看仍是"绿"，等于在已经有草绿的浅色区
+   又摆了一套绿。现在推到 202°，与草绿差 50°、与魅蓝差 83°，
+   才是真正独立的"青"这一格。
+
+   底色的青意故意压得很淡（L*97.8 C*2.4）：看久了才发觉"这纸有点青"，
+   而不是一进来就"啊，青色"。性格由主色承担，底色只负责气质。
+
+   2026-11-17 新增。 */
+
+[data-theme="tianqing"] {
+  /* 背景层 */
+  --bg: #f3fafa;             /* L*97.8 C*2.4 h199：极淡青白，不是纯白 */
+  --bg-page: #e3eeef;        /* L*93.3：与主面拉开一档，青意在这里更明显 */
+
+  /* 文字层级 — 深青墨四档（不是黑，黑配青纸会"脏"） */
+  --fg: #192122;             /* L*12 C*3.8 */
+  --fg-secondary: #445050;   /* L*33 */
+  --muted: #5f6a6b;          /* L*44 */
+  --placeholder: #697474;    /* L*48：4.5:1 门槛附近 */
+
+  /* 边框 & 分隔 */
+  --border-color: rgba(18, 56, 60, 0.12);
+  --control-border: #889393; /* 控件描边（对输入底 ≥3:1） */
+
+  /* 主色 — 青瓷（三档角色，禁止混用） */
+  --accent: #007f84;         /* 装饰：品牌词标 / 淡底 / 图示 */
+  --accent-strong: #00656a;  /* 可读：浅底上的主色文字 / 图标 */
+  --accent-fill: #006b70;    /* 填充：主按钮 / 发送按钮底色 */
+  --accent-fill-hover: #00656a;
+  --accent-light: #e3f4f5;   /* 选中行底色 */
+
+  /* 语义色 — 沿用浅色系低饱和取值 */
+  --danger: #C0271F;
+  --danger-bg: #fef2f2;
+  --danger-border: #fecaca;
+  --success-bg: #f0f8f4;
+  --success-text: #166B37;
+  --success-border: #c8e6d2;
+  --warning-text: #8F5400;
+  --warning-bg: #fdf6e9;
+
+  /* 平台识别色 — 品牌身份色，不随主题换色 */
+  --plat-local: #94a3b8;
+  --plat-notion: #37352f;
+  --plat-flowus: #2CAF68;
+  --plat-lark: #3370ff;
+  --plat-default: #8b949e;
+  --plat-glyph: #ffffff;
+
+  /* 灰度色板（青调灰） */
+  --gray-border: #d8e3e4;
+  --gray-hover: #eef7f7;
+  --gray-input-bg: #f5fcfc;
+  --gray-scrollbar: #c5d2d2;
+
+  /* 交互状态 */
+  --bg-hover: rgba(18, 56, 60, 0.07);
+  --focus-ring: #00656a;        /* 键盘焦点环：实色，对 --bg ≥3:1（check-contrast 门禁） */
+  --focus-ring-soft: rgba(0, 127, 132, 0.35);
+
+  /* 主色之上的文字 */
+  --fg-on-accent: #ffffff;
+  /* 全屏遮罩 / 阴影基色（青墨，避免青纸上出现纯黑阴影） */
+  --scrim-bg: rgba(0, 0, 0, 0.35);
+  --shadow-color: #0d3335;
+
+  /* 编辑器专用 */
+  --code-bg: #ecf6f6;
+
+  /* 滚动条 */
+  --scrollbar-thumb: rgba(18, 56, 60, 0.10);
+  --scrollbar-thumb-hover: rgba(18, 56, 60, 0.20);
+}

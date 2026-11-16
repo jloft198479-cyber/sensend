@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>七套主题 · 色相体检</title>
+<style>
+  :root{
+    --paper:#f6f7f8; --card:#ffffff; --ink:#1a2126; --ink2:#4d565e; --ink3:#7a838b;
+    --line:#e3e7ea; --bad:#C0271F; --badbg:#fdf1f0; --good:#1B7F4B; --goodbg:#eef7f2;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"PingFang SC","Microsoft YaHei","Segoe UI",system-ui,sans-serif;
+    -webkit-font-smoothing:antialiased; line-height:1.7;
+  }
+  .wrap{max-width:1080px; margin:0 auto; padding:52px 32px 88px}
+  header{margin-bottom:42px}
+  h1{font-size:27px; font-weight:650; letter-spacing:-.3px; margin:0 0 10px}
+  .lede{font-size:14.5px; color:var(--ink2); margin:0; max-width:76ch}
+  .lede b{color:var(--ink); font-weight:600}
+  h2{font-size:16px; font-weight:640; margin:0 0 4px; letter-spacing:-.1px}
+  .sub{font-size:13px; color:var(--ink3); margin:0 0 22px}
+  section{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:28px 30px; margin-bottom:24px}
+
+  .duo{display:flex; gap:8px; align-items:flex-start; justify-content:center; flex-wrap:wrap}
+  .ring-box{flex:1 1 400px; min-width:330px; max-width:470px; text-align:center}
+  .ring-title{font-size:13.5px; font-weight:640; margin-bottom:2px}
+  .ring-note{font-size:11.5px; color:var(--ink3); margin-bottom:4px}
+  .ring-box svg{display:block; width:100%; height:auto}
+  .tag-bad,.tag-good{display:inline-block; font-size:11.5px; padding:1px 8px; border-radius:20px; margin-left:6px; vertical-align:1px}
+  .tag-bad{background:var(--badbg); color:var(--bad)}
+  .tag-good{background:var(--goodbg); color:var(--good)}
+
+  .legend{display:flex; gap:30px; flex-wrap:wrap; margin-top:20px; padding-top:20px; border-top:1px solid var(--line)}
+  .legend-col{flex:1 1 320px; min-width:280px}
+  .legend-col h3{font-size:12px; margin:0 0 9px; color:var(--ink3); font-weight:600; letter-spacing:.5px}
+  .hue-row{display:flex; align-items:center; gap:8px; font-size:13px; padding:3px 0}
+  .dot{width:11px; height:11px; border-radius:50%; flex:none; box-shadow:0 0 0 1.5px #fff,0 0 0 2.5px rgba(0,0,0,.07)}
+  .hue-row .nm{width:32px; flex:none; color:var(--ink2)}
+  .hue-row .deg{color:var(--ink3); font-variant-numeric:tabular-nums; font-size:12.5px; width:40px}
+  .hue-row .bar{height:6px; border-radius:3px; flex:1; opacity:.9}
+  .hue-row .gap{font-size:12px; color:var(--ink3); width:62px; text-align:right; font-variant-numeric:tabular-nums}
+  .flag{color:var(--bad); font-weight:700; font-size:11.5px; width:30px; text-align:right; white-space:nowrap}
+
+  .fixgrid{display:grid; grid-template-columns:1fr 1fr; gap:14px}
+  @media (max-width:720px){ .fixgrid{grid-template-columns:1fr} }
+  .fixcard{border:1px solid var(--line); border-radius:12px; padding:16px 18px 18px}
+  .fixcard h3{margin:0 0 3px; font-size:14.5px; font-weight:640}
+  .fixcard .from{font-size:12px; color:var(--ink3); margin-bottom:12px}
+  .pair{display:flex; gap:10px; align-items:stretch}
+  .pv{flex:1; border-radius:9px; padding:10px 12px; min-height:66px; display:flex; flex-direction:column; justify-content:flex-end}
+  .pv .lb{font-size:10.5px; opacity:.72; letter-spacing:.3px}
+  .pv .vv{font-size:12px; font-family:ui-monospace,Consolas,monospace; margin-top:1px}
+  .arrow{align-self:center; color:var(--ink3); font-size:15px; flex:none}
+  .fixwhy{font-size:12.5px; color:var(--ink2); margin:12px 0 0; line-height:1.65}
+
+  .cards{display:grid; grid-template-columns:repeat(7,1fr); gap:10px}
+  @media (max-width:820px){ .cards{grid-template-columns:repeat(4,1fr)} }
+  .card{border:1px solid var(--line); border-radius:11px; overflow:hidden}
+  .card .sw{height:70px; display:flex; align-items:flex-end; justify-content:flex-end; padding:8px}
+  .card .sw i{width:21px; height:21px; border-radius:50%; box-shadow:0 1px 4px rgba(0,0,0,.16)}
+  .card .meta{padding:8px 10px 10px}
+  .card .nm{font-size:13px; font-weight:620}
+  .card .hex{font-size:10.5px; color:var(--ink3); font-family:ui-monospace,Consolas,monospace; margin-top:1px}
+  .card .h{font-size:10.5px; color:var(--ink3); margin-top:2px; line-height:1.45}
+
+  .note{font-size:13px; color:var(--ink2); margin:16px 0 0; padding:14px 16px; background:#fafbfc; border:1px solid var(--line); border-radius:10px}
+  .note b{color:var(--ink)}
+  .note+.note{margin-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>七套主题 · 色相体检</h1>
+    <p class="lede">
+      你说得对。<b>「夜山」主色和「草绿」只差 6 度，「天青」和「草绿」只差 30 度</b>——在色相环上就是同一个方向，
+      等于我往菜单里塞了三套绿。下面左边是修之前、右边是修之后，不用看文字也能分出差别。
+    </p>
+  </header>
+
+  <section>
+    <h2>色相环对比</h2>
+    <p class="sub">圆环是一整圈颜色，每个点是一套主题的主色。点挨得越近 = 看起来越像。</p>
+
+    <div class="duo">
+      <div class="ring-box">
+        <div class="ring-title">修之前<span class="tag-bad">四套挤在 30° 里</span></div>
+        <div class="ring-note">152° · 156° · 158° · 182° 全在同一侧</div>
+        <svg id="ring-before" viewBox="-62 0 544 420"></svg>
+      </div>
+      <div class="ring-box">
+        <div class="ring-title">修之后<span class="tag-good">每套一个方向</span></div>
+        <div class="ring-note">天青推到 202°，夜山退出色相环</div>
+        <svg id="ring-after" viewBox="-62 0 544 420"></svg>
+      </div>
+    </div>
+
+    <div class="legend">
+      <div class="legend-col">
+        <h3>修之前 · 相邻间隔</h3>
+        <div id="lg-before"></div>
+      </div>
+      <div class="legend-col">
+        <h3>修之后 · 相邻间隔</h3>
+        <div id="lg-after"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>改了什么</h2>
+    <p class="sub">只动两套。草绿 / 暗夜 / 魅蓝 / 墨白 / 秋珀 一个色值都没碰。</p>
+    <div class="fixgrid" id="fix"></div>
+    <p class="note">
+      <b>草绿 152° 和暗夜 156° 为什么故意重合？</b>　这不是重复，是<b>同一套色的白天与黑夜</b>——
+      白底绿字、黑底绿字，深浅模式切换时强调色保持一致，是所有成熟产品的通行做法。
+      真正的问题是另外两套：它们本该是"新颜色"，却被我做成了绿的深浅变体。
+    </p>
+  </section>
+
+  <section>
+    <h2>七套并排</h2>
+    <p class="sub">大块是底色，右下角圆点是主色。</p>
+    <div class="cards" id="all7"></div>
+  </section>
+
+</div>
+
+<script>
+const BEFORE = [
+  {name:'秋珀', h:70,  c:'#aa7a46'},
+  {name:'草绿', h:152, c:'#2CAF68'},
+  {name:'暗夜', h:156, c:'#3dbd7e'},
+  {name:'夜山', h:158, c:'#66a985'},
+  {name:'天青', h:182, c:'#207f73'},
+  {name:'墨白', h:256, c:'#374653'},
+  {name:'魅蓝', h:285, c:'#3b82f6'},
+];
+const AFTER = [
+  {name:'秋珀', h:70,  c:'#aa7a46'},
+  {name:'草绿', h:152, c:'#2CAF68'},
+  {name:'暗夜', h:156, c:'#3dbd7e'},
+  {name:'天青', h:202, c:'#007f84'},
+  {name:'墨白', h:256, c:'#374653'},
+  {name:'魅蓝', h:285, c:'#3b82f6'},
+  {name:'夜山', h:null,c:'#d8d4ce', achromatic:true},
+];
+const THEMES = [
+  {name:'草绿', h:152, bg:'#ffffff', accent:'#2CAF68', note:'白底 · 品牌绿'},
+  {name:'天青', h:202, bg:'#f3fafa', accent:'#007f84', note:'淡青纸 · 青瓷'},
+  {name:'魅蓝', h:285, bg:'#fbfcfe', accent:'#3b82f6', note:'冷白 · 科技蓝'},
+  {name:'墨白', h:256, bg:'#ffffff', accent:'#374653', note:'纯白 · 墨'},
+  {name:'秋珀', h:70,  bg:'#fbf9f7', accent:'#aa7a46', note:'暖纸 · 琥珀'},
+  {name:'夜山', h:null,bg:'#202823', accent:'#d8d4ce', note:'深墨绿 · 月光'},
+  {name:'暗夜', h:156, bg:'#1a1a1a', accent:'#3dbd7e', note:'纯黑 · 品牌绿'},
+];
+const FIX = [
+  { name:'天青',
+    from:'色相 182° → 202°，与草绿的距离 30° → 50°',
+    a:{c:'#207f73', lb:'修前', v:'#207f73 182°', tc:'#fff'},
+    b:{c:'#007f84', lb:'修后', v:'#007f84 202°', tc:'#fff'},
+    why:'「雨过天青」本义就偏蓝不偏绿，我当初取 182° 太保守，落回了绿。推到 202° 后，与草绿差 50°、与魅蓝差 83°，才真正独立成一格"青"。' },
+  { name:'夜山',
+    from:'主色 绿 → 月光白，退出色相环',
+    a:{c:'#66a985', lb:'修前', v:'#66a985 158°', tc:'#10261b'},
+    b:{c:'#d8d4ce', lb:'修后', v:'#d8d4ce 无彩', tc:'#2b251e'},
+    why:'深色主题的性格本来就该由底色承担。底还是深墨绿，主色退成近无彩的月光（C*3.5），不再占色相环任何位置——也就不会和谁撞。' },
+];
+
+const CX=210, CY=210, R=148;
+
+function pt(h, r){
+  const a = h * Math.PI / 180;
+  return [CX + r*Math.cos(a), CY - r*Math.sin(a)];
+}
+// 角度相近的点归为一组（阈值 15°），组内按半径错开、组名合并成一个标签
+function groupDots(dots){
+  const sorted = dots.filter(d=>d.h!==null).slice().sort((a,b)=>a.h-b.h);
+  const groups = [];
+  sorted.forEach(d=>{
+    const g = groups[groups.length-1];
+    if (g && d.h - g[0].h <= 15) g.push(d);
+    else groups.push([d]);
+  });
+  return groups;
+}
+
+function ringSvg(el, dots){
+  const parts = [];
+  for (let i=0;i<36;i++){
+    const a0=i*10*Math.PI/180, a1=(i*10+10.5)*Math.PI/180;
+    const x0=CX+R*Math.cos(a0), y0=CY-R*Math.sin(a0);
+    const x1=CX+R*Math.cos(a1), y1=CY-R*Math.sin(a1);
+    parts.push(`<path d="M ${x0} ${y0} A ${R} ${R} 0 0 0 ${x1} ${y1}" fill="none" stroke="hsl(${i*10} 72% 56%)" stroke-width="22" opacity=".82"/>`);
+  }
+  parts.push(`<circle cx="${CX}" cy="${CY}" r="${R-13}" fill="none" stroke="rgba(0,0,0,.06)"/>`);
+  parts.push(`<circle cx="${CX}" cy="${CY}" r="${R+13}" fill="none" stroke="rgba(0,0,0,.06)"/>`);
+
+  const groups = groupDots(dots);
+  const crowded = groups.some(g=>g.length>1);
+
+  groups.forEach(g=>{
+    // 组内点按半径向内错开
+    g.forEach((d,i)=>{
+      const r = R - i*26;
+      const [x,y] = pt(d.h, r);
+      parts.push(`<circle cx="${x}" cy="${y}" r="12.5" fill="${d.c}" stroke="#fff" stroke-width="3"/>`);
+      if (g.length > 1 && i > 0){
+        // 组内非首点：在点右侧标单个名字，避免组标签说不清谁是谁
+        parts.push(`<text x="${x+18}" y="${y+4}" font-size="10.5" fill="#7a838b" font-family="system-ui">${d.name} ${d.h}°</text>`);
+      }
+    });
+    const mid = (g[0].h + g[g.length-1].h)/2;
+    const [lx,ly] = pt(mid, R+30);
+    const anchor = Math.abs(lx-CX) < 14 ? 'middle' : (lx > CX ? 'start' : 'end');
+    if (g.length === 1){
+      parts.push(`<text x="${lx}" y="${ly+3}" text-anchor="${anchor}" font-size="11.5" fill="${crowded?'#4d565e':'#4d565e'}" font-family="system-ui" font-weight="600">${g[0].name}</text>`);
+      parts.push(`<text x="${lx}" y="${ly+17}" text-anchor="${anchor}" font-size="10" fill="#9aa2a8" font-family="ui-monospace,monospace">${g[0].h}°</text>`);
+    } else {
+      const dayNight = g.length===2 && g.every(d=>d.name==='草绿'||d.name==='暗夜');
+      const tc = dayNight ? '#4d565e' : '#C0271F';
+      parts.push(`<text x="${lx}" y="${ly+3}" text-anchor="${anchor}" font-size="11.5" fill="${tc}" font-family="system-ui" font-weight="700">${g.map(d=>d.name).join('·')}${dayNight?'（昼夜）':''}</text>`);
+      parts.push(`<text x="${lx}" y="${ly+17}" text-anchor="${anchor}" font-size="10" fill="${tc}" font-family="ui-monospace,monospace" opacity=".8">${g[0].h}~${g[g.length-1].h}°</text>`);
+    }
+  });
+
+  // 无彩主题：圆心
+  dots.filter(d=>d.h===null).forEach(d=>{
+    parts.push(`<circle cx="${CX}" cy="${CY}" r="15" fill="${d.c}" stroke="#fff" stroke-width="3"/>`);
+    parts.push(`<circle cx="${CX}" cy="${CY}" r="21" fill="none" stroke="rgba(0,0,0,.16)" stroke-dasharray="3 3"/>`);
+    parts.push(`<text x="${CX}" y="${CY+39}" text-anchor="middle" font-size="11" fill="#7a838b" font-family="system-ui" font-weight="600">${d.name}</text>`);
+    parts.push(`<text x="${CX}" y="${CY+53}" text-anchor="middle" font-size="10" fill="#9aa2a8" font-family="ui-monospace,monospace">不占色相</text>`);
+  });
+
+  el.innerHTML = parts.join('');
+}
+
+function legend(el, dots){
+  const rows = dots.filter(d=>d.h!==null).slice().sort((a,b)=>a.h-b.h);
+  const out = [];
+  rows.forEach((cur,i)=>{
+    const nx = rows[(i+1)%rows.length];
+    const d = (nx.h - cur.h + 360) % 360;
+    const dayNight = (cur.name==='草绿'&&nx.name==='暗夜')||(cur.name==='暗夜'&&nx.name==='草绿');
+    const close = !dayNight && d > 0 && d <= 32;
+    out.push(`<div class="hue-row">
+      <span class="dot" style="background:${cur.c}"></span>
+      <span class="nm">${cur.name}</span>
+      <span class="deg">${cur.h}°</span>
+      <span class="bar" style="background:linear-gradient(90deg,${cur.c}22,${cur.c})"></span>
+      <span class="gap">${d}°</span>
+      <span class="flag" style="color:${dayNight?'#9aa2a8':'#C0271F'};width:30px">${dayNight?'昼夜':(close?'挤':'')}</span>
+    </div>`);
+  });
+  el.innerHTML = out.join('');
+}
+
+document.getElementById('fix').innerHTML = FIX.map(f=>`
+  <div class="fixcard">
+    <h3>${f.name}</h3>
+    <div class="from">${f.from}</div>
+    <div class="pair">
+      <div class="pv" style="background:${f.a.c};color:${f.a.tc}">
+        <div class="lb">${f.a.lb}</div><div class="vv">${f.a.v}</div>
+      </div>
+      <div class="arrow">→</div>
+      <div class="pv" style="background:${f.b.c};color:${f.b.tc}">
+        <div class="lb">${f.b.lb}</div><div class="vv">${f.b.v}</div>
+      </div>
+    </div>
+    <p class="fixwhy">${f.why}</p>
+  </div>`).join('');
+
+document.getElementById('all7').innerHTML = THEMES.map(t=>`
+  <div class="card">
+    <div class="sw" style="background:${t.bg};${t.bg==='#1a1a1a'||t.bg==='#202823'?'box-shadow:inset 0 0 0 1px rgba(255,255,255,.06)':''}">
+      <i style="background:${t.accent}"></i>
+    </div>
+    <div class="meta">
+      <div class="nm">${t.name}</div>
+      <div class="hex">${t.accent}</div>
+      <div class="h">${t.h===null?'无彩':t.h+'°'} · ${t.note}</div>
+    </div>
+  </div>`).join('');
+
+ringSvg(document.getElementById('ring-before'), BEFORE.map(d=>({...d})));
+ringSvg(document.getElementById('ring-after'),  AFTER.map(d=>({...d})));
+legend(document.getElementById('lg-before'), BEFORE);
+legend(document.getElementById('lg-after'), AFTER);
+</script>
+</body>
+</html>

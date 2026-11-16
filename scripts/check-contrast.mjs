@@ -4,7 +4,8 @@
  * 规范：docs/Sensend-界面设计规范与整改方案-v1.0-20261116.docx §4.2.3 / 附录 B
  *
  * 用法：npm run check:contrast   （或 node scripts/check-contrast.mjs）
- * 退出码：全部达标且四主题变量同构 = 0；任一不达标/缺项 = 1
+ * 退出码：全部达标且**所有主题**变量同构 = 0；任一不达标/缺项 = 1
+ *        （主题清单从 themes/ 目录派生，加主题不用改这里；旧注释写死"四主题"已腐化，故去掉数字）
  *
  * 只读取主题 CSS，不依赖浏览器；改色后跑一遍即可回归。
  */
@@ -149,6 +150,28 @@ if (fs.existsSync(THEME_REGISTRY)) {
     problems.push('未能从 useTheme.ts 解析出任何 windowBg（正则与文件格式不匹配，门禁已空转）')
   } else if (windowBgChecked !== THEMES.length) {
     problems.push(`windowBg 校验覆盖 ${windowBgChecked}/${THEMES.length} 个主题（有主题没被校验到）`)
+  }
+}
+
+// [m-27] CSS 文件必须真的被 vars.css 引入。
+// 只建 themes/xxx.css 而不 @import，主题会出现在菜单里、切过去却套用上一套的颜色——
+// 2026-11-17 新增天青/夜山时就漏了这步，tsc 和本脚本当时都发现不了。
+const VARS_ENTRY = path.join(ROOT, 'src/styles/vars.css')
+if (!fs.existsSync(VARS_ENTRY)) {
+  problems.push('找不到 src/styles/vars.css（样式入口缺失，无法校验主题是否被引入）')
+} else {
+  const entry = fs.readFileSync(VARS_ENTRY, 'utf8')
+  const imported = new Set(
+    [...entry.matchAll(/@import\s+'\.\/themes\/([^']+)\.css'/g)].map((m) => m[1])
+  )
+  const onDisk = new Set(THEMES.map((t) => t.id))
+  for (const t of THEMES) {
+    if (!imported.has(t.id)) {
+      problems.push(`主题 ${t.id} 的 CSS 未被 vars.css @import（菜单里有、切过去没样式）`)
+    }
+  }
+  for (const id of imported) {
+    if (!onDisk.has(id)) problems.push(`vars.css @import 了不存在的 themes/${id}.css`)
   }
 }
 
