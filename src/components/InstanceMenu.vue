@@ -122,15 +122,15 @@ defineExpose({ onKeyDown })
   overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: var(--btn-radius);
-  padding: 5px;
-  box-shadow: 0 -4px 16px rgba(0,0,0,0.08), 0 -1px 4px rgba(0,0,0,0.04);
-  font-family: var(--font-editor);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  box-shadow: var(--shadow-e2);
+  font-family: var(--font-sans);
   z-index: var(--z-dropdown);
 }
 .inst-empty {
   padding: 8px 10px;
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   white-space: nowrap;
 }
@@ -139,30 +139,35 @@ defineExpose({ onKeyDown })
 .inst-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   width: 100%;
-  padding: 6px 8px;
+  height: 28px;
+  padding: 0 var(--space-8);
   margin: 0;
   border: none;
-  border-radius: var(--btn-radius);
+  border-radius: var(--radius-sm);
   background: transparent;
-  /* button 不继承父级字体（UA 行为），显式拉回容器声明的 --font-editor */
+  /* button 不继承父级字体（UA 行为），显式拉回容器声明的字体栈 */
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   color: var(--fg);
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
   outline: none;
-  transition: background 0.12s;
+  transition: background var(--dur-fast);
 }
-.inst-item:hover {
+.inst-item:hover,
+.inst-item.is-selected {
   background: var(--bg-hover);
 }
-/* 键盘选中（is-selected）与当前目标（active）同用主色淡底 */
-.inst-item.is-selected,
-.inst-item.active {
-  background: var(--accent-light);
+/* 键盘选中：hover 底 + 内描边焦点环；与"当前目标"（文字色 + ✓）彻底分开 */
+.inst-item.is-selected {
+  box-shadow: inset 0 0 0 1px var(--focus-ring);
+}
+/* 当前目标：只改文字色 + 对勾，不铺整行底色（方案 P2-4） */
+.inst-item.active .inst-name {
+  color: var(--accent-strong);
 }
 
 /* ── 平台图标：底色来自主题 --plat-* token，未知类型自动落 --plat-default ── */
@@ -186,7 +191,7 @@ defineExpose({ onKeyDown })
 .inst-icon.p-local  { background: var(--plat-local); }
 
 .inst-name {
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--fg);
   overflow: hidden;
@@ -198,18 +203,18 @@ defineExpose({ onKeyDown })
   display: inline-flex;
   align-items: center;
   gap: 3px;
-  font-size: 11px;
+  font-size: var(--text-2xs);
   font-weight: 500;
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .inst-item.active .inst-type {
-  color: var(--accent);
+  color: var(--accent-strong);
   font-weight: 600;
 }
 .inst-check {
-  color: var(--accent);
+  color: var(--accent-strong);
   flex-shrink: 0;
 }
 

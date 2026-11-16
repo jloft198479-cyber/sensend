@@ -80,6 +80,15 @@ html, body, #app { width: 100%; height: 100%; overflow: hidden; }
   --transition-fast: 0.2s ease;  /* 兼容旧引用，批 4 收口 */
 }
 
+/* 焦点可见性：键盘导航统一 2px 焦点环（鼠标点击不触发） */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
 /* ═══ 全局动画 & 过渡 ═══ */
 @keyframes spin {
   from { transform: rotate(0deg); }

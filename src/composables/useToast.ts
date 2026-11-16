@@ -3,7 +3,7 @@ import { ref } from 'vue'
 export interface ToastItem {
   id: number
   message: string
-  type: 'success' | 'error' | 'info'
+  type: 'success' | 'error' | 'info' | 'warning'
   action?: { label: string; onClick: () => void }
 }
 
@@ -35,6 +35,7 @@ export function useToast() {
     toasts,
     success: (msg: string, action?: ToastItem['action']) => add('success', msg, 3000, action),
     error: (msg: string, action?: ToastItem['action']) => add('error', msg, 4000, action),
+    warning: (msg: string, action?: ToastItem['action']) => add('warning', msg, 4000, action),
     // 第二参传数字 = 自定义时长（0 = 常驻，由调用方 remove）；传对象 = action 按钮
     info: (msg: string, durationOrAction?: number | ToastItem['action'], action?: ToastItem['action']) =>
       typeof durationOrAction === 'number'

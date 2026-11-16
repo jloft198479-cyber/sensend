@@ -143,15 +143,17 @@ onMounted(loadFonts)
   backdrop-filter: blur(2px);
 }
 .font-manager {
-  width: 340px;
+  position: relative;
+  z-index: var(--z-modal);
+  width: 360px;
   max-height: 420px;
   background: var(--bg);
-  border-radius: 14px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.06);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-e3);
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  animation: fm-in 0.2s ease-out;
+  animation: fm-in var(--dur-slow) var(--ease-out);
 }
 @keyframes fm-in {
   from { opacity: 0; transform: scale(0.96) translateY(8px); }
@@ -166,8 +168,8 @@ onMounted(loadFonts)
   padding: 16px 18px 12px;
 }
 .fm-header h3 {
-  font-size: 15px;
-  font-weight: 650;
+  font-size: var(--text-md);
+  font-weight: 600;
   color: var(--fg);
   margin: 0;
 }
@@ -196,7 +198,7 @@ onMounted(loadFonts)
   align-items: flex-start;
   gap: 6px;
   padding: 0 18px 12px;
-  font-size: 11.5px;
+  font-size: var(--text-xs);
   color: var(--muted);
   line-height: 1.5;
 }
@@ -217,10 +219,10 @@ onMounted(loadFonts)
   align-items: center;
   gap: 5px;
   padding: 6px 12px;
-  border: 1px solid var(--gray-border);
-  border-radius: 7px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
   background: var(--bg);
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 500;
   color: var(--fg-secondary);
   cursor: pointer;
@@ -235,8 +237,8 @@ onMounted(loadFonts)
 .fm-refresh-btn {
   width: 28px;
   height: 28px;
-  border: 1px solid var(--gray-border);
-  border-radius: 7px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
   background: var(--bg);
   color: var(--muted);
   cursor: pointer;
@@ -277,11 +279,11 @@ onMounted(loadFonts)
 }
 .fm-empty p {
   margin: 8px 0 0;
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 .fm-empty-hint {
-  font-size: 11px !important;
+  font-size: var(--text-xs) !important;
   font-weight: 400 !important;
   color: var(--placeholder) !important;
 }
@@ -317,12 +319,14 @@ onMounted(loadFonts)
   white-space: nowrap;
 }
 .fm-font-ext {
-  font-size: 9px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 6px;
+  font-size: var(--text-2xs);
   font-weight: 600;
-  color: var(--muted);
-  background: var(--gray-hover);
-  padding: 1px 5px;
-  border-radius: 3px;
+  color: var(--accent-strong);
+  background: var(--accent-light);
+  border-radius: var(--radius-xs);
   flex-shrink: 0;
 }
 
@@ -333,7 +337,7 @@ onMounted(loadFonts)
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;

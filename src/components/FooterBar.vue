@@ -216,7 +216,8 @@ function onDocClick(e: MouseEvent) {
   flex-shrink: 0;
   user-select: none;
   cursor: default;
-  font-family: var(--font-editor);
+  /* 界面文字统一 --font-sans；仅目标名称沿用内容字体（方案 F-1） */
+  font-family: var(--font-sans);
 }
 .footer-left {
   display: flex;
@@ -242,7 +243,7 @@ function onDocClick(e: MouseEvent) {
   border: none;
   background: transparent;
   cursor: pointer;
-  border-radius: 4px;
+  border-radius: var(--radius-xs);
   transition: all 0.15s;
   white-space: nowrap;
   line-height: 1;
@@ -250,7 +251,7 @@ function onDocClick(e: MouseEvent) {
 .target-btn:hover { background: var(--bg-hover); }
 .target-btn.no-target {
   color: var(--muted);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 /* ═══ 平台选择器 ═══ */
@@ -263,22 +264,23 @@ function onDocClick(e: MouseEvent) {
   gap: 4px;
   padding: 4px 8px;
   border: 1px solid transparent;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   background: transparent;
   cursor: pointer;
   transition: all 0.15s;
   font-family: var(--font-editor);
 }
 .target-picker-btn:hover {
-  background: var(--bg-hover, rgba(0,0,0,0.04));
-  border-color: var(--border-color, rgba(0,0,0,0.06));
+  background: var(--bg-hover);
+  border-color: var(--border-color);
 }
 /* 药丸基础样式复用全局 .platform-mention（App.vue 定义，与编辑器内 mention 同一格式真源）；
    此处只保留底栏特有差异 */
 .target-mention {
   display: inline-flex;
   align-items: center;
-  font-size: 12px;
+  font-family: var(--font-editor);
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 .target-mention.placeholder {
@@ -305,8 +307,8 @@ function onDocClick(e: MouseEvent) {
 
 /* 字数统计 */
 .word-count {
-  font-size: 12px;
-  color: var(--fg-secondary);
+  font-size: var(--text-2xs);
+  color: var(--muted);
 }
 
 /* 表单控件默认不继承父级字体（UA 样式表行为），统一拉回组件字体栈（--font-editor） */
@@ -336,10 +338,10 @@ function onDocClick(e: MouseEvent) {
 /* 清空按钮（两步确认态） */
 .clear-btn { color: var(--fg-secondary); }
 .clear-btn.confirming {
-  width: auto;
-  padding: 0 10px;
+  width: 88px;
+  padding: 0;
   color: var(--danger);
-  background: var(--danger-bg, rgba(239, 68, 68, 0.1));
+  background: var(--danger-bg);
 }
 .clear-confirm-text {
   font-size: 12px;
@@ -359,29 +361,30 @@ function onDocClick(e: MouseEvent) {
   right: 0;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: var(--btn-radius);
-  padding: 5px;
-  min-width: 130px;
-  box-shadow: 0 -4px 16px rgba(0,0,0,0.08);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  min-width: 160px;
+  box-shadow: var(--shadow-e2);
   z-index: var(--z-dropdown);
   font-family: var(--font-sans);
 }
 .settings-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-8);
   width: 100%;
-  padding: 6px 8px;
+  height: 28px;
+  padding: 0 var(--space-8);
   border: none;
-  border-radius: var(--btn-radius);
+  border-radius: var(--radius-sm);
   background: transparent;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--fg);
   cursor: pointer;
   white-space: nowrap;
   text-align: left;
-  transition: background 0.12s;
+  transition: background var(--dur-fast);
 }
 .settings-item:hover {
   background: var(--bg-hover);

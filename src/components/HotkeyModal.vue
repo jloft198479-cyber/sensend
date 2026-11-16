@@ -113,36 +113,38 @@ function onPanelKeydown(e: KeyboardEvent) {
   position: fixed;
   inset: 0;
   background: var(--scrim-bg);
-  backdrop-filter: blur(4px);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: var(--z-modal);
+  z-index: var(--z-scrim);
 }
 .modal-panel {
+  position: relative;
+  z-index: var(--z-modal);
   background: var(--bg);
-  border-radius: 14px;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.15), 0 8px 20px rgba(0,0,0,0.08);
-  width: 280px;
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-e3);
+  width: 320px;
   overflow: hidden;
 }
 .modal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 14px 16px 10px;
+  padding: 16px 18px 12px;
   border-bottom: 1px solid var(--border-color);
 }
 .modal-title {
-  font-size: 13.5px;
-  font-weight: 650;
+  font-size: var(--text-md);
+  font-weight: 600;
   color: var(--fg);
 }
 .modal-close {
   width: 24px; height: 24px;
   border: none; background: transparent;
   color: var(--muted); cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
   transition: all 0.15s ease; padding: 0;
 }
@@ -151,22 +153,22 @@ function onPanelKeydown(e: KeyboardEvent) {
 .modal-body { padding: 6px; }
 
 /* ═══ 快捷键设置 ═══ */
-.hotkey-panel { width: 300px; }
-.hotkey-body { padding: 16px; display: flex; flex-direction: column; gap: 14px; }
+.hotkey-panel { width: 320px; }
+.hotkey-body { padding: 16px 18px; display: flex; flex-direction: column; gap: 14px; }
 .hotkey-item { display: flex; flex-direction: column; gap: 4px; }
-.hotkey-label { font-size: 12px; font-weight: 600; color: var(--fg); }
-.hotkey-desc { font-size: 10.5px; color: var(--muted); }
+.hotkey-label { font-size: var(--text-xs); font-weight: 600; color: var(--fg); }
+.hotkey-desc { font-size: var(--text-xs); color: var(--muted); }
 .hotkey-record-btn {
   display: flex; align-items: center; justify-content: center;
-  padding: 8px 12px; border: 1px solid var(--gray-border); border-radius: 8px;
+  padding: 8px 12px; border: 1px solid var(--control-border); border-radius: var(--radius-md);
   background: var(--gray-input-bg); cursor: pointer; transition: all 0.15s;
   /* button 不继承父级字体（UA 行为），显式拉回 */
   font-family: inherit;
   min-height: 36px;
 }
-.hotkey-record-btn:hover { border-color: var(--accent); background: var(--bg); }
+.hotkey-record-btn:hover { border-color: var(--accent-strong); background: var(--bg); }
 .hotkey-record-btn.recording {
-  border-color: var(--accent); background: var(--accent-light);
+  border-color: var(--accent-strong); background: var(--accent-light);
   animation: pulse-border 1.5s infinite;
 }
 @keyframes pulse-border {
@@ -174,12 +176,12 @@ function onPanelKeydown(e: KeyboardEvent) {
   50% { box-shadow: 0 0 0 3px var(--accent-light); }
 }
 .hotkey-kbd {
-  font-family: var(--font-sans); font-size: 12px; font-weight: 600;
+  font-family: var(--font-sans); font-size: var(--text-xs); font-weight: 600;
   color: var(--fg); padding: 0; border: none; background: none;
   pointer-events: none;
 }
 .recording-text {
-  font-size: 11px; color: var(--accent); font-weight: 500;
+  font-size: var(--text-xs); color: var(--accent-strong); font-weight: 500;
   animation: blink 1s ease-in-out infinite;
 }
 @keyframes blink {
@@ -189,14 +191,14 @@ function onPanelKeydown(e: KeyboardEvent) {
 .hotkey-actions { margin-top: 4px; display: flex; }
 
 .config-btn {
-  flex: 1; padding: 11px 0; border: none; border-radius: 8px;
-  font-size: 12.5px; font-weight: 600; cursor: pointer;
+  flex: 1; height: 32px; padding: 0; border: none; border-radius: var(--radius-md);
+  font-size: var(--text-sm); font-weight: 600; cursor: pointer;
   /* button 不继承父级字体（UA 行为），显式拉回 */
   font-family: inherit;
   transition: all 0.15s ease; display: flex; align-items: center;
   justify-content: center; gap: 6px; width: 100%;
 }
-.config-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.save-btn { background: var(--accent); color: var(--fg-on-accent); }
-.save-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.config-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.save-btn { background: var(--accent-fill); color: var(--fg-on-accent); }
+.save-btn:hover:not(:disabled) { background: var(--accent-fill-hover); }
 </style>

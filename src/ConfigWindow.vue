@@ -112,6 +112,7 @@ onMounted(() => {
             <div class="input-with-toggle">
               <input v-model="(configForm as any)[field.key]"
                 :type="field.secret && !showToken ? 'password' : 'text'" class="form-input"
+                :class="{ 'input-mono': ['token', 'token2', 'target_id'].includes(field.key) }"
                 placeholder="粘贴..." spellcheck="false" autocomplete="off" />
               <button v-if="field.secret" class="toggle-visibility" @click="showToken = !showToken"
                 :title="showToken ? '隐藏' : '显示'" :aria-label="showToken ? '隐藏密钥' : '显示密钥'" tabindex="-1">
@@ -155,7 +156,7 @@ onMounted(() => {
     <!-- ═══ 已配置页面列表 ═══ -->
     <div v-else key="list" class="list-section">
       <div v-if="instances.length === 0" class="empty-state">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--gray-scrollbar)"
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--gray-scrollbar)"
           stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="3" width="20" height="18" rx="2"/>
           <path d="M12 8v8M8 12h8"/>
@@ -222,9 +223,9 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  padding: 0 14px 0 20px;
-  height: 52px;
-  background: var(--bg);
+  padding: 0 14px 0 16px;
+  height: 44px;
+  background: var(--accent-light);
   border-bottom: 1px solid var(--border-color);
   flex-shrink: 0;
   cursor: default;
@@ -240,29 +241,28 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   gap: 5px;
-  padding: 7px 16px;
+  height: 32px;
+  padding: 0 16px;
   min-width: 148px;
   border: none;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
   font-family: var(--font-sans);
   white-space: nowrap;
 }
-.title-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.title-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .add-new-btn {
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--fg-on-accent);
-  box-shadow: 0 2px 8px color-mix(in srgb, var(--accent) 30%, transparent);
 }
 .add-new-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
+  background: var(--accent-fill-hover);
 }
 .add-new-btn:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.98);
 }
 .back-title-btn {
   background: var(--gray-hover);
@@ -319,13 +319,13 @@ onMounted(() => {
   gap: 6px;
 }
 .label-hint {
-  font-size: 10.5px;
+  font-size: var(--text-xs);
   font-weight: 400;
   color: var(--muted);
   font-style: italic;
 }
 .field-hint {
-  font-size: 11px;
+  font-size: var(--text-xs);
   color: var(--muted);
   margin-top: 2px;
   line-height: 1.4;
@@ -333,10 +333,10 @@ onMounted(() => {
 .browse-btn {
   margin-left: auto;
   padding: 1px 8px;
-  border: 1px solid var(--gray-border);
-  border-radius: 4px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-xs);
   background: var(--bg);
-  font-size: 11px;
+  font-size: var(--text-2xs);
   color: var(--fg-secondary);
   cursor: pointer;
   transition: all 0.15s;
@@ -347,25 +347,40 @@ onMounted(() => {
 .platform-select {
   position: relative;
 }
+/* 下拉箭头：CSS 描边绘制，随主题 --muted 变色（替代写死颜色的 data-URI，方案 C-6） */
+.platform-select::after {
+  content: '';
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 7px;
+  height: 7px;
+  border-right: 2px solid var(--muted);
+  border-bottom: 2px solid var(--muted);
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
 .platform-select select {
   width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--gray-border);
-  border-radius: 8px;
+  height: 36px;
+  padding: 0 32px 0 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
   background: var(--gray-input-bg);
-  font-size: 13px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--fg);
   cursor: pointer;
   outline: none;
   appearance: none;
   font-family: var(--font-sans);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2371717a' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
   transition: border-color 0.15s;
 }
-.platform-select select:focus { border-color: var(--accent); background-color: var(--bg); }
+.platform-select select:focus {
+  border-color: var(--accent-strong);
+  background-color: var(--bg);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 .platform-select select:disabled {
   opacity: 0.6;
   cursor: not-allowed;
@@ -374,18 +389,25 @@ onMounted(() => {
 
 .form-input {
   width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--gray-border);
-  border-radius: 8px;
-  font-size: 13px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--control-border);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   color: var(--fg);
   background: var(--gray-input-bg);
   outline: none;
-  font-family: var(--font-mono);
-  transition: border-color 0.15s;
+  font-family: var(--font-sans);
+  transition: border-color 0.15s, box-shadow 0.15s;
   box-sizing: border-box;
 }
-.form-input:focus { border-color: var(--accent); background: var(--bg); }
+/* 凭证 / Target ID 用等宽（方案 4.8.2：名称等自然语言字段一律不用等宽） */
+.form-input.input-mono { font-family: var(--font-mono); }
+.form-input:focus {
+  border-color: var(--accent-strong);
+  background: var(--bg);
+  box-shadow: 0 0 0 3px var(--focus-ring);
+}
 .form-input::placeholder { color: var(--placeholder); }
 
 .input-with-toggle {
@@ -424,10 +446,11 @@ onMounted(() => {
 }
 .action-btn {
   flex: 1;
-  padding: 9px 0;
+  height: 32px;
+  padding: 0;
   border: none;
-  border-radius: 8px;
-  font-size: 13px;
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
   font-weight: 600;
   cursor: pointer;
   transition: all 0.15s ease;
@@ -437,11 +460,11 @@ onMounted(() => {
   gap: 6px;
   font-family: var(--font-sans);
 }
-.action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.action-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .test-btn { background: var(--gray-hover); color: var(--fg); }
 .test-btn:hover:not(:disabled) { background: var(--gray-border); }
-.save-btn { background: var(--accent); color: var(--fg-on-accent); }
-.save-btn:hover:not(:disabled) { background: var(--accent-hover); }
+.save-btn { background: var(--accent-fill); color: var(--fg-on-accent); }
+.save-btn:hover:not(:disabled) { background: var(--accent-fill-hover); }
 
 /* ═══ 实例列表 ═══ */
 .list-section {
@@ -454,18 +477,18 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 20px;
+  padding: 28px 20px;
   color: var(--muted);
   text-align: center;
 }
 .empty-state p {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 .empty-hint {
   margin-top: 6px !important;
-  font-size: 12px !important;
+  font-size: var(--text-xs) !important;
   font-weight: 400 !important;
   color: var(--placeholder);
 }
@@ -479,15 +502,15 @@ onMounted(() => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 14px;
+  padding: 10px 12px;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   transition: all 0.15s ease;
 }
 .instance-card:hover {
-  border-color: var(--gray-border);
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  border-color: var(--control-border);
+  box-shadow: var(--shadow-e1);
 }
 .instance-info {
   display: flex;
@@ -510,20 +533,21 @@ onMounted(() => {
   white-space: nowrap;
 }
 .instance-type {
-  font-size: 11px;
+  font-size: var(--text-2xs);
   color: var(--muted);
   display: flex;
   align-items: center;
   gap: 5px;
 }
 .mode-tag {
-  font-size: 10px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 6px;
+  font-size: var(--text-2xs);
   font-weight: 600;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 10%, transparent);
-  padding: 0 5px;
-  border-radius: 3px;
-  line-height: 16px;
+  color: var(--accent-strong);
+  background: var(--accent-light);
+  border-radius: var(--radius-xs);
 }
 .instance-actions {
   display: flex;
@@ -538,7 +562,7 @@ onMounted(() => {
   background: transparent;
   color: var(--muted);
   cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -548,12 +572,13 @@ onMounted(() => {
 .icon-btn:hover { background: var(--gray-hover); color: var(--fg); }
 .icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); }
 .confirm-btn {
-  padding: 4px 10px;
+  height: 28px;
+  padding: 0 10px;
   border: 1px solid var(--danger);
   background: var(--danger-bg);
   color: var(--danger);
-  border-radius: 6px;
-  font-size: 11px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-2xs);
   font-weight: 600;
   cursor: pointer;
   font-family: var(--font-sans);

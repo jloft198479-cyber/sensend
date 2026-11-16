@@ -82,10 +82,10 @@
   color: var(--fg-secondary); font-style: italic;
 }
 .editor-wrapper .tiptap a {
-  color: var(--accent); text-decoration: underline;
+  color: var(--accent-strong); text-decoration: underline;
   text-decoration-thickness: 1px; text-underline-offset: 2px;
 }
-.editor-wrapper .tiptap a:hover { color: var(--accent-hover); text-decoration-thickness: 2px; }
+.editor-wrapper .tiptap a:hover { color: var(--accent-fill-hover); text-decoration-thickness: 2px; }
 .editor-wrapper .tiptap hr {
   border: none; border-top: 1.5px solid var(--border-color); margin: 1.5em 0;
 }

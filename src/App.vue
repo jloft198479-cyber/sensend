@@ -277,19 +277,19 @@ async function onSaveHotkeys() {
 <style>
 /* ═══ @平台 Mention ═══ */
 .platform-mention {
-  color: var(--accent);
-  background: linear-gradient(135deg, var(--accent-light) 0%, color-mix(in srgb, var(--accent) 3%, transparent) 100%);
+  color: var(--accent-strong);
+  background: var(--accent-light);
   border: 1px solid color-mix(in srgb, var(--accent) 15%, transparent);
-  border-radius: 5px;
+  border-radius: var(--radius-sm);
   padding: 1px 6px;
-  font-size: 0.92em;
+  font-size: var(--text-xs);
   font-weight: 500;
   cursor: default;
   user-select: none;
   transition: all 0.15s ease;
 }
 .platform-mention:hover {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 12%, transparent) 0%, color-mix(in srgb, var(--accent) 6%, transparent) 100%);
+  background: color-mix(in srgb, var(--accent) 10%, var(--accent-light));
   border-color: color-mix(in srgb, var(--accent) 25%, transparent);
 }
 
@@ -379,23 +379,23 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
   gap: 1px;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: 10px;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-e2);
   padding: 3px 4px;
 }
 .bm-btn {
   width: 28px; height: 28px;
   border: none; background: transparent;
   color: var(--fg-secondary); cursor: pointer;
-  border-radius: 6px;
+  border-radius: var(--radius-sm);
   display: flex; align-items: center; justify-content: center;
-  transition: all 0.12s ease; padding: 0;
+  transition: all var(--dur-fast) ease; padding: 0;
 }
 .bm-btn:hover { background: var(--bg-hover); color: var(--fg); }
-.bm-btn.active { background: var(--accent-light); color: var(--accent); }
+.bm-btn.active { background: var(--accent-light); color: var(--accent-strong); }
 .bm-divider {
   width: 1px; height: 16px;
-  background: var(--gray-border);
+  background: var(--border-color);
   margin: 0 3px; flex-shrink: 0;
 }
 

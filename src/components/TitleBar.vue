@@ -88,7 +88,7 @@ onMounted(() => {
           >
             <span :style="{ fontFamily: opt.value }">{{ opt.label }}</span>
             <svg v-if="currentFont === opt.value" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round">
+              fill="none" stroke="var(--accent-strong)" stroke-width="2.5" stroke-linecap="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </button>
@@ -121,7 +121,7 @@ onMounted(() => {
             <span class="theme-dot" :style="{ background: t.preview }"></span>
             <span>{{ t.name }}</span>
             <svg v-if="currentTheme === t.id" width="14" height="14" viewBox="0 0 24 24"
-              fill="none" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round">
+              fill="none" stroke="var(--accent-strong)" stroke-width="2.5" stroke-linecap="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           </button>
@@ -179,8 +179,7 @@ onMounted(() => {
   cursor: default;
   user-select: none;
   flex-shrink: 0;
-  border-bottom: none;
-  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.04);
+  border-bottom: 1px solid var(--border-color);
   background: var(--accent-light);
 }
 .title-left {
@@ -190,17 +189,17 @@ onMounted(() => {
 }
 .title {
   font-family: var(--font-brand);
-  font-size: 17px;
+  font-size: var(--text-lg);
   font-weight: 700;
-  font-style: italic;
-  color: var(--accent);
+  letter-spacing: -0.01em;
+  color: var(--accent-strong);
 }
 .save-status {
-  font-size: 11px;
+  font-size: var(--text-2xs);
   opacity: 1;
   transition: opacity 0.4s ease;
 }
-.save-status.saved { color: var(--accent); }
+.save-status.saved { color: var(--accent-strong); }
 .save-status.saving { color: var(--muted); }
 
 /* fade 过渡（Vue Transition） */
@@ -255,7 +254,7 @@ onMounted(() => {
   color: var(--fg);
 }
 .action-btn.pin-active {
-  color: var(--accent);
+  color: var(--accent-strong);
 }
 .action-btn.pin-active svg path {
   fill: currentColor;
@@ -280,7 +279,7 @@ onMounted(() => {
   width: var(--btn-size);
   height: var(--btn-size);
   border: none;
-  background: var(--accent);
+  background: var(--accent-fill);
   color: var(--fg-on-accent);
   cursor: pointer;
   border-radius: var(--btn-radius);
@@ -288,14 +287,13 @@ onMounted(() => {
   transition: all var(--transition-fast);
 }
 .send-btn:hover:not(:disabled) {
-  background: var(--accent-hover);
-  box-shadow: 0 2px 6px var(--accent-light);
+  background: var(--accent-fill-hover);
 }
 .send-btn:active:not(:disabled) {
   transform: scale(0.96);
 }
 .send-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 .spin-icon {
@@ -318,15 +316,15 @@ onMounted(() => {
   margin-top: 6px;
   background: var(--bg);
   border: 1px solid var(--border-color);
-  border-radius: var(--btn-radius);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
-  padding: 5px;
-  min-width: 150px;
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-e2);
+  padding: var(--space-4);
+  min-width: 160px;
   z-index: var(--z-dropdown);
   font-family: var(--font-sans);
 }
 .font-menu-title {
-  font-size: 11px;
+  font-size: var(--text-2xs);
   color: var(--muted);
   padding: 4px 10px 6px;
   font-weight: 500;
@@ -334,25 +332,26 @@ onMounted(() => {
 .font-menu-item {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--space-8);
   width: 100%;
-  padding: 6px 8px;
+  height: 28px;
+  padding: 0 var(--space-8);
   border: none;
-  border-radius: var(--btn-radius);
+  border-radius: var(--radius-sm);
   background: none;
   /* button 不继承父级字体（UA 行为），显式拉回菜单声明的 --font-sans */
   font-family: inherit;
-  font-size: 12.5px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--fg);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--dur-fast);
 }
 .font-menu-item:hover {
   background: var(--bg-hover);
 }
 .font-menu-item.active {
-  color: var(--accent);
+  color: var(--accent-strong);
   font-weight: 500;
 }
 .font-menu-divider {
