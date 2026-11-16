@@ -15,6 +15,8 @@ export function useConfig() {
   // [ZC-03] 首次加载未落地前列表区渲染骨架，而不是"还没有配置任何发送页面"
   // （空数组初值会被模板误读成"没有配置"——每次打开都先说一句假话的根源）
   const loaded = ref(false)
+  // [ZC-10] 当前默认发送目标（instance id，null=未设置）。管理页此前唯一管不了的事
+  const defaultTargetId = ref<string | null>(null)
   const showForm = ref(false)
   const editingInstanceId = ref<string | null>(null)
   const configForm = reactive({
@@ -66,9 +68,10 @@ export function useConfig() {
   // 失败必须让用户看见——静默只 console.error 会让配置窗口显示空列表而毫无解释。
   async function loadData() {
     try {
-      const [typesRes, listRes] = await Promise.allSettled([
+      const [typesRes, listRes, targetRes] = await Promise.allSettled([
         invoke<PlatformTypeInfo[]>('get_platform_types'),
         invoke<PlatformInstance[]>('list_platform_instances'),
+        invoke<string | null>('get_default_target'),
       ])
       if (typesRes.status === 'fulfilled') {
         platformTypes.value = typesRes.value
@@ -81,6 +84,13 @@ export function useConfig() {
       } else {
         console.error('加载平台实例失败:', listRes.reason)
         useToast().error(`加载页面列表失败：${(listRes.reason as any)?.message ?? listRes.reason}`)
+      }
+      if (targetRes.status === 'fulfilled') {
+        defaultTargetId.value = targetRes.value
+      } else {
+        // [ZC-10] 读取失败按"未设置"呈现（不谎报），失败原因打日志备查
+        console.error('读取默认发送目标失败:', targetRes.reason)
+        defaultTargetId.value = null
       }
     } finally {
       // [ZC-03] 成败都算"已加载"（失败已 toast），骨架让位给真实状态
@@ -231,6 +241,8 @@ export function useConfig() {
     try {
       await invoke('delete_platform_instance', { instanceId: id })
       instances.value = instances.value.filter(i => i.id !== id)
+      // [ZC-10] 删掉的若正是默认目标，本地同步清掉，避免"当前目标"卡指向幽灵
+      if (defaultTargetId.value === id) defaultTargetId.value = null
       showDeleteConfirm.value = null
     } catch (e) {
       console.error('删除失败:', e)
@@ -238,10 +250,27 @@ export function useConfig() {
     }
   }
 
+  /** [ZC-10] 设为默认发送目标。后端 set_default_target 会 emit instances-updated，
+   *  主窗监听后 reloadInstances 重读 default_target → 底栏当前目标随之同步 */
+  async function setAsDefault(id: string) {
+    if (defaultTargetId.value === id) return
+    try {
+      await invoke('set_default_target', { targetId: id })
+      defaultTargetId.value = id
+      const name = instances.value.find(i => i.id === id)?.name || ''
+      useToast().success(`已设为默认发送目标：${name}`)
+    } catch (e) {
+      console.error('设置默认目标失败:', e)
+      useToast().error(`设置默认目标失败：${(e as any)?.message ?? e}`)
+    }
+  }
+
   return {
     instances,
     platformTypes,
     loaded,
+    defaultTargetId,
+    setAsDefault,
     showForm,
     editingInstanceId,
     configForm,

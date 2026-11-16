@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { useConfig } from './composables/useConfig'
+import { platGlyph } from './types/platform'
 import ToastLayer from './components/ToastLayer.vue'
 
 const {
@@ -21,6 +22,8 @@ const {
   currentModes,
   canSave,
   loaded,
+  defaultTargetId,
+  setAsDefault,
   loadData,
   openAddModal,
   openEditModal,
@@ -34,6 +37,19 @@ const {
 // 无边框窗口：顶栏作为拖拽区（交互区 .title-actions 排除），关闭走自绘按钮
 const titlebarRef = ref<HTMLElement | null>(null)
 const closeWindow = () => { getCurrentWindow().close() }
+
+// [ZC-10] 当前默认目标的实例对象（null = 未设置 / 指向的实例已被删除）
+const currentDefaultTarget = computed(() =>
+  defaultTargetId.value
+    ? instances.value.find(i => i.id === defaultTargetId.value) ?? null
+    : null,
+)
+const dtTypeName = computed(() =>
+  currentDefaultTarget.value
+    ? platformTypes.value.find(t => t.key === currentDefaultTarget.value!.platform_type)?.name
+      || currentDefaultTarget.value.platform_type
+    : '',
+)
 
 // 删除二次确认：3 秒未操作自动回退（方案 M-6，与清空笔记同一交互）
 let deleteTimer: ReturnType<typeof setTimeout> | null = null
@@ -182,6 +198,27 @@ onMounted(() => {
 
     <!-- ═══ 已配置页面列表 ═══ -->
     <div v-else key="list" class="list-section">
+      <!-- [ZC-10] 当前目标卡：管理页此前唯一管不了的事就是默认目标。loaded 后才渲染，
+           骨架期不出现（否则又会像 ZC-03 之前那样先说一句假话） -->
+      <div v-if="loaded" class="default-target-card" :class="{ 'is-unset': !currentDefaultTarget }">
+        <template v-if="currentDefaultTarget">
+          <span class="dt-icon" :class="`p-${currentDefaultTarget.platform_type}`">
+            <svg v-if="platGlyph(currentDefaultTarget.platform_type) === 'folder'" width="12" height="12"
+              viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+            <template v-else>{{ platGlyph(currentDefaultTarget.platform_type) }}</template>
+          </span>
+          <div class="dt-text">
+            <span class="dt-name">{{ currentDefaultTarget.name }}</span>
+            <span class="dt-meta">当前目标 · {{ dtTypeName }}</span>
+          </div>
+        </template>
+        <template v-else>
+          <span class="dt-empty">未设置默认目标，发送时按下方列表首个可用目标</span>
+        </template>
+      </div>
       <!-- [ZC-03] 加载中：骨架占位（卡片几何与真实条目一致，数据到来不跳动）；不许在数据未落地前说"还没有配置" -->
       <div v-if="!loaded" class="instance-list" aria-hidden="true">
         <div v-for="i in 3" :key="i" class="instance-card skeleton-card">
@@ -215,6 +252,11 @@ onMounted(() => {
               确认删除
             </button>
             <template v-else>
+              <!-- [ZC-10] 设为当前：当前目标行不重复给入口 -->
+              <button v-if="defaultTargetId !== inst.id" class="set-default-btn"
+                @click="setAsDefault(inst.id)" title="设为默认发送目标" aria-label="设为默认发送目标">
+                设为当前
+              </button>
               <button class="icon-btn" @click="openEditModal(inst)" title="编辑" aria-label="编辑">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                   stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -556,6 +598,79 @@ onMounted(() => {
 .instance-card:hover {
   border-color: var(--control-border);
   box-shadow: var(--shadow-e1);
+}
+
+/* [ZC-10] 当前目标卡：默认目标从"藏在底栏"提升到管理中心的一等公民。
+   图标规格与 InstanceMenu.vue 的 .inst-icon 同源（字形规则已在 types/platform.ts
+   单一化；样式层收敛等 B3 ZC-13 的共享组件） */
+.default-target-card {
+  display: flex;
+  align-items: center;
+  gap: var(--space-10);
+  padding: var(--space-10) var(--space-12);
+  background: var(--accent-light);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-12);
+}
+.default-target-card.is-unset { background: var(--bg); }
+.dt-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-icon);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-2xs);
+  font-weight: 700;
+  line-height: 1;
+  color: var(--plat-glyph);
+  background: var(--plat-default);
+}
+.dt-icon.p-flowus { background: var(--plat-flowus); }
+.dt-icon.p-notion { background: var(--plat-notion); }
+.dt-icon.p-lark   { background: var(--plat-lark); }
+.dt-icon.p-local  { background: var(--plat-local); }
+.dt-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.dt-name {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dt-meta {
+  font-size: var(--text-2xs);
+  color: var(--muted);
+}
+.dt-empty {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+/* [ZC-10] 行内"设为当前"：次要按钮，hover 才亮出目标色（与删除红的 hover 逻辑对齐） */
+.set-default-btn {
+  height: var(--control-h-xs);
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--dur-fast) ease;
+}
+.set-default-btn:hover {
+  color: var(--accent-strong);
+  border-color: var(--accent-strong);
 }
 
 /* [ZC-03] 加载骨架：复用 .instance-card 几何（同 padding/间距），只把内容换成呼吸占位条；

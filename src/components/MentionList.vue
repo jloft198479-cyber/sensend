@@ -8,6 +8,7 @@ import InstanceMenu from './InstanceMenu.vue'
 const props = defineProps<{
   items: any[]
   command: (item: any) => void
+  query?: string   // [ZC-09] suggestion 插件透传的当前搜索词，用于命中高亮与空态文案
 }>()
 
 const menuRef = ref<{ onKeyDown: (e: KeyboardEvent) => boolean } | null>(null)
@@ -25,6 +26,7 @@ defineExpose({
   <InstanceMenu
     ref="menuRef"
     :items="props.items"
+    :query="props.query ?? ''"
     max-height="var(--mention-list-max-h, none)"
     @select="onSelect"
   />

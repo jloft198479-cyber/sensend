@@ -58,3 +58,15 @@ export function toInstanceItem(inst: PlatformInstance, types: PlatformTypeInfo[]
     platform_type: inst.platform_type,
   }
 }
+
+// ── 平台图标字形（[ZC-10] 从 InstanceMenu 上收为单一规则源，管理页"当前目标"卡共用）──
+// 返回 'folder' 表示渲染文件夹线稿 SVG，否则是直接显示的字符；底色在 themes/*.css 的 --plat-*
+export const PLAT_GLYPHS: Record<string, string> = {
+  local: 'folder',
+  notion: 'N',
+  flowus: 'F',
+  lark: '飞',
+}
+export function platGlyph(type: string): string {
+  return PLAT_GLYPHS[type] ?? type.charAt(0).toUpperCase()
+}

@@ -220,7 +220,11 @@ pub async fn get_default_target(app: AppHandle) -> Result<Option<String>, String
 pub async fn set_default_target(app: AppHandle, target_id: String) -> Result<(), String> {
     let store = app.store("config.json").map_err(|e| e.to_string())?;
     store.set("default_target", serde_json::to_value(&target_id).map_err(|e| e.to_string())?);
-    store.save().map_err(|e| e.to_string())
+    store.save().map_err(|e| e.to_string())?;
+    // [ZC-10] 复用 instances-updated 广播（不新造 IPC 通道）：主窗 reloadInstances 会
+    // 重新读取 default_target，管理页里改默认目标后主窗底栏随之同步
+    let _ = app.emit("instances-updated", ());
+    Ok(())
 }
 
 // ── 授权码记忆（存 config.json：token_memory { 平台: { token, token2 } }）──

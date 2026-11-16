@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch, nextTick, onMounted } from 'vue'
 import type { InstanceItem } from '../types/platform'
+import { platGlyph } from '../types/platform'
 
 // ═══ 平台实例选择列表 —— 底栏目标弹窗 / 编辑器 @ 列表的唯一格式真源 ═══
 // 行格式（图标锚点 + 名字 + 来源右对齐 + 当前目标 ✓）、键盘上下/回车导航、
@@ -10,9 +11,11 @@ const props = withDefaults(defineProps<{
   items: InstanceItem[]
   activeId?: string | null   // 当前正在使用的目标（✓ + 淡绿底）
   maxHeight?: string         // 弹窗最大高度（定位策略由消费方决定）
+  query?: string             // [ZC-09] 当前搜索词：命中字符高亮；空态据此区分"搜不到"与"没配置"
 }>(), {
   activeId: null,
   maxHeight: 'var(--menu-max-h)',
+  query: '',
 })
 
 const emit = defineEmits<{
@@ -40,17 +43,7 @@ watch(() => props.activeId, () => {
   syncSelectedToActive()
 }, { immediate: true })
 
-// ── 平台图标字形（唯一规则源：key → 字形；底色在 themes/*.css 的 --plat-* token）──
-// 字形缺省取类型 key 首字母大写；'folder' 渲染文件夹 SVG
-const PLAT_GLYPHS: Record<string, string> = {
-  local: 'folder',
-  notion: 'N',
-  flowus: 'F',
-  lark: '飞',
-}
-function platGlyph(type: string): string {
-  return PLAT_GLYPHS[type] ?? type.charAt(0).toUpperCase()
-}
+// ── 平台图标字形 [ZC-10] 已上收 types/platform.ts 单一源，此处仅消费 ──
 
 // 键盘选中项自动滚动到可见区域
 async function scrollSelectedIntoView() {
@@ -100,6 +93,28 @@ function selectItem(index: number) {
   if (item) emit('select', item)
 }
 
+/** [ZC-09] 把 text 按 query 命中位置切成分段数组：命中段标 hit=true，模板里包 <mark>。
+ *  大小写不敏感（与 items 的 toLowerCase 筛选口径一致）；query 为空或不在 text 里
+ *  返回单段原文。搜索串是多字段拼接（名字/类型/key），这里对每个字段单独找命中。 */
+function splitHit(text: string, q: string): Array<{ t: string; hit: boolean }> {
+  if (!q) return [{ t: text, hit: false }]
+  const lower = text.toLowerCase()
+  const ql = q.toLowerCase()
+  const out: Array<{ t: string; hit: boolean }> = []
+  let i = 0
+  while (i <= text.length) {
+    const idx = lower.indexOf(ql, i)
+    if (idx < 0) {
+      out.push({ t: text.slice(i), hit: false })
+      break
+    }
+    if (idx > i) out.push({ t: text.slice(i, idx), hit: false })
+    out.push({ t: text.slice(idx, idx + q.length), hit: true })
+    i = idx + q.length
+  }
+  return out
+}
+
 /** [m-21] Tab 焦点进入某行时，把「键盘选中」同步到该行：
  *  列表里只有一个**选中态**（.is-selected 的 hover 底 + 内描边），
  *  而「焦点在哪」由 base.css 的 `button:focus-visible` 实色环给出（≥3:1，看得见）。
@@ -135,9 +150,17 @@ defineExpose({ onKeyDown })
         </svg>
         <template v-else>{{ platGlyph(item.platform_type) }}</template>
       </span>
-      <span class="inst-name">{{ item.name }}</span>
+      <span class="inst-name">
+        <template v-for="(seg, si) in splitHit(item.name, props.query)" :key="si">
+          <mark v-if="seg.hit" class="inst-hit">{{ seg.t }}</mark>
+          <template v-else>{{ seg.t }}</template>
+        </template>
+      </span>
       <span class="inst-type">
-        {{ item.typeName }}
+        <template v-for="(seg, si) in splitHit(item.typeName, props.query)" :key="si">
+          <mark v-if="seg.hit" class="inst-hit">{{ seg.t }}</mark>
+          <template v-else>{{ seg.t }}</template>
+        </template>
         <svg v-if="item.id === activeId" class="inst-check" width="12" height="12"
           viewBox="0 0 24 24" fill="none" stroke="currentColor"
           stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -147,7 +170,10 @@ defineExpose({ onKeyDown })
     </button>
   </div>
   <div class="inst-menu inst-empty" v-else :style="{ maxHeight }">
-    无匹配平台
+    <!-- [ZC-09] @ 场景（query 非空）零实例已被 allow 拦截不弹层，走到这里必然是"有实例但搜不到"；
+         底栏目标弹窗（query 空）维持原文案 -->
+    <template v-if="props.query">没有匹配「{{ props.query }}」的目标</template>
+    <template v-else>无匹配平台</template>
   </div>
 </template>
 
@@ -277,6 +303,15 @@ defineExpose({ onKeyDown })
 .inst-check {
   color: var(--accent-strong);
   flex-shrink: 0;
+}
+
+/* [ZC-09] 搜索命中高亮：底/字走主题 token（覆盖 mark 的 UA 默认黄底） */
+.inst-hit {
+  background: var(--accent-light);
+  color: var(--accent-strong);
+  border-radius: var(--radius-xs);
+  padding: 0 1px;
+  font-weight: 600;
 }
 
 /* 滚动条 */

@@ -1,8 +1,6 @@
 import { createApp } from 'vue'
-import App from './App.vue'
 import { applyCachedThemeSync, initTheme } from './composables/useTheme'
 import './styles/vars.css'
-import './styles/editor.css'
 
 const params = new URLSearchParams(window.location.search)
 const page = params.get('page')
@@ -13,11 +11,18 @@ const page = params.get('page')
 applyCachedThemeSync()
 
 if (page === 'config') {
+  // [ZC-08] 配置页分支动态加载自身：App.vue / editor.css / TipTap 整个编辑器主包
+  // 不进配置页的加载链（689 KB → 只载配置页自己的小 chunk）
   import('./ConfigWindow.vue').then(({ default: ConfigWindow }) => {
     createApp(ConfigWindow).mount('#app')
     void initTheme()
   })
 } else {
-  createApp(App).mount('#app')
-  void initTheme()
+  // [ZC-08] 主窗分支同样动态 import：编辑器 UI 与 editor.css 独立成 chunk，
+  // 入口包只剩 main.ts + useTheme。editor.css 先注入再挂载，防首帧裸样式
+  import('./App.vue').then(async ({ default: App }) => {
+    await import('./styles/editor.css')
+    createApp(App).mount('#app')
+    void initTheme()
+  })
 }
