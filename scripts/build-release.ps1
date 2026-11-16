@@ -44,9 +44,11 @@ if (Test-Path $vcvars) {
 Set-Location "F:\fzz-Project\2-sensend\sensend"
 
 # ── 版本三处一致性检查（tauri.conf.json / Cargo.toml / package.json）──
-$confVersion = (Get-Content "src-tauri/tauri.conf.json" -Raw | ConvertFrom-Json).version
+# -Encoding UTF8 必须显式：package.json 等含中文且无 BOM，PS5.1 默认按 ANSI 读，
+# GBK 双字节会吞掉闭合引号导致 JSON 解析崩（发版实测踩坑 2026-11-16）
+$confVersion = (Get-Content "src-tauri/tauri.conf.json" -Raw -Encoding UTF8 | ConvertFrom-Json).version
 $cargoVersion = (Select-String -Path "src-tauri/Cargo.toml" -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-$npmVersion = (Get-Content "package.json" -Raw | ConvertFrom-Json).version
+$npmVersion = (Get-Content "package.json" -Raw -Encoding UTF8 | ConvertFrom-Json).version
 if ($confVersion -ne $cargoVersion -or $confVersion -ne $npmVersion) {
     Write-Host "ERROR: 版本号三处不一致 conf=$confVersion cargo=$cargoVersion npm=$npmVersion（发版前必须同步）" -ForegroundColor Red
     exit 1
