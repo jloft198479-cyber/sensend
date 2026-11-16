@@ -175,7 +175,14 @@ export function usePlatform() {
           const savedExists = savedId && list.find(i => i.id === savedId)
           if (savedExists) {
             activeInstanceId.value = savedId
+          } else if (savedId) {
+            // [D-02] 上次的默认目标已被删除：不再静默回落到本地文件夹（与 M-06 同一原则
+            // ——目标不存在绝不静默换目标），改报错 + 引导重选。activeInstanceId 置 null
+            // 后，点发送会走既有的"无目标 → 打开管理页"兜底，底栏显示"@选择页面"占位。
+            activeInstanceId.value = null
+            useToast().warning('上次默认发送目标已被删除，请点底栏重新选择')
           } else {
+            // 从未设置过默认目标（新用户/旧数据）：回落本地文件夹属首次初始化，不违背上述原则
             const localInst = list.find(i => i.platform_type === LOCAL_PLATFORM_TYPE)
             activeInstanceId.value = localInst?.id || null
           }

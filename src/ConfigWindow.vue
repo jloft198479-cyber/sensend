@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { listen } from '@tauri-apps/api/event'
 import { useConfig } from './composables/useConfig'
@@ -13,6 +13,7 @@ const {
   editingInstanceId,
   configForm,
   isTesting,
+  isSaving,
   testResult,
   testErrorMsg,
   showDeleteConfirm,
@@ -21,6 +22,7 @@ const {
   currentPlatformFields,
   currentModes,
   canSave,
+  isDirty,
   loaded,
   defaultTargetId,
   setAsDefault,
@@ -51,13 +53,26 @@ const dtTypeName = computed(() =>
     : '',
 )
 
-// 删除二次确认：3 秒未操作自动回退（方案 M-6，与清空笔记同一交互）
-let deleteTimer: ReturnType<typeof setTimeout> | null = null
-watch(showDeleteConfirm, (id) => {
-  if (deleteTimer) { clearTimeout(deleteTimer); deleteTimer = null }
-  if (id) deleteTimer = setTimeout(() => { showDeleteConfirm.value = null }, 3000)
-})
-onBeforeUnmount(() => { if (deleteTimer) clearTimeout(deleteTimer) })
+// [ZC-12] 删除确认改"并列 + 取消"：确认/取消与编辑删除图标并排，用户自主决定，
+// 不再 3 秒自动回退（自动回退会让手慢的用户没点完就丢掉确认态）
+// [ZC-12] 返回/关闭的 dirty 拦截：行内二次确认（同按钮变文案），不弹模态框
+const exitConfirm = ref<'none' | 'back' | 'close'>('none')
+let exitTimer: ReturnType<typeof setTimeout> | null = null
+function doExit(kind: 'back' | 'close') {
+  exitConfirm.value = 'none'
+  if (exitTimer) { clearTimeout(exitTimer); exitTimer = null }
+  if (kind === 'back') showForm.value = false
+  else closeWindow()
+}
+function requestExit(kind: 'back' | 'close') {
+  // 无改动直接走；第一次点进入确认态（3 秒不点自动回退是辅助，取消/再点是主路径）；
+  // 第二次点同一按钮 = 确认放弃
+  if (!isDirty.value || exitConfirm.value === kind) { doExit(kind); return }
+  exitConfirm.value = kind
+  if (exitTimer) clearTimeout(exitTimer)
+  exitTimer = setTimeout(() => { exitConfirm.value = 'none' }, 3000)
+}
+onBeforeUnmount(() => { if (exitTimer) clearTimeout(exitTimer) })
 
 onMounted(() => {
   loadData()
@@ -85,12 +100,17 @@ onMounted(() => {
   <div class="config-app">
     <!-- ═══ 顶栏 ═══ -->
     <header ref="titlebarRef" class="config-titlebar">
+      <!-- [ZC-12] 窗口标题：此前顶栏没有一个字说明这是什么窗口 -->
+      <span class="config-title">发送目标</span>
       <div class="title-actions">
-        <button v-if="showForm" class="title-btn back-title-btn" @click="showForm = false" title="返回列表" aria-label="返回列表">
+        <button v-if="showForm" class="title-btn back-title-btn"
+          :class="{ 'confirm-exit': exitConfirm === 'back' && isDirty }"
+          @click="requestExit('back')" :title="exitConfirm === 'back' && isDirty ? '再次点击放弃修改' : '返回列表'"
+          :aria-label="exitConfirm === 'back' && isDirty ? '确认放弃修改并返回' : '返回列表'">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
-          <span>返回</span>
+          <span>{{ exitConfirm === 'back' && isDirty ? '确认放弃？' : '返回' }}</span>
         </button>
         <button v-else class="title-btn add-new-btn" @click="openAddModal" aria-label="新增页面">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -98,7 +118,9 @@ onMounted(() => {
           </svg>
           <span>新增页面</span>
         </button>
-        <button class="close-win-btn" @click="closeWindow" title="关闭" aria-label="关闭">
+        <button class="close-win-btn" :class="{ 'confirm-exit': exitConfirm === 'close' && isDirty }"
+          @click="requestExit('close')" :title="exitConfirm === 'close' && isDirty ? '再次点击放弃修改并关闭' : '关闭'"
+          :aria-label="exitConfirm === 'close' && isDirty ? '确认放弃修改并关闭' : '关闭'">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
             stroke-width="2.5" stroke-linecap="round">
             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
@@ -107,8 +129,8 @@ onMounted(() => {
       </div>
     </header>
 
-    <!-- ═══ 视图切换：编辑表单 / 页面列表（out-in，旧视图退场后新视图再入场，同屏仅一个）═══ -->
-    <Transition name="view" mode="out-in">
+    <!-- ═══ 视图切换：编辑表单 / 页面列表（[ZC-12] 瞬时切换——原 out-in 交叉期有
+         约 200ms "什么都没有"的空白帧，评审点名。v-if/v-else 互斥，无中间帧） ═══ -->
     <div v-if="showForm" key="form" class="edit-section">
 
       <div class="edit-form">
@@ -183,8 +205,10 @@ onMounted(() => {
             </svg>
             <span v-else>测试连接</span>
           </button>
-          <button class="action-btn save-btn" :class="{ 'btn-bounce': savePulse }" :disabled="!canSave" @click="saveInstance" aria-label="保存">
-            {{ editingInstanceId ? '更新' : '保存' }}
+          <button class="action-btn save-btn" :class="{ 'btn-bounce': savePulse }"
+            :disabled="!canSave || isSaving" @click="saveInstance" aria-label="保存">
+            <!-- [ZC-12] 保存中反馈：落盘+加密+写记忆都在这一步，此前按钮一动不动 -->
+            {{ isSaving ? '保存中…' : (editingInstanceId ? '更新' : '保存') }}
           </button>
         </div>
         <Transition name="fade">
@@ -230,10 +254,17 @@ onMounted(() => {
           <path d="M12 8v8M8 12h8"/>
         </svg>
         <p>还没有配置任何发送页面</p>
-        <p class="empty-hint">点击上方「新增页面」开始配置</p>
+        <p class="empty-hint">点击下方按钮，或右上角「新增页面」</p>
+        <!-- [ZC-12] 空态给真实动线：文案让用户去点顶栏 40px 高的按钮，不如直接给按钮 -->
+        <button class="empty-action-btn" @click="openAddModal">添加第一个目标</button>
       </div>
       <div v-else class="instance-list">
-        <div v-for="inst in instances" :key="inst.id" class="instance-card">
+        <!-- [ZC-12] 整卡可点进编辑（此前卡片看着能点、点正文毫无反应）；键盘 Enter/Space 同样可达 -->
+        <div v-for="inst in instances" :key="inst.id" class="instance-card is-clickable"
+          role="button" tabindex="0" :aria-label="`编辑 ${inst.name}`"
+          @click="openEditModal(inst)"
+          @keydown.enter.prevent="openEditModal(inst)"
+          @keydown.space.prevent="openEditModal(inst)">
           <div class="instance-info">
             <!-- [ZC-13] 列表卡补图标 + 类型徽标：与 @ 列表/底栏同一套显示规则 -->
             <TargetIcon :platform-type="inst.platform_type" />
@@ -247,35 +278,36 @@ onMounted(() => {
             </div>
           </div>
           <div class="instance-actions">
-            <button v-if="showDeleteConfirm === inst.id" class="confirm-btn delete-confirm" @click="deleteInstance(inst.id)" aria-label="确认删除">
+            <!-- [ZC-12] 删除确认与常态并列（不再顶掉编辑/删除），且给"取消"；行内操作全部 .stop 防冒泡进卡 -->
+            <button v-if="showDeleteConfirm === inst.id" class="confirm-btn delete-confirm" @click.stop="deleteInstance(inst.id)" aria-label="确认删除">
               确认删除
             </button>
-            <template v-else>
-              <!-- [ZC-10] 设为当前：当前目标行不重复给入口 -->
-              <button v-if="defaultTargetId !== inst.id" class="set-default-btn"
-                @click="setAsDefault(inst.id)" title="设为默认发送目标" aria-label="设为默认发送目标">
-                设为当前
-              </button>
-              <button class="icon-btn" @click="openEditModal(inst)" title="编辑" aria-label="编辑">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
-                </svg>
-              </button>
-              <button class="icon-btn danger" @click="showDeleteConfirm = inst.id" title="删除" aria-label="删除">
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                  stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                  <polyline points="3 6 5 6 21 6"/>
-                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                </svg>
-              </button>
-            </template>
+            <button v-if="showDeleteConfirm === inst.id" class="cancel-delete" @click.stop="showDeleteConfirm = null" aria-label="取消删除">
+              取消
+            </button>
+            <button v-if="defaultTargetId !== inst.id" class="set-default-btn"
+              @click.stop="setAsDefault(inst.id)" title="设为默认发送目标" aria-label="设为默认发送目标">
+              设为当前
+            </button>
+            <button class="icon-btn" @click.stop="openEditModal(inst)" title="编辑" aria-label="编辑">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+              </svg>
+            </button>
+            <button class="icon-btn danger" :disabled="showDeleteConfirm === inst.id"
+              @click.stop="showDeleteConfirm = inst.id" title="删除" aria-label="删除">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              </svg>
+            </button>
           </div>
         </div>
       </div>
     </div>
-    </Transition>
     <!-- 配置窗是独立 webview（独立 JS 上下文），useToast 的队列必须由本窗口内的 ToastLayer 渲染 -->
     <ToastLayer />
   </div>
@@ -297,7 +329,7 @@ onMounted(() => {
 .config-titlebar {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0 var(--space-14) 0 var(--space-16);
   height: var(--titlebar-h);
   background: var(--accent-light);
@@ -306,10 +338,23 @@ onMounted(() => {
   cursor: default;
   user-select: none;
 }
+/* [ZC-12] 窗口标题：管理窗顶栏此前没有一个字说明这是什么窗口 */
+.config-title {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--fg);
+  letter-spacing: 0.01em;
+}
 .title-actions {
   display: flex;
   align-items: center;
   gap: var(--space-8);
+}
+/* [ZC-12] 返回/关闭的 dirty 确认态：危险强调（危险确认统一交互，同删除确认） */
+.title-btn.confirm-exit,
+.close-win-btn.confirm-exit {
+  background: var(--danger-bg);
+  color: var(--danger);
 }
 .title-btn {
   display: flex;
@@ -578,6 +623,37 @@ onMounted(() => {
   font-weight: 400 !important;
   color: var(--placeholder);
 }
+/* [ZC-12] 空态主行动按钮：文案之外给真实动线（与顶栏"新增页面"同规格配色） */
+.empty-action-btn {
+  margin-top: var(--space-12);
+  height: var(--control-h-sm);
+  padding: 0 var(--space-16);
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent-fill);
+  color: var(--fg-on-accent);
+  font-family: var(--font-sans);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--dur-fast) ease;
+}
+.empty-action-btn:hover { background: var(--accent-fill-hover); }
+/* [ZC-12] 删除确认的"取消"：与"确认删除"并列的退出路径 */
+.cancel-delete {
+  height: var(--control-h-xs);
+  padding: 0 var(--space-8);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all var(--dur-fast) ease;
+}
+.cancel-delete:hover { border-color: var(--muted); color: var(--fg); }
 
 .instance-list {
   display: flex;
@@ -593,6 +669,10 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
   transition: all var(--dur-fast) ease;
+}
+/* [ZC-12] 整卡可点进编辑：cursor 跟手 + 键盘可达（Enter/Space 由模板绑定，焦点环走全局 :focus-visible） */
+.instance-card.is-clickable {
+  cursor: pointer;
 }
 .instance-card:hover {
   border-color: var(--control-border);
@@ -741,7 +821,10 @@ onMounted(() => {
   padding: 0;
 }
 .icon-btn:hover { background: var(--gray-hover); color: var(--fg); }
-.icon-btn.danger:hover { background: var(--danger-bg); color: var(--danger); }
+/* [ZC-12] 删除图标默认即危险色（此前红只在 hover 出现，破坏性入口不可隐身） */
+.icon-btn.danger { color: var(--danger); opacity: 0.72; }
+.icon-btn.danger:hover { opacity: 1; background: var(--danger-bg); }
+.icon-btn.danger:disabled { opacity: 0.3; cursor: default; }
 .confirm-btn {
   height: var(--control-h-sm);
   padding: 0 var(--space-10);
@@ -757,10 +840,6 @@ onMounted(() => {
 }
 .confirm-btn:hover { background: var(--danger-bg); }
 
-/* ═══ 视图切换过渡（out-in：旧视图淡出→新视图滑入，两个方向节奏对称）═══ */
-.view-enter-active { transition: opacity var(--dur-base) var(--ease-out), transform var(--dur-base) var(--ease-out); }
-.view-leave-active { transition: opacity var(--dur-fast) var(--ease-in), transform var(--dur-fast) var(--ease-in); }
-.view-enter-from { opacity: 0; transform: translateY(-6px); }
-.view-leave-to { opacity: 0; transform: translateY(-3px); }
+/* [ZC-12] 视图切换改瞬时（原 out-in 交叉期约 200ms 空白帧），过渡 CSS 一并移除 */
 
 </style>

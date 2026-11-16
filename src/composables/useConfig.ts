@@ -34,6 +34,10 @@ export function useConfig() {
   const showDeleteConfirm = ref<string | null>(null)
   const showToken = ref(false)
   const savePulse = ref(false)
+  // [ZC-12] 表单 dirty 判定：打开表单时拍快照，与当前表单比对。
+  // "返回/关闭即丢"是评审点名的数据丢失路径——dirty 时退出必须二次确认
+  const formSnapshot = ref('')
+  const isDirty = computed(() => showForm.value && formSnapshot.value !== JSON.stringify(configForm))
 
   // ── 计算属性 ──
   const currentPlatformFields = computed(() => {
@@ -123,8 +127,11 @@ export function useConfig() {
     testErrorMsg.value = ''
     showToken.value = false
     showForm.value = true
-    // 表单先出现，授权码记忆异步回填，不阻塞切换动画
-    void applyTokenMemory(configForm.platform_type)
+    // 表单先出现，授权码记忆异步回填，不阻塞切换动画；
+    // [ZC-12] 快照在回填**之后**拍（否则回填进 token 的记忆值会被误判成用户输入 → dirty 误报）
+    void applyTokenMemory(configForm.platform_type).then(() => {
+      formSnapshot.value = JSON.stringify(configForm)
+    })
   }
 
   function openEditModal(inst: PlatformInstance) {
@@ -142,6 +149,8 @@ export function useConfig() {
     testErrorMsg.value = ''
     showToken.value = false
     showForm.value = true
+    // [ZC-12] 编辑态打开即拍快照（dirty 基准）
+    formSnapshot.value = JSON.stringify(configForm)
   }
 
   async function browseFolder() {
@@ -284,6 +293,7 @@ export function useConfig() {
     currentPlatformFields,
     currentModes,
     canSave,
+    isDirty,
     loadData,
     openAddModal,
     openEditModal,
