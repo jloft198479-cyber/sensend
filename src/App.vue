@@ -309,13 +309,13 @@ ul[data-type="taskList"] li[data-checked] {
 }
 ul[data-type="taskList"] li[data-checked] > label {
   flex: none;
-  margin-top: 3px;
+  margin-top: 2px;
   cursor: pointer;
   user-select: none;
 }
 ul[data-type="taskList"] li[data-checked] > label input {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   margin: 0;
   accent-color: var(--accent);
   cursor: pointer;
@@ -357,6 +357,17 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
   min-height: 0;
   transition: scrollbar-color 0.3s;
 }
+/* 窄窗优先（方案 4.11）：280–359 与 360–419 两档收紧内边距，420 以上保持舒展版 */
+@media (max-width: 419px) {
+  .editor-wrapper { padding: 24px 20px; }
+}
+@media (max-width: 359px) {
+  .editor-wrapper { padding: 20px 16px; }
+}
+/* 仅最小高度 200px 时压缩上下留白（默认窗高 210 不受影响） */
+@media (max-height: 200px) {
+  .editor-wrapper { padding-top: 12px; padding-bottom: 12px; }
+}
 .editor-wrapper:hover {
   scrollbar-color: var(--scrollbar-thumb) transparent;
 }
@@ -376,12 +387,16 @@ ul[data-type="taskList"] li[data-checked="true"] > div {
 .bubble-menu {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 1px;
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-e2);
   padding: 3px 4px;
+  /* 窄窗不横向溢出：放不下时折成第二行（280px 下仍保留全部动作） */
+  max-width: calc(100vw - 16px);
 }
 .bm-btn {
   width: 28px; height: 28px;

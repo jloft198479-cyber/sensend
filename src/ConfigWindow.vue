@@ -79,6 +79,8 @@ onMounted(() => {
     <div v-if="showForm" key="form" class="edit-section">
 
       <div class="edit-form">
+        <div class="form-group">
+          <div class="form-group-title">基础信息</div>
         <div class="form-row">
           <label class="form-label">名称</label>
           <input v-model="configForm.name" type="text" class="form-input"
@@ -93,16 +95,9 @@ onMounted(() => {
             </select>
           </div>
         </div>
-        <!-- 写入方式：平台是否支持多档由后端 supported_modes 下发（单档平台已在 useConfig 归一，无需选择） -->
-        <div v-if="currentModes.length > 1" class="form-row">
-          <label class="form-label">写入方式</label>
-          <div class="platform-select">
-            <select v-model="configForm.publish_mode">
-              <option value="page">创建子页面</option>
-              <option value="block">追加到页面</option>
-            </select>
-          </div>
         </div>
+        <div class="form-group">
+          <div class="form-group-title">连接凭证</div>
         <template v-for="field in currentPlatformFields" :key="field.key">
           <div v-if="!field.hidden" class="form-row">
             <label class="form-label">
@@ -131,6 +126,21 @@ onMounted(() => {
             <div v-if="field.hint" class="field-hint">{{ field.hint }}</div>
           </div>
         </template>
+        </div>
+
+        <!-- 写入方式：平台是否支持多档由后端 supported_modes 下发（单档平台已在 useConfig 归一，无需选择） -->
+        <div v-if="currentModes.length > 1" class="form-group">
+          <div class="form-group-title">写入方式</div>
+          <div class="form-row">
+            <div class="platform-select">
+              <select v-model="configForm.publish_mode">
+                <option value="page">创建子页面</option>
+                <option value="block">追加到页面</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="form-actions">
           <button class="action-btn test-btn" :disabled="!canSave || isTesting"
             @click="testConnection" aria-label="测试连接">
@@ -303,7 +313,18 @@ onMounted(() => {
 .edit-form {
   display: flex;
   flex-direction: column;
+  gap: 20px;
+}
+/* 表单分区（方案 C-2 / 4.8.2）：区块间 20，区块内 14 */
+.form-group {
+  display: flex;
+  flex-direction: column;
   gap: 14px;
+}
+.form-group-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--fg);
 }
 .form-row {
   display: flex;

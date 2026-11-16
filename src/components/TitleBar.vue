@@ -376,4 +376,18 @@ onMounted(() => {
   border: 1px solid var(--border-color);
   flex-shrink: 0;
 }
+
+/* 窄窗压缩（方案 4.11）：品牌字降一档，保存状态收成圆点（读屏仍读原文案） */
+@media (max-width: 359px) {
+  .title { font-size: var(--text-md); }
+  .save-status { font-size: 0; }
+  .save-status::after {
+    content: '';
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+}
 </style>

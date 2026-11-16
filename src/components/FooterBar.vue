@@ -119,10 +119,10 @@ function onDocClick(e: MouseEvent) {
       <div v-else class="target-picker-wrap">
         <button class="target-picker-btn" @click="togglePicker" title="选择发送目标" aria-label="选择发送目标">
           <span v-if="currentTarget" class="target-mention platform-mention">
-            @{{ getInstanceDisplayName(platformTypes, currentTarget) }}
+            <span class="tm-text">@{{ getInstanceDisplayName(platformTypes, currentTarget) }}</span>
           </span>
           <span v-else class="target-mention platform-mention placeholder">
-            @选择页面
+            <span class="tm-text">@选择页面</span>
           </span>
           <svg class="picker-chevron" :class="{ open: showPicker }" width="12" height="12"
             viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -199,7 +199,7 @@ function onDocClick(e: MouseEvent) {
           </div>
         </Transition>
       </div>
-      <span class="word-count">{{ wordCount }} 字</span>
+      <span class="word-count"><span class="wc-num">{{ wordCount }}</span><span class="wc-unit"> 字</span></span>
     </div>
   </footer>
 </template>
@@ -282,6 +282,13 @@ function onDocClick(e: MouseEvent) {
   font-family: var(--font-editor);
   font-size: var(--text-xs);
   cursor: pointer;
+  max-width: 160px;
+  overflow: hidden;
+}
+.tm-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .target-mention.placeholder {
   color: var(--muted);
@@ -402,6 +409,13 @@ function onDocClick(e: MouseEvent) {
 .menu-fade-enter-from,
 .menu-fade-leave-to {
   opacity: 0;
+}
+
+/* 窄窗压缩（方案 4.11）：字数只留数字，药丸进一步收窄，底栏内边距收紧 */
+@media (max-width: 359px) {
+  .footer-bar { padding: 8px 10px 10px; }
+  .wc-unit { display: none; }
+  .target-mention { max-width: 130px; }
 }
 
 </style>
