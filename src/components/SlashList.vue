@@ -1,18 +1,20 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import type { SlashCommandItem } from '../composables/useSlashCommand'
 
 // ═══ 斜杠命令弹层 ═══
 // 与 useSlashCommand.ts 的契约：items 渲染 + command 回传 + onKeyDown 键盘桥接。
 // 视觉配方对齐 InstanceMenu（同一套 token），但不复用组件——
 // InstanceMenu 是平台实例列表的格式真源，不掺命令列表。
 const props = defineProps<{
-  items: Array<{ id: string; label: string; hint: string }>
-  command: (item: any) => void
+  items: SlashCommandItem[]
+  command: (item: SlashCommandItem) => void
 }>()
 
 const selectedIndex = ref(0)
 
-// 继续打字过滤时高亮收回第一项
+// [ZC-07] 键鼠单一高亮（与 InstanceMenu 同配方）：mousemove 即意图选中，
+// 回车执行的永远是「看得见的那个高亮」；继续打字过滤时收回第一项
 watch(() => props.items, () => { selectedIndex.value = 0 })
 
 defineExpose({
@@ -38,14 +40,14 @@ defineExpose({
 </script>
 
 <template>
-  <div class="slash-menu" role="listbox" aria-label="斜杠命令">
+  <div class="slash-menu">
     <button
       v-for="(item, i) in items"
       :key="item.id"
       class="slash-item"
       :class="{ selected: i === selectedIndex }"
-      role="option"
-      :aria-selected="i === selectedIndex"
+      @mousemove="i !== selectedIndex && (selectedIndex = i)"
+      @focus="selectedIndex = i"
       @click="props.command(item)"
     >
       <span class="slash-label">{{ item.label }}</span>
@@ -60,6 +62,10 @@ defineExpose({
   width: max-content;
   min-width: 220px;
   max-width: 280px;
+  /* 限高与 @ 列表同一几何来源（--menu-row-h × --mention-max-rows + 上下留白）：
+     超出滚动，小窗里末项也够得着；翻转交给 tippy 内置 flip */
+  max-height: calc(var(--menu-row-h) * var(--mention-max-rows, 8) + var(--menu-pad-y) * 2);
+  overflow-y: auto;
   background: var(--bg);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -87,8 +93,9 @@ defineExpose({
   cursor: pointer;
   transition: all var(--dur-fast) ease;
 }
-.slash-item:hover,
-.slash-item.selected { background: var(--bg-hover); }
+.slash-item:hover { background: var(--bg-hover); }
+/* 键盘选中行与悬停行同底色，但加内描边拉开——「回车会执行哪条」永远只有一个可见答案 */
+.slash-item.selected { background: var(--bg-hover); box-shadow: var(--shadow-ring-inset); }
 .slash-hint { font-size: var(--text-xs); color: var(--muted); }
 .slash-empty {
   padding: var(--space-8) var(--space-10);

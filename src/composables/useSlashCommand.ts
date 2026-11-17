@@ -8,6 +8,7 @@
 //   · 下线 = 拔掉那一行，无其他引用点
 //   · 扩展 = 往 COMMANDS 添一项；when 不填 = 任何上下文可用
 import { Extension } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { Suggestion } from '@tiptap/suggestion'
 import { VueRenderer } from '@tiptap/vue-3'
 import tippy from 'tippy.js'
@@ -18,19 +19,22 @@ export interface SlashCommandItem {
   id: string
   label: string
   hint: string
-  run: (editor: any) => void
+  run: (editor: Editor) => void
   /** 上下文限位：返回 false 则不进入当前光标下的命令列表（如表格命令只在表格内出现） */
-  when?: (editor: any) => boolean
+  when?: (editor: Editor) => boolean
 }
+
+// 表格初始几何单一真源：hint 文案与 run 参数同源，改行列数不会「说的和插的不一样」
+const TABLE_INIT = { rows: 3, cols: 3, withHeaderRow: true }
 
 const COMMANDS: SlashCommandItem[] = [
   {
     id: 'table',
     label: '插入表格',
-    hint: '3×3 带表头',
+    hint: `${TABLE_INIT.rows}×${TABLE_INIT.cols} 带表头`,
     // 已在表格内不出现，防止套娃插表
     when: editor => !editor.isActive('table'),
-    run: editor => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run(),
+    run: editor => editor.chain().focus().insertTable(TABLE_INIT).run(),
   },
   {
     id: 'table-add-row',
@@ -124,9 +128,8 @@ export const SlashCommandExtension = Extension.create({
               component = new VueRenderer(SlashList, { props, editor: props.editor })
               if (!props.clientRect) return
 
-              const rect = props.clientRect()
-              // 单行弹层，不做 @ 列表那套逐行算高：贴底就往上翻
-              const isFlipped = rect.bottom + 120 > window.innerHeight && rect.top > 120
+              // 翻转/防溢出交给 tippy 内置 flip + preventOverflow（手写几何是与 @ 列表并存的第二份决策）；
+              // 限高滚动由 .slash-menu 自带（与 @ 列表同一几何 token 来源）
               popup = tippy('body', {
                 getReferenceClientRect: props.clientRect,
                 appendTo: () => document.body,
@@ -134,8 +137,7 @@ export const SlashCommandExtension = Extension.create({
                 showOnCreate: true,
                 interactive: true,
                 trigger: 'manual',
-                placement: isFlipped ? 'top-start' : 'bottom-start',
-                theme: 'mention',
+                placement: 'bottom-start',
                 arrow: false,
                 offset: [0, 4],
               })

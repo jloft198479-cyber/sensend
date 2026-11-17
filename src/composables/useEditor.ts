@@ -313,7 +313,6 @@ export function useSensendEditor(
                   interactive: true,
                   trigger: 'manual',
                   placement: isFlipped ? 'top-start' : 'bottom-start',
-                  theme: 'mention',
                   arrow: false,
                   offset: [0, 4],
                 })
