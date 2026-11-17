@@ -134,6 +134,55 @@
   pointer-events: none;
 }
 
+/* ═══ 待办列表（taskList/taskItem）═══ */
+/* 注：li 用 [data-checked] 而非 [data-type="taskItem"] 匹配 ——
+   extension-list 3.28 的 NodeView 只给 li 设 data-checked，不设 data-type。
+   2026-11-17 自 App.vue 全局块归位至本文件（内容排版真源），选择器收进 .editor-wrapper 作用域，
+   calc 关系式的 --lh-editor 兜底值随之删除（同文件必存在，不留第二份真值） */
+.editor-wrapper .tiptap ul[data-type="taskList"] {
+  list-style: none;
+  margin: 0.2em 0;
+  padding: 0;
+}
+.editor-wrapper .tiptap ul[data-type="taskList"] li[data-checked] {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5em; /* 随字号缩放（框与文字的间距是字阶关系，不用界面间距 token） */
+  margin: 0.2em 0;
+}
+.editor-wrapper .tiptap ul[data-type="taskList"] li[data-checked] > label {
+  flex: none;
+  /* 独立排版上下文：掐断从 li 继承的行高 strut，否则 calc 关系式的「label 高=1em」假设不成立 */
+  display: flex;
+  align-items: flex-start;
+  line-height: 1;
+  /* 勾选框对准第一行行盒正中：偏移量从行高 token 关系式算出，字号/行距变了自动跟随 */
+  margin-top: calc((var(--lh-editor) - 1) * 0.5em);
+  cursor: pointer;
+  user-select: none;
+}
+.editor-wrapper .tiptap ul[data-type="taskList"] li[data-checked] > label input {
+  /* 表单控件 UA 默认字体 13.33px，1em 会变成 13.33px——必须继承编辑器字号，1em 才等于 16px */
+  font: inherit;
+  width: 1em;
+  height: 1em;
+  margin: 0;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+.editor-wrapper .tiptap ul[data-type="taskList"] li[data-checked] > div {
+  flex: 1;
+  min-width: 0;
+}
+.editor-wrapper .tiptap ul[data-type="taskList"] li[data-checked] > div p {
+  margin: 0;
+}
+/* 已完成项：文字置灰 */
+.editor-wrapper .tiptap ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--muted);
+  text-decoration: line-through;
+}
+
 /* ═══ 发送成功标记（ProseMirror widget decoration） ═══ */
 .sent-mark-badge {
   display: inline-block;
