@@ -3,12 +3,17 @@
 /* 选择器作用域：.editor-wrapper 内的 .tiptap */
 
 /* ═══ 内容字阶（内容排版 token 真源；界面字阶在 base.css，两者互不混用）═══ */
-/* 正文 16px/1.9：2026-11-17 实测定稿——15px 为 v0.1.0 起历代原值，此为首次调整。
-   雅黑墨高大，视觉行距密度勿与思源/苹方等字体的行高数字直接对标。
+/* 正文 16px/1.7：16px 于 2026-11-17 定稿（15px 为 v0.1.0 起历代原值）；
+   行高 1.9→1.7 同为 2026-11-17 —— 行高要与行宽联动：版心 364px 每行约 22 汉字属窄栏，
+   1.9 是宽栏（35~40 字/行）的规格，用在窄栏里一屏少读两行且"字在飘"。
    纪律：与字号/行距绑定的视觉值一律用 em 关系式或 var() 表达，禁写观测值 px */
 .editor-wrapper {
   --text-editor: 16px;
-  --lh-editor: 1.9;
+  --lh-editor: 1.7;
+  /* 块间距基准 = 段距。段落靠"半个行盒"的空白分级：0.85em ÷ (1.7em 行盒) ≈ 0.5 倍，
+     此前 0.6em ÷ 1.9 = 0.32 倍，段落与换行分不开（层级没建立）。所有顶层块统一吃这个值，
+     不再各自写 0.5em / 0.75em / 1.5em——垂直节奏只由一处控制 */
+  --block-gap: 0.85em;
 }
 
 .editor-wrapper .tiptap {
@@ -22,7 +27,10 @@
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
-.editor-wrapper .tiptap > * + * { margin-top: 0.6em; }
+/* 垂直节奏：除第一个块外，所有顶层块统一吃一块间距。
+   用 :not(:first-child) 而非 * + *，是为了让特异性 (0,3,0) 压过下面各块为清 UA 默认而写的
+   margin:0 —— 否则列表/代码块/引用/表格的 margin:0 会把这条统一间距覆盖掉，块与上文贴死。 */
+.editor-wrapper .tiptap > :not(:first-child) { margin-top: var(--block-gap); }
 .editor-wrapper .tiptap > *:first-child { margin-top: 0; }
 
 /* 占位符 */
@@ -36,15 +44,22 @@
 }
 .editor-wrapper .tiptap p { margin: 0; line-height: var(--lh-editor); }
 
-/* 标题 */
 .editor-wrapper .tiptap h1,
 .editor-wrapper .tiptap h2,
 .editor-wrapper .tiptap h3 {
   line-height: 1.35;
   font-weight: 700;
-  margin-top: 1em;
+  /* 标题下方不单独加大：与下一块的 margin-top 相邻折叠，实际取较大者（--block-gap）。
+     于是"上松下紧"（上 1.4em / 下 0.85em）自然成立，不需要第二个数字 */
   margin-bottom: 0.35em;
 }
+/* 标题上间距 1.4em（≈ 块间距的 1.6 倍）——层级靠留白立，不靠字号；
+   此前 1em 与段距几乎同高，章节标题和普通段落挤在同一层。
+   必须带 :not(:first-child) 才能压过上面那条统一块间距：两者特异性相同 (0,3,0)，
+   靠"写在后面"胜出；而首元素的上边距仍归 `> *:first-child` 管。 */
+.editor-wrapper .tiptap h1:not(:first-child),
+.editor-wrapper .tiptap h2:not(:first-child),
+.editor-wrapper .tiptap h3:not(:first-child) { margin-top: 1.4em; }
 .editor-wrapper .tiptap h1 {
   font-size: 1.6em; color: var(--fg);
   border-left: 3px solid var(--accent);
@@ -53,14 +68,18 @@
 .editor-wrapper .tiptap h2 { font-size: 1.3em; color: var(--fg); }
 .editor-wrapper .tiptap h3 { font-size: 1.1em; color: var(--fg-secondary); }
 
-/* 列表 */
+/* 列表：垂直间距交给顶层块规则（--block-gap），此处只管缩进——
+   原来写 0.5em 比段落的 0.85em 紧，是"节奏不齐"的直接来源 */
 .editor-wrapper .tiptap ul,
 .editor-wrapper .tiptap ol {
   padding: 0 0 0 1.5em;
-  margin: 0.5em 0;
+  margin: 0;
 }
 .editor-wrapper .tiptap ul { list-style-type: disc; }
 .editor-wrapper .tiptap ol { list-style-type: decimal; }
+/* 嵌套列表不吃顶层规则（不是 .tiptap 的直接子元素），单独给半档，避免贴住父项文字 */
+.editor-wrapper .tiptap li > ul,
+.editor-wrapper .tiptap li > ol { margin: 0.3em 0 0; }
 /* li 不设 line-height：列表内文字由 p 规则（--lh-editor）统一，此处的行高 strut 曾是勾选框错位帮凶 */
 .editor-wrapper .tiptap li { margin: 0.3em 0; }
 .editor-wrapper .tiptap li > p { margin: 0; }
@@ -76,7 +95,7 @@
 }
 .editor-wrapper .tiptap pre {
   background: var(--bg-page); border: 1px solid var(--border-color);
-  padding: 0.875rem 1rem; border-radius: var(--radius-md); overflow-x: auto; margin: 0.75em 0;
+  padding: 0.875rem 1rem; border-radius: var(--radius-md); overflow-x: auto; margin: 0;
 }
 .editor-wrapper .tiptap pre code {
   background: transparent; color: inherit;
@@ -88,7 +107,7 @@
 }
 .editor-wrapper .tiptap blockquote {
   border-left: 3px solid var(--control-border);
-  padding: 0.5rem 0 0.5rem 1rem; margin: 0.75em 0;
+  padding: 0.5rem 0 0.5rem 1rem; margin: 0;
   color: var(--fg-secondary); font-style: italic;
 }
 .editor-wrapper .tiptap a {
@@ -96,7 +115,8 @@
   text-decoration-thickness: 1px; text-underline-offset: 2px;
 }
 .editor-wrapper .tiptap a:hover { color: var(--accent-fill-hover); text-decoration-thickness: 2px; }
-.editor-wrapper .tiptap hr {
+/* 分割线是"章节级"留白，比块间距大一档；特异性需高于上面的统一块间距才不被压平 */
+.editor-wrapper .tiptap hr:not(:first-child) {
   border: none;
   border-top: 1.5px solid color-mix(in srgb, var(--control-border) 60%, transparent);
   margin: 1.5em 0;
@@ -107,7 +127,7 @@
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  margin: 0.75em 0;
+  margin: 0;
 }
 .editor-wrapper .tiptap table td,
 .editor-wrapper .tiptap table th {
