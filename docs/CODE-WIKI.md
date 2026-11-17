@@ -189,6 +189,7 @@ sensend/
 │   │   ├── FooterBar.vue       # 底栏（目标选择/菜单/字数）
 │   │   ├── HotkeyModal.vue     # 快捷键设置弹窗
 │   │   ├── MentionList.vue      # @提及下拉列表
+│   │   ├── SlashList.vue        # 斜杠命令弹层（/ 触发，InstanceMenu 同款键鼠单一高亮）
 │   │   ├── InstanceMenu.vue    # 目标选择列表（底栏弹窗/@ 列表共用格式真源）
 │   │   ├── TargetIcon.vue      # 平台图标唯一渲染点（内联 SVG，禁字母/汉字混排）
 │   │   └── ToastLayer.vue     # Toast 提示浮层
@@ -196,6 +197,7 @@ sensend/
 │   ├── composables/            # 组合式函数（业务逻辑层）
 │   │   ├── useEditor.ts        # TipTap 编辑器核心
 │   │   ├── useEditorFormat.ts  # 格式操作（粗体/标题/列表…）
+│   │   ├── useSlashCommand.ts  # 斜杠命令扩展（COMMANDS 注册表 + when 上下文限位）
 │   │   ├── useTheme.ts         # 主题注册表（SSOT）与切换逻辑（v0.4.0 新增）
 │   │   ├── usePlatform.ts      # 平台实例与发送逻辑
 │   │   ├── useConfig.ts        # 配置窗口表单状态机
@@ -293,6 +295,7 @@ sensend/
 | FooterBar | [src/components/FooterBar.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/FooterBar.vue) | 底栏；目标选择器（picker）、设置菜单（配置/快捷键/数据目录）、清空笔记（两步确认 + 撤销）、字数统计 |
 | HotkeyModal | [src/components/HotkeyModal.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/HotkeyModal.vue) | 快捷键设置弹窗；焦点陷阱（Tab 循环）、焦点恢复 |
 | MentionList | [src/components/MentionList.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/MentionList.vue) | `@提及` 下拉项；键盘上下选择、自动滚动、hover 态 |
+| SlashList | [src/components/SlashList.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/SlashList.vue) | 斜杠命令（/）弹层；键鼠单一高亮（ZC-07 同配方）、限高滚动（与 @ 列表同一几何 token）、↑↓/Enter/Esc |
 | InstanceMenu | [src/components/InstanceMenu.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/InstanceMenu.vue) | 目标选择列表（底栏弹窗与 @ 列表共用的唯一行格式）；当前目标置顶 + 行首竖条 + 「当前」标签、搜索命中高亮、键鼠单一高亮（`mousemove` 同步 `selectedIndex`） |
 | TargetIcon | [src/components/TargetIcon.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/TargetIcon.vue) | 平台图标唯一渲染点：四平台内联 SVG 线稿（同视觉重量），底色走 `--plat-*` token；未知平台才回退首字母 |
 | ToastLayer | [src/components/ToastLayer.vue](file:///f:/fzz-Project/2-sensend/sensend/src/components/ToastLayer.vue) | 全局 Toast 浮层（Teleport 到 body）；success/error/info 三类 |

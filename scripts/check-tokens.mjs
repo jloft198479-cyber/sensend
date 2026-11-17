@@ -17,7 +17,8 @@ import { fileURLToPath } from 'node:url'
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const SRC = path.join(ROOT, 'src')
-const FONT_SIZES = new Set(['0', '11px', '12px', '13px', '15px', '17px'])
+// 16px = 内容字阶正文定稿（editor.css --text-editor，2026-11-17 实测），不占界面字阶槽位故单列
+const FONT_SIZES = new Set(['0', '11px', '12px', '13px', '15px', '16px', '17px'])
 const FONT_WEIGHTS = new Set(['400', '500', '600', '700'])
 const COLOR = /#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/
 
