@@ -3639,7 +3639,7 @@ dependencies = [
 
 [[package]]
 name = "sensend"
-version = "0.5.4"
+version = "0.5.5"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
