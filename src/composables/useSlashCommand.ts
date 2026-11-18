@@ -7,7 +7,7 @@
 //   · 接入 = useEditor.ts 扩展数组里挂 SlashCommandExtension（一行）
 //   · 下线 = 拔掉那一行，无其他引用点
 //   · 扩展 = 往 COMMANDS 添一项；when 不填 = 任何上下文可用
-import { Extension } from '@tiptap/core'
+import { Extension, isNodeActive } from '@tiptap/core'
 import type { Editor } from '@tiptap/core'
 import { Suggestion } from '@tiptap/suggestion'
 import { VueRenderer } from '@tiptap/vue-3'
@@ -26,6 +26,24 @@ export interface SlashCommandItem {
 
 // 表格初始几何单一真源：hint 文案与 run 参数同源，改行列数不会「说的和插的不一样」
 const TABLE_INIT = { rows: 3, cols: 3, withHeaderRow: true }
+
+// 列表类斜杠命令的统一语义是「建立/继续列表」，不是工具栏按钮的 toggle：
+// 光标已在同类列表内时拆出新项（等价回车），否则走 toggle 新建。
+// 修正前在列表内触发 toggle = lift 当前项出列表，内容会脱节。
+// toggle 仍保留两个合理用途：列表外新建（TipTap toggleList 自带相邻列表合并）、列表类型互转。
+function runListCommand(
+  listType: string,
+  itemType: string,
+  toggle: (editor: Editor) => void,
+) {
+  return (editor: Editor) => {
+    if (isNodeActive(editor.state, listType)) {
+      editor.chain().focus().splitListItem(itemType).run()
+      return
+    }
+    toggle(editor)
+  }
+}
 
 const COMMANDS: SlashCommandItem[] = [
   {
@@ -81,19 +99,22 @@ const COMMANDS: SlashCommandItem[] = [
     id: 'bullet-list',
     label: '无序列表',
     hint: '圆点列表',
-    run: editor => editor.chain().focus().toggleBulletList().run(),
+    run: runListCommand('bulletList', 'listItem', editor =>
+      editor.chain().focus().toggleBulletList().run()),
   },
   {
     id: 'ordered-list',
     label: '有序列表',
     hint: '数字列表',
-    run: editor => editor.chain().focus().toggleOrderedList().run(),
+    run: runListCommand('orderedList', 'listItem', editor =>
+      editor.chain().focus().toggleOrderedList().run()),
   },
   {
     id: 'task-list',
     label: '待办',
     hint: '可勾选清单',
-    run: editor => editor.chain().focus().toggleTaskList().run(),
+    run: runListCommand('taskList', 'taskItem', editor =>
+      editor.chain().focus().toggleTaskList().run()),
   },
 ]
 
