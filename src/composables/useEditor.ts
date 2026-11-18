@@ -15,6 +15,7 @@ import StarterKit from '@tiptap/starter-kit'
 import Placeholder from '@tiptap/extension-placeholder'
 import Mention from '@tiptap/extension-mention'
 import { SlashCommandExtension } from './useSlashCommand'
+import { ListBackspaceGuard, ListEnterGuard } from './listGuards'
 import { useToast } from './useToast'
 import TaskList from '@tiptap/extension-task-list'
 import TaskItemBase from '@tiptap/extension-task-item'
@@ -185,6 +186,10 @@ export function useSensendEditor(
       TableKit,
       // 斜杠命令：行首 "/" 弹命令列表（插入表格等），与 @mention 同构
       SlashCommandExtension,
+      // 列表结构守护：行首退格永不劈开列表 + 父项带子列表时回车新建同级项
+      // （上游 liftOutOfList 劈列/吃子列表的真 bug，详见 listGuards.ts 头注释）
+      ListBackspaceGuard,
+      ListEnterGuard,
       // 发送成功视觉标记（ProseMirror decoration，不碰文档 JSON）
       SentMarkExtension,
       // Markdown 支持：提供 parse/serialize 能力，配合 handlePaste 处理纯文本 Markdown 粘贴

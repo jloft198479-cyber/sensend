@@ -198,6 +198,7 @@ sensend/
 │   │   ├── useEditor.ts        # TipTap 编辑器核心
 │   │   ├── useEditorFormat.ts  # 格式操作（粗体/标题/列表…）
 │   │   ├── useSlashCommand.ts  # 斜杠命令扩展（COMMANDS 注册表 + when 上下文限位）
+│   │   ├── listGuards.ts       # 列表结构守护（退格不劈列/嵌套回车守卫，自 solo 移植）
 │   │   ├── useTheme.ts         # 主题注册表（SSOT）与切换逻辑（v0.4.0 新增）
 │   │   ├── usePlatform.ts      # 平台实例与发送逻辑
 │   │   ├── useConfig.ts        # 配置窗口表单状态机
