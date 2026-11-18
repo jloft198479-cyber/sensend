@@ -53,21 +53,28 @@
         }
       ],
       "style": {
-        "language": 28
+        "language": 28,
+        "wrap": true
       }
     }
   },
   {
-    "block_type": 15,
-    "quote": {
-      "elements": [
-        {
-          "text_run": {
-            "content": "引用结尾"
-          }
+    "block_type": 34,
+    "children": [
+      {
+        "block_type": 15,
+        "quote": {
+          "elements": [
+            {
+              "text_run": {
+                "content": "引用结尾"
+              }
+            }
+          ],
+          "style": {}
         }
-      ],
-      "style": {}
-    }
+      }
+    ],
+    "quote_container": {}
   }
 ]

@@ -206,7 +206,7 @@ Invoke-RestMethod -Uri "https://open.feishu.cn/open-apis/docx/v1/documents/$doc/
 **结论先行**：
 1. **核心格式覆盖完整**：Sensend 支持的 TipTap 节点（段落、标题1-9、无序/有序/待办列表、代码块、引用、分割线、表格）和行内样式（粗/斜/删/下划线/行内码/链接）全部映射到飞书 block；代码块语言映射表覆盖 34 个别名、75 种飞书枚举语言中的常用 30+ 种。
 2. **已修复**：表格曾降级为文本 → 现已用原生 `table(31)` + `table_cell(32)` 块 + `descendant` API 创建（d09a413）。
-3. **未修复缺陷**：引用未用 quote_container、Mention 降级纯文本、嵌套列表拍平丢层级、代码块 wrap 未设置——见 [§5.6](#56-已知缺陷与改进)。（429/99991400 限流重试已于 2026-11-16 补上；text_run 单元素超限已按 2000 字符切片，block 总量上限仍属已知限制。）
+3. **未修复缺陷**：仅剩 block 总量上限（超长内容需拆块，功能变更）与 mention 原生提及（发送链路已剥除 mention，不影响实际发送）——见 [§5.6](#56-已知缺陷与改进)。引用容器、嵌套列表层级、代码块 wrap 已于 2026-11-18 修复并真机复验。
 4. **飞书 vs Notion 差异显著**：飞书支持 9 级标题（Notion 仅 3 级）、原生表格走嵌套块 API、块级背景色 14 种；但飞书无 toggle / bookmark。
 
 ### 5.1 Block 类型体系
@@ -321,9 +321,9 @@ TipTap JSON → ir.rs::parse()（唯一遍历点）→ IR Block 序列 → lark.
 各 IR Block 类型映射要点：
 - **Paragraph**：空段落兜底为 `empty_element()`（飞书要求 elements 非空）；`style` 固定 `{}`。
 - **Heading**：支持 1-9 级，超限截断为 9 级；动态构造 `heading1..heading9` key。
-- **List**：Task 用原生 todo(17) + `style.done`；嵌套子列表拍平为同级 block（丢层级，见 §5.6 P2）。
-- **CodeBlock**：语言映射完整；`style.wrap` 未设置（默认不换行）。
-- **BlockQuote**：多段落拆为多个 quote(15) block，未用 quote_container(34)。
+- **List**：Task 用原生 todo(17) + `style.done`；嵌套子列表挂到父项 `children`，发送层走 descendant API 保留层级（2026-11-18 实测 parent_id 指向父项）。
+- **CodeBlock**：语言映射完整；`style.wrap=true`，长行自动换行（2026-11-18 实测回读）。
+- **BlockQuote**：整段引用包进 quote_container(34)，段内每段为子 quote(15)（2026-11-18 实测回读 1 容器 2 子块）。
 - **Table**（已重写 d09a413）：`table(31)` → `table_cell(32)` → `text(2)` 三层，发送层走 descendant API；空单元格填空 text 块（官方要求 cell 至少一个子块）；参差行按首行列数补空；空表格跳过；行内格式保留。
 - **HorizontalRule**：→ divider(22)。
 - **Inline**：Text+marks → text_run + style；hardBreak → `\n` 软换行；Mention 降级为纯文本 `@标签`。
@@ -374,7 +374,7 @@ TipTap JSON → ir.rs::parse()（唯一遍历点）→ IR Block 序列 → lark.
 | orderedList | List{Ordered} | 13 | `ordered` | ✅ |
 | taskList | List{Task} | 17 | `todo` | ✅ |
 | codeBlock | CodeBlock | 14 | `code` | ✅ |
-| blockquote | BlockQuote | 15 | `quote` | ✅（未用 quote_container） |
+| blockquote | BlockQuote | 34 + 15 | `quote_container` + `quote` | ✅（整段引用包进容器） |
 | table | Table | 31 + 32 | `table` + `table_cell` | ✅（原生创建） |
 | horizontalRule | HorizontalRule | 22 | `divider` | ✅ |
 
@@ -394,17 +394,17 @@ TipTap JSON → ir.rs::parse()（唯一遍历点）→ IR Block 序列 → lark.
 
 ### 5.6 已知缺陷与改进
 
-> 状态基准：2026-08-18 调研 + 2026-08-19 P1 修复提交（d09a413）后。
+> 状态基准：2026-11-18 真实发送复验（发送到 wiki 文档并回读 block 结构）。
 
 | 编号 | 缺陷 | 严重度 | 状态 |
 |---|---|---|:---:|
 | P1-1 | 无 429/99991400 限流重试（`request()` 直接返回 Err） | P1 | ✅ 已修复（429 + 业务码 99991400 退避重试 2 次） |
 | P1-2 | 表格降级为文本 | P1 | ✅ 已修复（原生 table + descendant，d09a413） |
-| P1-3 | 引用未用 quote_container(34) 嵌套 | P1 | ❌ 未修复 |
+| P1-3 | 引用未用 quote_container(34) 嵌套 | P1 | ✅ 已修复（quote_container + 子 quote，实测回读 1 容器 2 子块） |
 | P1-4 | text_run 无长度上限检查（经验值约 50000 字符/block） | P1 | 🟡 部分修复：代码块已按 2000 字符切片（单元素不再超限）；**block 总量上限仍未处理**——超长代码块需拆成多个 block，属功能变更，暂记为已知限制 |
-| P2-1 | Mention 降级为纯文本（需 IR 扩展 user_id） | P2 | ❌ 未修复 |
-| P2-2 | 嵌套列表拍平丢层级 | P2 | ❌ 未修复 |
-| P2-3 | 代码块 wrap 未设置（长行不换行） | P2 | ❌ 未修复 |
+| P2-1 | Mention 降级为纯文本（需 IR 扩展 user_id） | P2 | ⚪ 不修：发送链路前端已剥除 mention，适配器不会收到；仅保留防丢文本兜底 |
+| P2-2 | 嵌套列表拍平丢层级 | P2 | ✅ 已修复（子项挂父项 children，实测 parent_id 指向父项） |
+| P2-3 | 代码块 wrap 未设置（长行不换行） | P2 | ✅ 已修复（`style.wrap=true`，实测回读） |
 | P3 | Callout/折叠/对齐/行内颜色/公式/@提及/分栏/图片等能力未利用 | P3 | ❌ 未来增强 |
 
 ### 5.7 与 Notion 平台对比
@@ -432,8 +432,8 @@ TipTap JSON → ir.rs::parse()（唯一遍历点）→ IR Block 序列 → lark.
 | 测试名 | 验证点 |
 |---|---|
 | `fix_s3_todo_uses_native_block` | 待办用原生 todo(17) + style.done |
-| `fix2_nested_list_flattened_not_dropped` | 嵌套子项拍平输出不丢失 |
+| `fix2_nested_list_keeps_hierarchy` | 嵌套子项挂在父项 children 下，不拍平 |
 | `fix3_list_item_multi_paragraph_kept` | 列表项多段落用 \n 保留 |
 | `b2_language_mapping` | 语言映射大小写不敏感 + 未知回落 PlainText |
 
-**未覆盖场景**：429 限流重试（无 mock server）、超长 text_run 分段、quote_container 嵌套引用、mention_user/mention_doc 原生提及、wiki URL 解析（需 mock API）。
+**未覆盖场景**：429 限流重试（无 mock server）、超长 text_run 分段、mention_user/mention_doc 原生提及、wiki URL 解析（需 mock API）。quote_container 嵌套引用、列表层级、代码块 wrap 已于 2026-11-18 真机复验。

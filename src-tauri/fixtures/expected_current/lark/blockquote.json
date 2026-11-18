@@ -1,28 +1,34 @@
 [
   {
-    "block_type": 15,
-    "quote": {
-      "elements": [
-        {
-          "text_run": {
-            "content": "引用段落"
-          }
+    "block_type": 34,
+    "children": [
+      {
+        "block_type": 15,
+        "quote": {
+          "elements": [
+            {
+              "text_run": {
+                "content": "引用段落"
+              }
+            }
+          ],
+          "style": {}
         }
-      ],
-      "style": {}
-    }
-  },
-  {
-    "block_type": 15,
-    "quote": {
-      "elements": [
-        {
-          "text_run": {
-            "content": "第二段引用"
-          }
+      },
+      {
+        "block_type": 15,
+        "quote": {
+          "elements": [
+            {
+              "text_run": {
+                "content": "第二段引用"
+              }
+            }
+          ],
+          "style": {}
         }
-      ],
-      "style": {}
-    }
+      }
+    ],
+    "quote_container": {}
   }
 ]

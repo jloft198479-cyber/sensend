@@ -25,6 +25,7 @@ const BLOCK_TODO: i64 = 17;
 const BLOCK_DIVIDER: i64 = 22;
 const BLOCK_TABLE: i64 = 31;
 const BLOCK_TABLE_CELL: i64 = 32;
+const BLOCK_QUOTE_CONTAINER: i64 = 34;
 
 // ── 飞书代码块语言映射（枚举值源自飞书官方 CodeLanguage 枚举）──
 // 未知语言回落 1（PlainText）
@@ -581,21 +582,34 @@ fn map_blocks(blocks: &[super::ir::Block], out: &mut Vec<Value>) {
                         // [M-08] 单个 text_run.content 有长度上限，超长代码块整段塞一个
                         // 元素会被平台拒收（整篇发送失败）
                         "elements": split_text_elements(code),
-                        "style": { "language": map_language(language) }
+                        // wrap=true：长代码行自动换行。此前未设置，飞书默认不换行，
+                        // 发送后长行会横向溢出（实测回读 style.wrap=false）
+                        "style": { "language": map_language(language), "wrap": true }
                     }
                 }));
             }
             Block::BlockQuote(paras) => {
+                // 整段引用包进 quote_container(34)：多段引用在飞书里是「同一个引用块」，
+                // 此前拆成多个独立 quote(15) 块，段落间失去引用归属（实测 2 段 → 2 个散块）
+                let mut children = Vec::new();
                 for para in paras {
                     let elements = inlines_to_elements(para);
                     if elements.is_empty() {
                         continue;
                     }
-                    out.push(json!({
+                    children.push(json!({
                         "block_type": BLOCK_QUOTE,
                         "quote": { "elements": elements, "style": {} }
                     }));
                 }
+                if children.is_empty() {
+                    continue;
+                }
+                out.push(json!({
+                    "block_type": BLOCK_QUOTE_CONTAINER,
+                    "quote_container": {},
+                    "children": children
+                }));
             }
             Block::Table(table) => {
                 // 飞书原生表格：table(31) → table_cell(32) → text(2)（官方 FAQ「创建含内容的表格」）
@@ -674,12 +688,22 @@ fn map_list_item(kind: super::ir::ListKind, item: &super::ir::ListItem, out: &mu
             "elements": elements,
             "style": extra_style
         }));
+        // 嵌套子列表挂成子块（children）：此前拍平成同级 block，层级全丢
+        // （实测子项与父项 parent_id 相同、无 indentation_level）。
+        // 发送层检测到 children 会走 descendant API，树形结构原样落库
+        let mut child_blocks = Vec::new();
+        for child in &item.children {
+            map_blocks(std::slice::from_ref(child), &mut child_blocks);
+        }
+        if !child_blocks.is_empty() {
+            block.as_object_mut().unwrap().insert("children".into(), json!(child_blocks));
+        }
         out.push(block);
-    }
-
-    // 嵌套子列表：飞书拍平为同级块（文本不丢，层级降级）
-    for child in &item.children {
-        map_blocks(std::slice::from_ref(child), out);
+    } else {
+        // 空项本身丢弃，但子列表内容不能跟着丢
+        for child in &item.children {
+            map_blocks(std::slice::from_ref(child), out);
+        }
     }
 }
 
@@ -805,19 +829,19 @@ mod tests {
     }
 
     #[test]
-    fn fix2_nested_list_flattened_not_dropped() {
+    fn fix2_nested_list_keeps_hierarchy() {
         let fixture = test_helpers::load_fixture("nested_list");
         let blocks = convert(&fixture);
-        // 现状缺陷是子项完全丢失；修复后拍平输出：顶层 2 项 + 子项 2 项 = 4 个 bullet
-        let bullets: Vec<&Value> = blocks.iter()
-            .filter(|b| b["block_type"] == json!(BLOCK_BULLET))
-            .collect();
-        assert_eq!(bullets.len(), 4, "嵌套子项应拍平输出而不是丢弃");
-        let texts: Vec<String> = bullets.iter().map(|b| {
+        // 顶层 2 项；子项挂在父项的 children 下（此前拍平成 4 个同级 bullet）
+        assert_eq!(blocks.len(), 2, "顶层应只有 2 个 bullet，子项不得拍平: {:?}", blocks);
+        let children = blocks[0]["children"].as_array().expect("父项应带 children");
+        assert_eq!(children.len(), 2, "父项下应挂 2 个子项");
+        let texts: Vec<String> = children.iter().map(|b| {
             b["bullet"]["elements"][0]["text_run"]["content"].as_str().unwrap_or("").to_string()
         }).collect();
         assert!(texts.contains(&"子项 1.1".to_string()), "子项文本不丢: {:?}", texts);
         assert!(texts.contains(&"子项 1.2".to_string()));
+        assert!(blocks[1].get("children").is_none(), "无子项的顶层项不应带 children");
     }
 
     #[test]

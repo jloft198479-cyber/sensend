@@ -10,7 +10,8 @@
         }
       ],
       "style": {
-        "language": 53
+        "language": 53,
+        "wrap": true
       }
     }
   }

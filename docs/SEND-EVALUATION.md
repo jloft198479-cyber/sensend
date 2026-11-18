@@ -77,10 +77,10 @@ annotations 全字段输出（含 `plain_text`、`href`、`color`），结构与
 遗留问题（FEISHU-GUIDE.md §5 已记录，详见 TODO）：
 
 - ~~429/99991400 限流无重试~~ → 已加：HTTP 429 与业务码 99991400 都做 2 次退避重试。
-- **引用未使用 quote_container 嵌套**（P1 未修）：每段拆为独立 quote block，段落间失去引用归属关系。
+- ~~引用未使用 quote_container 嵌套~~ → 已修复（2026-11-18 真机复验）：整段引用包进 quote_container(34)，段内为子 quote(15)。
 - **text_run 长度上限**：单元素已按 2000 字符切片（不再超限）；**block 总量上限（约 50000 字符/block）仍未处理**，超长代码块需拆成多个 block，属功能变更，记为已知限制。
-- **嵌套列表拍平丢层级**（P2 未修）：子列表拍平为同级 block，丢失缩进层级。
-- **代码块 wrap 未设置**（P2 未修）：`style.wrap` 默认 false，长代码行不自动换行。
+- ~~嵌套列表拍平丢层级~~ → 已修复（2026-11-18 真机复验）：子项挂父项 `children`，回读 parent_id 指向父项。
+- ~~代码块 wrap 未设置~~ → 已修复（2026-11-18 真机复验）：`style.wrap=true`。
 
 ### 2.3 前端进站格式保真
 
@@ -184,8 +184,8 @@ Notion `create_page` 的部分失败处理得好（报"页面已创建，但 N �
 | P1 | FlowUs 表格单元格多 rich_text 丢失（对齐 Notion d2d8909 修复） | FlowUs | ✅ 已修复（d09a413） |
 | P1 | Notion 代码块语言映射表（参照飞书 LARK_LANG_MAP） | Notion | ✅ 已修复（d09a413） |
 | P1 | Notion 嵌套列表递归深度截断（上限 2 层） | Notion | ✅ 已修复（d09a413） |
-| P2 | 飞书引用使用 quote_container 嵌套 | 飞书 | ❌ 排队（TODO） |
-| P2 | 飞书嵌套列表层级保留（不拍平） | 飞书 | ❌ 排队（TODO） |
+| P2 | 飞书引用使用 quote_container 嵌套 | 飞书 | ✅ 已修复（2026-11-18） |
+| P2 | 飞书嵌套列表层级保留（不拍平） | 飞书 | ✅ 已修复（2026-11-18） |
 
 ### 4.2 发送稳定性优先修复项
 
